@@ -1,11 +1,13 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
+    path,
     components::{Route, Router, Routes},
     StaticSegment,
 };
 
 mod editor;
+use editor::Editor;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -38,16 +40,18 @@ pub fn App() -> impl IntoView {
         // sets the document title
         <Title text="Welcome to Leptos"/>
 
-        // content for this welcome page
+        // Router
         <Router>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>
+                    <Route path=path!("/editor") view=Editor/>
                 </Routes>
             </main>
         </Router>
     }
 }
+
 
 /// Renders the home page of your application.
 #[component]
