@@ -2,12 +2,17 @@
 //!
 //! This is the GUI-area and directly related APIs/server functions to save its data.
 
+use std::sync::Arc;
+
 use leptos::{ev::keydown, logging::log, prelude::*};
 use leptos_use::{use_document, use_event_listener};
+use undo::{BlockSwap, UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlInputElement};
 
 mod blocks;
 use blocks::*;
+
+mod undo;
 
 fn new_node(
     physical_index_maybe: impl Fn(i32) -> Option<usize>,
@@ -95,6 +100,8 @@ fn new_node(
 
 #[component]
 pub(crate) fn Editor() -> impl IntoView {
+    let undo_stack = RwSignal::new(UnReStack::new());
+
     let initial_id = 1;
     let (next_id, set_next_id) = signal(initial_id);
     let init_blocks = vec![];
@@ -125,6 +132,8 @@ pub(crate) fn Editor() -> impl IntoView {
             Some(view! {
                 <button on:click=move |_| {
                     set_blocks.write().swap(physical_index, physical_index - 1);
+                    // push the swap to the undo stack
+                    undo_stack.write().push_undo(UnReStep::BlockSwap(BlockSwap::new(physical_index, physical_index - 1)));
                 }>"Move this thingy up"</button>
             })
         } else {
@@ -148,7 +157,10 @@ pub(crate) fn Editor() -> impl IntoView {
         if let Some(physical_index) = index_if_not_last(id) {
             Some(view! {
                 <button on:click=move |_| {
+                    // swap them
                     set_blocks.write().swap(physical_index, physical_index + 1);
+                    // push the swap to the undo stack
+                    undo_stack.write().push_undo(UnReStep::BlockSwap(BlockSwap::new(physical_index, physical_index + 1)));
                 }>"Move this thingy down"</button>
             })
         } else {
@@ -159,8 +171,26 @@ pub(crate) fn Editor() -> impl IntoView {
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
         log!("{}", evt.key_code());
+        // <ctrl>-<alt>-Z - undo
+        if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
+            log!("Firing undo");
+            match undo_stack.write().undo(&mut set_blocks.write()) {
+                Ok(()) => {}
+                Err(e) => {
+                    log!("{e}");
+                }
+            };
+        // <ctrl>-<alt>-R - redo
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 82 {
+            log!("Firing redo");
+            match undo_stack.write().redo(&mut set_blocks.write()) {
+                Ok(()) => {}
+                Err(e) => {
+                    log!("{e}");
+                }
+            };
         // <ctrl>-<alt>-T (new Text)
-        if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 84 {
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 84 {
             new_node(
                 physical_index_maybe,
                 blocks,

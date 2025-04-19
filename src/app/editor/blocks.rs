@@ -7,13 +7,14 @@ use leptos::prelude::*;
 use web_sys::HtmlInputElement;
 
 
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub(super) struct EditorBlock {
     id: i32,
     inner: InnerBlock,
     focus_on_load: bool,
 }
 impl EditorBlock {
+    // construct a block with id, type, content, and focus state
     pub fn new(id: i32, block_type: InnerBlockType, content: String, focus_on_load: bool) -> Self {
         Self {
             id,
@@ -22,13 +23,27 @@ impl EditorBlock {
         }
     }
 
+    /// Get this blocks id
     pub fn id(&self) -> i32 {
         self.id
     }
 
+    /// Display this block
     pub(super) fn view(self) -> impl IntoView {
         view!{
             <span>{self.id}":"{move || self.inner.clone().view(self.id, self.focus_on_load)}</span>
+        }
+    }
+
+    /// Overwrite the inner block with `new_inner` if it is currently `old_inner`
+    ///
+    /// Will clone new_inner if required, but not if the assert failed
+    pub(super) fn overwrite_inner(&mut self, old_inner: &InnerBlockDry, new_inner: &InnerBlockDry) -> Option<()> {
+        if *old_inner != self.inner {
+            None
+        } else {
+            self.inner = new_inner.clone().into();
+            Some(())
         }
     }
 
@@ -56,6 +71,10 @@ impl EditorBlock {
             })
             .collect()
     }
+}
+pub(super) struct EditorBlockDry {
+    id: i32,
+    inner: InnerBlockDry,
 }
 /// Dataless types for Blocks
 pub(super) enum InnerBlockType {
@@ -274,3 +293,90 @@ impl InnerBlock {
     }
 }
 
+/// Version of [`InnerBlock`] without Signals
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(super) enum InnerBlockDry {
+    /// Raw text without special markup
+    /// text
+    Text(String),
+    /// A part of Text with uncertainty
+    /// (proposed-text, reason)
+    Uncertain(String, String),
+    /// A part of Text that is absent or entirely unreadable
+    /// (proposed-text, reason)
+    Lacuna(String, String),
+    /// A break (Line, Column, Page, ...)
+    /// TODO: we want this to be an enum over type instead; with selection menu in GUI
+    /// (type of break)
+    Break(String),
+}
+/// Dehydrate [`InnerBlock`]
+impl From<InnerBlock> for InnerBlockDry {
+    fn from(value: InnerBlock) -> Self {
+        match value {
+            InnerBlock::Break(x) => { InnerBlockDry::Break(x.get()) }
+            InnerBlock::Text(x) => { InnerBlockDry::Text(x.get()) }
+            InnerBlock::Lacuna(x, y) => { InnerBlockDry::Lacuna(x.get(), y.get()) }
+            InnerBlock::Uncertain(x, y) => { InnerBlockDry::Uncertain(x.get(), y.get()) }
+        }
+    }
+}
+/// Hydrate [`InnerBlockDry`]
+impl From<InnerBlockDry> for InnerBlock {
+    fn from(value: InnerBlockDry) -> Self {
+        match value {
+            InnerBlockDry::Break(x) => { InnerBlock::Break(RwSignal::new(x)) }
+            InnerBlockDry::Text(x) => { InnerBlock::Text(RwSignal::new(x)) }
+            InnerBlockDry::Lacuna(x, y) => { InnerBlock::Lacuna(RwSignal::new(x), RwSignal::new(y)) }
+            InnerBlockDry::Uncertain(x, y) => { InnerBlock::Uncertain(RwSignal::new(x), RwSignal::new(y)) }
+        }
+    }
+}
+/// Compare [`InnerBlock`] agains [`InnerBlockDry`] without (de-)hydrating either side
+///
+/// This is more efficient because we do not need to clone or create a signal
+impl PartialEq<InnerBlock> for InnerBlockDry {
+    fn eq(&self, other: &InnerBlock) -> bool {
+        match self {
+            InnerBlockDry::Break(x) => { match other {
+                InnerBlock::Break(y) => {
+                    *x == *y.read()
+                }
+                _ => false,
+            }}
+            InnerBlockDry::Text(x) => { match other {
+                InnerBlock::Text(y) => {
+                    *x == *y.read()
+                }
+                _ => false,
+            }}
+            InnerBlockDry::Uncertain(x, y) => { match other {
+                InnerBlock::Uncertain(a, b) => {
+                    *x == *a.read() && *y == *b.read()
+                }
+                _ => false,
+            }}
+            InnerBlockDry::Lacuna(x, y) => { match other {
+                InnerBlock::Lacuna(a, b) => {
+                    *x == *a.read() && *y == *b.read()
+                }
+                _ => false,
+            }}
+        }
+    }
+    fn ne(&self, other: &InnerBlock) -> bool {
+        !self.eq(other)
+    }
+}
+/// Compare [`InnerBlockDry`] agains [`InnerBlock`] without (de-)hydrating either side
+///
+/// This is more efficient because we do not need to clone or create a signal
+impl PartialEq<InnerBlockDry> for InnerBlock {
+    fn eq(&self, other: &InnerBlockDry) -> bool {
+        other.eq(self)
+    }
+
+    fn ne(&self, other: &InnerBlockDry) -> bool {
+        other.ne(self)
+    }
+}
