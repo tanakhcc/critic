@@ -189,6 +189,16 @@ pub(crate) fn Editor() -> impl IntoView {
                 set_next_id,
                 InnerBlockType::Lacuna,
             );
+        // <ctrl>-<alt>-<ENTER> (new Break)
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 13 {
+            new_node(
+                physical_index_maybe,
+                blocks,
+                set_blocks,
+                next_id,
+                set_next_id,
+                InnerBlockType::Break,
+            );
         };
     });
 

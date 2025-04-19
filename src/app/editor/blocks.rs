@@ -69,7 +69,13 @@ pub(super) enum InnerBlockType {
     ///
     /// These are places that can only be supplied, no actual reading of the remains is possible
     Lacuna,
+    /// A break (Line, Column, Page, ...)
+    Break,
 }
+/// Block type with data
+///
+/// TODO: make this a struct, holding type, content and metadata instead
+/// then revisit the diverse methods here and every other match statement over type
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub(super) enum InnerBlock {
     /// Raw text without special markup
@@ -81,6 +87,10 @@ pub(super) enum InnerBlock {
     /// A part of Text that is absent or entirely unreadable
     /// (proposed-text, reason)
     Lacuna(RwSignal<String>, RwSignal<String>),
+    /// A break (Line, Column, Page, ...)
+    /// TODO: we want this to be an enum over type instead; with selection menu in GUI
+    /// (type of break)
+    Break(RwSignal<String>),
 }
 impl InnerBlock {
     /// Create a new Block with content
@@ -92,6 +102,10 @@ impl InnerBlock {
             }
             InnerBlockType::Lacuna => {
                 InnerBlock::Lacuna(RwSignal::new(content), RwSignal::<String>::default())
+            }
+            InnerBlockType::Break=> {
+                // Breaks do not have content; ignore it
+                InnerBlock::Break(RwSignal::<String>::default())
             }
         }
     }
@@ -112,46 +126,57 @@ impl InnerBlock {
             });
         }
         match self {
-            InnerBlock::Text(x) => {
+            InnerBlock::Text(content) => {
                 view! {
                     <div>
                         <p>"Raw Text: "</p>
-                        <input node_ref=focus_element id={format!("block-input-{id}")} value=x.get() on:input:target=move |ev| {
-                            x.set(ev.target().value());
+                        <input node_ref=focus_element id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
+                            content.set(ev.target().value());
                         }/>
                     </div>
                 }.into_any()
             }
-            InnerBlock::Uncertain(x, y) => {
+            InnerBlock::Uncertain(content, reason) => {
                 view! {
                     <div>
                         <p>"Uncertain: "</p>
-                        <input id={format!("block-input-{id}")} value=x.get() on:input:target=move |ev| {
-                            x.set(ev.target().value());
+                        <input id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
+                            content.set(ev.target().value());
                         }/>
                         // we want to focus on the uncertainty for a new uncertain passage
                         // it is most likely that someone took a part of Text and marked a part as
                         // uncertain. In this case, the main content is already correct but the reasons
                         // needs to be supplied next
-                        <input node_ref=focus_element value=y.get() on:input:target=move |ev| {
-                            y.set(ev.target().value());
+                        <input node_ref=focus_element value=reason.get() on:input:target=move |ev| {
+                            reason.set(ev.target().value());
                         }/>
                     </div>
                 }.into_any()
             }
-            InnerBlock::Lacuna(x, y) => {
+            InnerBlock::Lacuna(content, reason) => {
                 view! {
                     <div>
                         <p>"Lacuna: "</p>
-                        <input id={format!("block-input-{id}")} value=x.get() on:input:target=move |ev| {
-                            x.set(ev.target().value());
+                        <input id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
+                            content.set(ev.target().value());
                         }/>
                         // we want to focus on the reason for a new lacunous passage
                         // it is most likely that someone took a part of Text and marked a part as
                         // lacuna. In this case, the main content is already correct but the reasons
                         // needs to be supplied next
-                        <input node_ref=focus_element value=y.get() on:input:target=move |ev| {
-                            y.set(ev.target().value());
+                        <input node_ref=focus_element value=reason.get() on:input:target=move |ev| {
+                            reason.set(ev.target().value());
+                        }/>
+                    </div>
+                }.into_any()
+            }
+            InnerBlock::Break(break_type) => {
+                view! {
+                    <div>
+                        <p>"Break: "</p>
+                        // TODO make this a drop down instead
+                        <input node_ref=focus_element value=break_type.get() on:input:target=move |ev| {
+                            break_type.set(ev.target().value());
                         }/>
                     </div>
                 }.into_any()
@@ -173,6 +198,7 @@ impl InnerBlock {
             Self::Text(el) => el.get(),
             Self::Uncertain(el, _) => el.get(),
             Self::Lacuna(el, _) => el.get(),
+            Self::Break(_) => "".to_owned(),
         };
         let (before_part, new_part, after_part) = if start == 0 {
             if end == complete_value.len() {
@@ -209,22 +235,13 @@ impl InnerBlock {
                         InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
                     }
                     Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
+                    Self::Break(y) => InnerBlock::Break(*y),
                 },
                 false,
             ));
         };
         res.push((
-            match new_block_type {
-                InnerBlockType::Text => InnerBlock::Text(RwSignal::new(new_part.to_owned())),
-                InnerBlockType::Uncertain => InnerBlock::Uncertain(
-                    RwSignal::new(new_part.to_owned()),
-                    RwSignal::<String>::default(),
-                ),
-                InnerBlockType::Lacuna => InnerBlock::Lacuna(
-                    RwSignal::new(new_part.to_owned()),
-                    RwSignal::<String>::default(),
-                ),
-            },
+            InnerBlock::new_from_type_and_content(new_block_type, new_part.to_owned()),
             // we do want to autofocus on the middle block
             true,
         ));
@@ -236,6 +253,7 @@ impl InnerBlock {
                         InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
                     }
                     Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
+                    Self::Break(y) => InnerBlock::Break(*y),
                 },
                 false,
             ));
