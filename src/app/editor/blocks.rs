@@ -74,9 +74,10 @@ pub(super) enum InnerBlockType {
 }
 /// Block type with data
 ///
-/// TODO: make this a struct, holding type, content and metadata instead
-/// then revisit the diverse methods here and every other match statement over type
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+/// NOTE: this could also be done with Traits and generic functions.
+/// That would be nicer in a sense, but we are compiling into WASM, so binary size is more
+/// important then nice generics imho. I keep it as this enum with some runtimechecks.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) enum InnerBlock {
     /// Raw text without special markup
     /// text
@@ -93,6 +94,31 @@ pub(super) enum InnerBlock {
     Break(RwSignal<String>),
 }
 impl InnerBlock {
+    /// Copy the metadata from [`self`] but get the content from another string
+    pub fn clone_with_new_content(&self, content: String) -> Self {
+        match self {
+            Self::Text(_) => InnerBlock::Text(RwSignal::new(content.to_owned())),
+            Self::Uncertain(_, y) => {
+                InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
+            }
+            Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
+            Self::Break(y) => InnerBlock::Break(*y),
+        }
+    }
+
+    /// get this blocks content if this blocktype has content
+    ///
+    /// This is one of the functions which would be nicer with Traits, but here we need to return
+    /// Option instead.
+    pub fn content(&self) -> Option<guards::ReadGuard<String, guards::Plain<String>>> {
+        match &self {
+            Self::Text(el) => Some(el.read()),
+            Self::Uncertain(el, _) => Some(el.read()),
+            Self::Lacuna(el, _) => Some(el.read()),
+            Self::Break(_) => None,
+        }
+    }
+
     /// Create a new Block with content
     pub fn new_from_type_and_content(block_type: InnerBlockType, content: String) -> Self {
         match block_type {
@@ -194,11 +220,11 @@ impl InnerBlock {
         end: usize,
         new_block_type: InnerBlockType,
     ) -> Vec<(InnerBlock, bool)> {
-        let complete_value = match self {
-            Self::Text(el) => el.get(),
-            Self::Uncertain(el, _) => el.get(),
-            Self::Lacuna(el, _) => el.get(),
-            Self::Break(_) => "".to_owned(),
+        let complete_value = match self.content() {
+            Some(x) => x,
+            // Block types without content can never fire split_at_selection,
+            // so the function should return itself
+            None => { return vec![(self.clone(), false)]; }
         };
         let (before_part, new_part, after_part) = if start == 0 {
             if end == complete_value.len() {
@@ -229,14 +255,7 @@ impl InnerBlock {
         // first and last block (if any) keeps the same type as this one
         if let Some(content) = before_part {
             res.push((
-                match self {
-                    Self::Text(_) => InnerBlock::Text(RwSignal::new(content.to_owned())),
-                    Self::Uncertain(_, y) => {
-                        InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
-                    }
-                    Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
-                    Self::Break(y) => InnerBlock::Break(*y),
-                },
+                self.clone_with_new_content(content.to_owned()),
                 false,
             ));
         };
@@ -247,14 +266,7 @@ impl InnerBlock {
         ));
         if let Some(content) = after_part {
             res.push((
-                match self {
-                    Self::Text(_) => InnerBlock::Text(RwSignal::new(content.to_owned())),
-                    Self::Uncertain(_, y) => {
-                        InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
-                    }
-                    Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
-                    Self::Break(y) => InnerBlock::Break(*y),
-                },
+                self.clone_with_new_content(content.to_owned()),
                 false,
             ));
         };
