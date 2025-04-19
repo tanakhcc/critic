@@ -25,7 +25,7 @@ trait Invert {
     fn invert(self) -> Self;
 }
 /// This trait is used to actually undo the action performed.
-trait UnRe : Replay + Invert + Sized {
+trait UnRe: Replay + Invert + Sized {
     /// Undo the effect by inverting it and then applying this inversion
     ///
     /// Also return the inverted effect for pushing it on the redo stack
@@ -56,9 +56,15 @@ pub enum ReplayError {
 impl core::fmt::Display for ReplayError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            Self::BlockNotFound(x) => { write!(f, "Unable to find block with id {x}") }
-            Self::OldStateInconsistent => { write!(f, "The current state is not consistent with the state that should exist to undo an action") }
-            Self::NothingToReplay => { write!(f, "There is no action available to undo") }
+            Self::BlockNotFound(x) => {
+                write!(f, "Unable to find block with id {x}")
+            }
+            Self::OldStateInconsistent => {
+                write!(f, "The current state is not consistent with the state that should exist to undo an action")
+            }
+            Self::NothingToReplay => {
+                write!(f, "There is no action available to undo")
+            }
         }
     }
 }
@@ -87,7 +93,7 @@ impl Invert for UnReStep {
 }
 impl UnRe for UnReStep {}
 
-struct DataChange {
+pub(super) struct DataChange {
     /// The (logical) id of the block that was changed
     id: i32,
     /// The block before the change
@@ -95,15 +101,33 @@ struct DataChange {
     /// The block after the change
     new_inner: InnerBlockDry,
 }
+impl DataChange {
+    pub fn new(id: i32, old_inner: InnerBlockDry, new_inner: InnerBlockDry) -> Self {
+        Self {
+            id,
+            old_inner,
+            new_inner,
+        }
+    }
+}
 impl Invert for DataChange {
     fn invert(self) -> Self {
-        Self { id: self.id, old_inner: self.new_inner, new_inner: self.old_inner }
+        Self {
+            id: self.id,
+            old_inner: self.new_inner,
+            new_inner: self.old_inner,
+        }
     }
 }
 impl Replay for DataChange {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        let block_to_revert = blocks.iter_mut().find(|blck| blck.id() == self.id).ok_or(ReplayError::BlockNotFound(self.id))?;
-        block_to_revert.overwrite_inner(&self.old_inner, &self.new_inner).ok_or(ReplayError::OldStateInconsistent)?;
+        let block_to_revert = blocks
+            .iter_mut()
+            .find(|blck| blck.id() == self.id)
+            .ok_or(ReplayError::BlockNotFound(self.id))?;
+        block_to_revert
+            .overwrite_inner(&self.old_inner, &self.new_inner)
+            .ok_or(ReplayError::OldStateInconsistent)?;
         Ok(())
     }
 }
@@ -118,17 +142,19 @@ pub(super) struct BlockSwap {
 }
 impl BlockSwap {
     pub fn new(first: usize, second: usize) -> Self {
-        Self { first, second, }
+        Self { first, second }
     }
 }
 impl Invert for BlockSwap {
     fn invert(self) -> Self {
-        Self { first: self.second, second: self.first }
+        Self {
+            first: self.second,
+            second: self.first,
+        }
     }
 }
 impl Replay for BlockSwap {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        log!("Now replaying an action of type BlockSwap");
         // if the indices are the same, this is a noop
         if self.first == self.second {
             return Ok(());
@@ -149,7 +175,10 @@ pub(super) struct UnReStack {
 }
 impl Default for UnReStack {
     fn default() -> Self {
-        Self { undo_stack: vec![], redo_stack: vec![], }
+        Self {
+            undo_stack: vec![],
+            redo_stack: vec![],
+        }
     }
 }
 impl UnReStack {
@@ -174,7 +203,7 @@ impl UnReStack {
     /// Perform one undo step
     ///
     /// Returns Some(()) when a step was actually performed
-    pub fn undo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> { 
+    pub fn undo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         // pop from the undo stack
         let top_action = self.undo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
         // undo
@@ -192,7 +221,7 @@ impl UnReStack {
     /// Perform one redo step
     ///
     /// Returns Some(()) when a step was actually performed
-    pub fn redo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> { 
+    pub fn redo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         // pop from the redo stack
         let top_action = self.redo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
         // redo
@@ -202,4 +231,3 @@ impl UnReStack {
         Ok(())
     }
 }
-

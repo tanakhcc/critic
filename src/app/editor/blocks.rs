@@ -3,9 +3,10 @@
 //! This module defines, what blocks are available, do and look like. Interaction with other
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
-use leptos::prelude::*;
+use leptos::{logging::log, prelude::*};
 use web_sys::HtmlInputElement;
 
+use super::{undo::DataChange, UnReStack, UnReStep};
 
 #[derive(Debug, Clone)]
 pub(super) struct EditorBlock {
@@ -13,6 +14,131 @@ pub(super) struct EditorBlock {
     inner: InnerBlock,
     focus_on_load: bool,
 }
+#[component]
+fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
+    let focus_element = NodeRef::new();
+    // if do_focus is true, focus this input when it is created
+    if focus_on_load {
+        Effect::new(move |_| {
+            focus_element.on_load(|input: HtmlInputElement| {
+                let _ = input.focus();
+            });
+        });
+    }
+
+    let undo_stack = use_context::<RwSignal<UnReStack>>()
+        .expect("Blocks need to be nested in an editor providing an undo stack");
+
+    match inner {
+        InnerBlock::Text(content) => {
+            // initialize the old content with the current one
+            let (old_content, set_old_content) = signal(content.get_untracked());
+            view! {
+                    <div>
+                        <p>"Raw Text: "</p>
+                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        on:input:target=move |ev| {
+                            //change the current content when updated
+                            content.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            // the input is unfocused - we now want to add something to the undo
+                            // machine
+                            // the content that was last saved (on last unfocus of this element)
+                            let current_old_content = old_content.get();
+                            // current real value
+                            let new_content = ev.target().value();
+                            // save the new content on this unfocus (for the next run of this
+                            // closure)
+                            set_old_content.set(new_content.clone());
+                            // add the diff between the last unfocus and this unfocus to the stack
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Text(current_old_content), InnerBlockDry::Text(new_content))));
+                        }
+                    />
+                    </div>
+                }.into_any()
+        }
+        InnerBlock::Lacuna(content, reason) => {
+            let (old_content, set_old_content) = signal(content.get_untracked());
+            let (old_reason, set_old_reason) = signal(reason.get_untracked());
+            view! {
+                    <div>
+                        <p>"Lacuna: "</p>
+                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        on:input:target=move |ev| {
+                            content.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_content = old_content.get();
+                            let new_content = ev.target().value();
+                            set_old_content.set(new_content.clone());
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Lacuna(current_old_content, reason.get()), InnerBlockDry::Lacuna(new_content, reason.get()))));
+                        }
+                    />
+                        <input node_ref=focus_element prop:value=reason.get() on:input:target=move |ev| {
+                            reason.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_reason = old_reason.get();
+                            let new_reason = ev.target().value();
+                            set_old_reason.set(new_reason.clone());
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Lacuna(content.get(), current_old_reason), InnerBlockDry::Lacuna(content.get(), new_reason))));
+                        }/>
+                    </div>
+                }.into_any()
+        }
+        InnerBlock::Uncertain(content, reason) => {
+            view! {
+                    <div>
+                        <p>"Uncertain: "</p>
+                        <input id={format!("block-input-{id}")} prop:value=content.get() on:input:target=move |ev| {
+                            let old_content = content.get();
+                            let new_content = ev.target().value();
+                            // change the content in the signal
+                            content.set(new_content.clone());
+                            // add the diff onto the undo stack
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Uncertain(old_content, reason.get()), InnerBlockDry::Uncertain(new_content, reason.get()))));
+                        }/>
+                        // we want to focus on the reason for a new uncertain passage
+                        // it is most likely that someone took a part of Text and marked a part as
+                        // uncertain. In this case, the main content is already correct but the reasons
+                        // needs to be supplied next
+                        <input node_ref=focus_element prop:value=reason.get() on:input:target=move |ev| {
+                            let old_reason = reason.get();
+                            let new_reason = ev.target().value();
+                            // change the reason in the signal
+                            reason.set(new_reason.clone());
+                            // add the diff onto the undo stack
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Uncertain(content.get(), old_reason), InnerBlockDry::Uncertain(content.get(), new_reason))));
+                        }/>
+                    </div>
+                }.into_any()
+        }
+        InnerBlock::Break(reason) => {
+            let (old_reason, set_old_reason) = signal(reason.get_untracked());
+            view! {
+                    <div>
+                        <p>"Break: "</p>
+                        // TODO make this a drop down instead
+                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=reason
+                        on:input:target=move |ev| {
+                            reason.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_reason = old_reason.get();
+                            // current real value
+                            let new_reason = ev.target().value();
+                            set_old_reason.set(new_reason.clone());
+                            // add the diff between the last unfocus and this unfocus to the stack
+                            undo_stack.write().push_undo(UnReStep::DataChange(DataChange::new(id, InnerBlockDry::Break(current_old_reason), InnerBlockDry::Break(new_reason))));
+                        }
+                    />
+                    </div>
+                }.into_any()
+        }
+    }
+}
+
 impl EditorBlock {
     // construct a block with id, type, content, and focus state
     pub fn new(id: i32, block_type: InnerBlockType, content: String, focus_on_load: bool) -> Self {
@@ -30,19 +156,23 @@ impl EditorBlock {
 
     /// Display this block
     pub(super) fn view(self) -> impl IntoView {
-        view!{
-            <span>{self.id}":"{move || self.inner.clone().view(self.id, self.focus_on_load)}</span>
+        view! {
+            <span>{self.id}":"<InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView></span>
         }
     }
 
     /// Overwrite the inner block with `new_inner` if it is currently `old_inner`
     ///
     /// Will clone new_inner if required, but not if the assert failed
-    pub(super) fn overwrite_inner(&mut self, old_inner: &InnerBlockDry, new_inner: &InnerBlockDry) -> Option<()> {
+    pub(super) fn overwrite_inner(
+        &mut self,
+        old_inner: &InnerBlockDry,
+        new_inner: &InnerBlockDry,
+    ) -> Option<()> {
         if *old_inner != self.inner {
             None
         } else {
-            self.inner = new_inner.clone().into();
+            self.inner.overwrite_with(new_inner.clone());
             Some(())
         }
     }
@@ -113,13 +243,43 @@ pub(super) enum InnerBlock {
     Break(RwSignal<String>),
 }
 impl InnerBlock {
+    /// overwrite own data with that given from new_block, but only if the types are the same
+    fn overwrite_with(&mut self, new_block: InnerBlockDry) {
+        match self {
+            Self::Text(x) => match new_block {
+                InnerBlockDry::Text(y) => {
+                    *x.write() = y;
+                }
+                _ => {}
+            },
+            Self::Break(x) => match new_block {
+                InnerBlockDry::Break(y) => {
+                    *x.write() = y;
+                }
+                _ => {}
+            },
+            Self::Lacuna(x, y) => match new_block {
+                InnerBlockDry::Lacuna(a, b) => {
+                    *x.write() = a;
+                    *y.write() = b;
+                }
+                _ => {}
+            },
+            Self::Uncertain(x, y) => match new_block {
+                InnerBlockDry::Uncertain(a, b) => {
+                    *x.write() = a;
+                    *y.write() = b;
+                }
+                _ => {}
+            },
+        }
+    }
+
     /// Copy the metadata from [`self`] but get the content from another string
     pub fn clone_with_new_content(&self, content: String) -> Self {
         match self {
             Self::Text(_) => InnerBlock::Text(RwSignal::new(content.to_owned())),
-            Self::Uncertain(_, y) => {
-                InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y)
-            }
+            Self::Uncertain(_, y) => InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y),
             Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
             Self::Break(y) => InnerBlock::Break(*y),
         }
@@ -148,7 +308,7 @@ impl InnerBlock {
             InnerBlockType::Lacuna => {
                 InnerBlock::Lacuna(RwSignal::new(content), RwSignal::<String>::default())
             }
-            InnerBlockType::Break=> {
+            InnerBlockType::Break => {
                 // Breaks do not have content; ignore it
                 InnerBlock::Break(RwSignal::<String>::default())
             }
@@ -158,75 +318,6 @@ impl InnerBlock {
     /// Create a new Block without content
     pub(super) fn new_from_type(block_type: InnerBlockType) -> Self {
         Self::new_from_type_and_content(block_type, "".to_owned())
-    }
-
-    pub(super) fn view(self, id: i32, do_focus: bool) -> impl IntoView {
-        let focus_element = NodeRef::new();
-        // if do_focus is true, focus this input when it is created
-        if do_focus {
-            Effect::new(move |_| {
-                focus_element.on_load(|input: HtmlInputElement| {
-                    let _ = input.focus();
-                });
-            });
-        }
-        match self {
-            InnerBlock::Text(content) => {
-                view! {
-                    <div>
-                        <p>"Raw Text: "</p>
-                        <input node_ref=focus_element id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
-                            content.set(ev.target().value());
-                        }/>
-                    </div>
-                }.into_any()
-            }
-            InnerBlock::Uncertain(content, reason) => {
-                view! {
-                    <div>
-                        <p>"Uncertain: "</p>
-                        <input id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
-                            content.set(ev.target().value());
-                        }/>
-                        // we want to focus on the uncertainty for a new uncertain passage
-                        // it is most likely that someone took a part of Text and marked a part as
-                        // uncertain. In this case, the main content is already correct but the reasons
-                        // needs to be supplied next
-                        <input node_ref=focus_element value=reason.get() on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }/>
-                    </div>
-                }.into_any()
-            }
-            InnerBlock::Lacuna(content, reason) => {
-                view! {
-                    <div>
-                        <p>"Lacuna: "</p>
-                        <input id={format!("block-input-{id}")} value=content.get() on:input:target=move |ev| {
-                            content.set(ev.target().value());
-                        }/>
-                        // we want to focus on the reason for a new lacunous passage
-                        // it is most likely that someone took a part of Text and marked a part as
-                        // lacuna. In this case, the main content is already correct but the reasons
-                        // needs to be supplied next
-                        <input node_ref=focus_element value=reason.get() on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }/>
-                    </div>
-                }.into_any()
-            }
-            InnerBlock::Break(break_type) => {
-                view! {
-                    <div>
-                        <p>"Break: "</p>
-                        // TODO make this a drop down instead
-                        <input node_ref=focus_element value=break_type.get() on:input:target=move |ev| {
-                            break_type.set(ev.target().value());
-                        }/>
-                    </div>
-                }.into_any()
-            }
-        }
     }
 
     /// Split this block, returning new blocks and the index of the block which defaults as the
@@ -243,7 +334,9 @@ impl InnerBlock {
             Some(x) => x,
             // Block types without content can never fire split_at_selection,
             // so the function should return itself
-            None => { return vec![(self.clone(), false)]; }
+            None => {
+                return vec![(self.clone(), false)];
+            }
         };
         let (before_part, new_part, after_part) = if start == 0 {
             if end == complete_value.len() {
@@ -273,10 +366,7 @@ impl InnerBlock {
         let mut res = vec![];
         // first and last block (if any) keeps the same type as this one
         if let Some(content) = before_part {
-            res.push((
-                self.clone_with_new_content(content.to_owned()),
-                false,
-            ));
+            res.push((self.clone_with_new_content(content.to_owned()), false));
         };
         res.push((
             InnerBlock::new_from_type_and_content(new_block_type, new_part.to_owned()),
@@ -284,10 +374,7 @@ impl InnerBlock {
             true,
         ));
         if let Some(content) = after_part {
-            res.push((
-                self.clone_with_new_content(content.to_owned()),
-                false,
-            ));
+            res.push((self.clone_with_new_content(content.to_owned()), false));
         };
         return res;
     }
@@ -314,10 +401,10 @@ pub(super) enum InnerBlockDry {
 impl From<InnerBlock> for InnerBlockDry {
     fn from(value: InnerBlock) -> Self {
         match value {
-            InnerBlock::Break(x) => { InnerBlockDry::Break(x.get()) }
-            InnerBlock::Text(x) => { InnerBlockDry::Text(x.get()) }
-            InnerBlock::Lacuna(x, y) => { InnerBlockDry::Lacuna(x.get(), y.get()) }
-            InnerBlock::Uncertain(x, y) => { InnerBlockDry::Uncertain(x.get(), y.get()) }
+            InnerBlock::Break(x) => InnerBlockDry::Break(x.get()),
+            InnerBlock::Text(x) => InnerBlockDry::Text(x.get()),
+            InnerBlock::Lacuna(x, y) => InnerBlockDry::Lacuna(x.get(), y.get()),
+            InnerBlock::Uncertain(x, y) => InnerBlockDry::Uncertain(x.get(), y.get()),
         }
     }
 }
@@ -325,10 +412,12 @@ impl From<InnerBlock> for InnerBlockDry {
 impl From<InnerBlockDry> for InnerBlock {
     fn from(value: InnerBlockDry) -> Self {
         match value {
-            InnerBlockDry::Break(x) => { InnerBlock::Break(RwSignal::new(x)) }
-            InnerBlockDry::Text(x) => { InnerBlock::Text(RwSignal::new(x)) }
-            InnerBlockDry::Lacuna(x, y) => { InnerBlock::Lacuna(RwSignal::new(x), RwSignal::new(y)) }
-            InnerBlockDry::Uncertain(x, y) => { InnerBlock::Uncertain(RwSignal::new(x), RwSignal::new(y)) }
+            InnerBlockDry::Break(x) => InnerBlock::Break(RwSignal::new(x)),
+            InnerBlockDry::Text(x) => InnerBlock::Text(RwSignal::new(x)),
+            InnerBlockDry::Lacuna(x, y) => InnerBlock::Lacuna(RwSignal::new(x), RwSignal::new(y)),
+            InnerBlockDry::Uncertain(x, y) => {
+                InnerBlock::Uncertain(RwSignal::new(x), RwSignal::new(y))
+            }
         }
     }
 }
@@ -338,30 +427,22 @@ impl From<InnerBlockDry> for InnerBlock {
 impl PartialEq<InnerBlock> for InnerBlockDry {
     fn eq(&self, other: &InnerBlock) -> bool {
         match self {
-            InnerBlockDry::Break(x) => { match other {
-                InnerBlock::Break(y) => {
-                    *x == *y.read()
-                }
+            InnerBlockDry::Break(x) => match other {
+                InnerBlock::Break(y) => *x == *y.read(),
                 _ => false,
-            }}
-            InnerBlockDry::Text(x) => { match other {
-                InnerBlock::Text(y) => {
-                    *x == *y.read()
-                }
+            },
+            InnerBlockDry::Text(x) => match other {
+                InnerBlock::Text(y) => *x == *y.read(),
                 _ => false,
-            }}
-            InnerBlockDry::Uncertain(x, y) => { match other {
-                InnerBlock::Uncertain(a, b) => {
-                    *x == *a.read() && *y == *b.read()
-                }
+            },
+            InnerBlockDry::Uncertain(x, y) => match other {
+                InnerBlock::Uncertain(a, b) => *x == *a.read() && *y == *b.read(),
                 _ => false,
-            }}
-            InnerBlockDry::Lacuna(x, y) => { match other {
-                InnerBlock::Lacuna(a, b) => {
-                    *x == *a.read() && *y == *b.read()
-                }
+            },
+            InnerBlockDry::Lacuna(x, y) => match other {
+                InnerBlock::Lacuna(a, b) => *x == *a.read() && *y == *b.read(),
                 _ => false,
-            }}
+            },
         }
     }
     fn ne(&self, other: &InnerBlock) -> bool {

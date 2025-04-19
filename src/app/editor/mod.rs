@@ -108,7 +108,12 @@ pub(crate) fn Editor() -> impl IntoView {
     let (blocks, set_blocks) = signal(init_blocks);
     let add_block = move |_| {
         set_blocks.update(|bs| {
-            bs.push(EditorBlock::new(next_id.get(), InnerBlockType::Text, "raw text".to_owned(), true));
+            bs.push(EditorBlock::new(
+                next_id.get(),
+                InnerBlockType::Text,
+                "raw text".to_owned(),
+                true,
+            ));
             set_next_id.update(|idx| *idx += 1);
         })
     };
@@ -173,7 +178,6 @@ pub(crate) fn Editor() -> impl IntoView {
         log!("{}", evt.key_code());
         // <ctrl>-<alt>-Z - undo
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
-            log!("Firing undo");
             match undo_stack.write().undo(&mut set_blocks.write()) {
                 Ok(()) => {}
                 Err(e) => {
@@ -182,7 +186,6 @@ pub(crate) fn Editor() -> impl IntoView {
             };
         // <ctrl>-<alt>-R - redo
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 82 {
-            log!("Firing redo");
             match undo_stack.write().redo(&mut set_blocks.write()) {
                 Ok(()) => {}
                 Err(e) => {
@@ -232,6 +235,10 @@ pub(crate) fn Editor() -> impl IntoView {
         };
     });
 
+    // the undo_stack is used in most inner blocks later and we do not want to manually pass it
+    // around
+    provide_context(undo_stack);
+
     view! {
         <div>
         <button on:click=add_block>"Add a new thingy"</button>
@@ -245,7 +252,7 @@ pub(crate) fn Editor() -> impl IntoView {
                     <br/>
                     <div>
                     {move || move_down_button(outer_id)}
-                    {move || outer_block.clone().view()}
+                    {move || { outer_block.clone().view() }}
                     <button on:click=move |_| set_blocks.write().retain(|blck| blck.id() != outer_id)>"Remove this thingy!"</button>
                     {move || move_up_button(outer_id)}
                     </div>
