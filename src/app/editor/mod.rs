@@ -4,7 +4,7 @@
 
 use leptos::{ev::keydown, logging::log, prelude::*};
 use leptos_use::{use_document, use_event_listener};
-use undo::{BlockDeletion, BlockInsertion, BlockSwap, UnReStack, UnReStep};
+use undo::{UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlInputElement};
 
 mod blocks;
@@ -116,10 +116,7 @@ pub(crate) fn Editor() -> impl IntoView {
             let physical_index = bs.len();
             undo_stack
                 .write()
-                .push_undo(UnReStep::BlockInsertion(BlockInsertion::new(
-                    physical_index,
-                    new_block.clone(),
-                )));
+                .push_undo(UnReStep::new_insertion(physical_index, new_block.clone()));
             bs.push(new_block.into());
             set_next_id.update(|idx| *idx += 1);
         })
@@ -145,7 +142,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 <button on:click=move |_| {
                     set_blocks.write().swap(physical_index, physical_index - 1);
                     // push the swap to the undo stack
-                    undo_stack.write().push_undo(UnReStep::BlockSwap(BlockSwap::new(physical_index, physical_index - 1)));
+                    undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index - 1));
                 }>"Move this thingy up"</button>
             })
         } else {
@@ -172,7 +169,7 @@ pub(crate) fn Editor() -> impl IntoView {
                     // swap them
                     set_blocks.write().swap(physical_index, physical_index + 1);
                     // push the swap to the undo stack
-                    undo_stack.write().push_undo(UnReStep::BlockSwap(BlockSwap::new(physical_index, physical_index + 1)));
+                    undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index + 1));
                 }>"Move this thingy down"</button>
             })
         } else {
@@ -269,7 +266,7 @@ pub(crate) fn Editor() -> impl IntoView {
                         // remove this element
                         let removed_block = set_blocks.write().remove(physical_index);
                         // push this action to the undo stack
-                        undo_stack.write().push_undo(UnReStep::BlockDeletion(BlockDeletion::new(physical_index, removed_block.into())));
+                        undo_stack.write().push_undo(UnReStep::new_deletion(physical_index, removed_block.into()));
                     }>"Remove this thingy!"</button>
                     {move || move_up_button(outer_id)}
                     </div>

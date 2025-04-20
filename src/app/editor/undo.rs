@@ -11,6 +11,8 @@
 //! Doing anything other then an Undo/Redo clears the Redo-Stack. There is no Undo-Tree in this
 //! editor.
 
+use leptos::logging::log;
+
 use super::{EditorBlock, EditorBlockDry, InnerBlockDry};
 
 /// Replayable thing in the stack machine.
@@ -70,18 +72,59 @@ impl std::error::Error for ReplayError {}
 
 /// The different types of Undo/Redo
 pub(super) enum UnReStep {
+    /// Data inside a block has changed (on:change of an input field)
     DataChange(DataChange),
+    /// Two Blocks were exchanged
     BlockSwap(BlockSwap),
-    BlockDeletion(BlockDeletion),
-    BlockInsertion(BlockInsertion),
+    /// Any number of consecutive Blocks was exchanged for any other number of any other
+    /// consecutive blocks.
+    ///
+    /// This serves the following cases:
+    /// - a block was deleted
+    /// - a block was inserted
+    /// - a block was split into multiple blocks
+    /// - two blocks were merged
+    BlockChange(BlockChange),
+}
+impl UnReStep {
+    pub fn new_data_change(
+        logical_index: i32,
+        old_inner_block: InnerBlockDry,
+        new_inner_block: InnerBlockDry,
+    ) -> Self {
+        Self::DataChange(DataChange::new(
+            logical_index,
+            old_inner_block,
+            new_inner_block,
+        ))
+    }
+    pub fn new_block_change(
+        physical_index_of_change: usize,
+        old_blocks: Vec<EditorBlockDry>,
+        new_blocks: Vec<EditorBlockDry>,
+    ) -> Self {
+        Self::BlockChange(BlockChange::new(
+            physical_index_of_change,
+            old_blocks,
+            new_blocks,
+        ))
+    }
+    pub fn new_deletion(physical_index_of_change: usize, block: EditorBlockDry) -> Self {
+        Self::new_block_change(physical_index_of_change, vec![block], vec![])
+    }
+    pub fn new_insertion(physical_index_of_change: usize, block: EditorBlockDry) -> Self {
+        Self::new_block_change(physical_index_of_change, vec![], vec![block])
+    }
+    pub fn new_swap(physical_index_1: usize, physical_index_2: usize) -> Self {
+        Self::BlockSwap(BlockSwap::new(physical_index_1, physical_index_2))
+    }
 }
 impl Replay for UnReStep {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         match self {
             Self::DataChange(x) => x.replay(blocks),
             Self::BlockSwap(x) => x.replay(blocks),
-            Self::BlockDeletion(x) => x.replay(blocks),
-            Self::BlockInsertion(x) => x.replay(blocks),
+            Self::BlockChange(x) => x.replay(blocks),
         }
     }
 }
@@ -90,8 +133,7 @@ impl Invert for UnReStep {
         match self {
             Self::DataChange(x) => Self::DataChange(x.invert()),
             Self::BlockSwap(x) => Self::BlockSwap(x.invert()),
-            Self::BlockInsertion(x) => Self::BlockDeletion(x.as_deletion()),
-            Self::BlockDeletion(x) => Self::BlockInsertion(x.as_insertion()),
+            Self::BlockChange(x) => Self::BlockChange(x.invert()),
         }
     }
 }
@@ -160,7 +202,7 @@ impl UnReStack {
     }
 }
 
-pub(super) struct DataChange {
+struct DataChange {
     /// The (logical) id of the block that was changed
     id: i32,
     /// The block before the change
@@ -201,7 +243,7 @@ impl Replay for DataChange {
 impl UnRe for DataChange {}
 
 /// The two blocks given by their logical IDs were swapped.
-pub(super) struct BlockSwap {
+struct BlockSwap {
     /// physical position of the first block
     first: usize,
     /// logical id of the second block
@@ -236,73 +278,61 @@ impl Replay for BlockSwap {
 }
 impl UnRe for BlockSwap {}
 
-/// Block deletion and insertion are inverse to each other, and both can replayed
-pub(super) struct BlockDeletion {
-    physical_location: usize,
-    block: EditorBlockDry,
+/// Any number of consecutive blocks was exchanged for any other number of consecutive blocks
+struct BlockChange {
+    /// Location in the block vector where the touched blocks start
+    physical_index_of_change: usize,
+    /// The blocks before the chnage
+    old_blocks: Vec<EditorBlockDry>,
+    /// The blocks after the change
+    new_blocks: Vec<EditorBlockDry>,
 }
-impl BlockDeletion {
-    pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
-        BlockDeletion {
-            physical_location,
-            block,
+impl BlockChange {
+    pub fn new(
+        physical_index_of_change: usize,
+        old_blocks: Vec<EditorBlockDry>,
+        new_blocks: Vec<EditorBlockDry>,
+    ) -> Self {
+        Self {
+            physical_index_of_change,
+            old_blocks,
+            new_blocks,
         }
     }
-
-    /// the inverse to this action, an insertion of the block instead of an insertion
-    fn as_insertion(self) -> BlockInsertion {
-        BlockInsertion {
-            physical_location: self.physical_location,
-            block: self.block,
+}
+impl Invert for BlockChange {
+    fn invert(self) -> Self {
+        Self {
+            physical_index_of_change: self.physical_index_of_change,
+            old_blocks: self.new_blocks,
+            new_blocks: self.old_blocks,
         }
     }
 }
-impl Replay for BlockDeletion {
+impl Replay for BlockChange {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        // make sure this logical id is at the given index
-        if *blocks
-            .get(self.physical_location)
-            .ok_or(ReplayError::OldStateInconsistent)?
-            == self.block
+        // make sure the next blocks after physical_index_of_change are the correct ones
+        log!(
+            "physical: {:?}, old: {:?}, new: {:?}",
+            self.physical_index_of_change,
+            self.old_blocks,
+            self.new_blocks
+        );
+        if self.physical_index_of_change + self.old_blocks.len() > blocks.len() {
+            return Err(ReplayError::OldStateInconsistent);
+        };
+        if &blocks
+            [self.physical_index_of_change..self.physical_index_of_change + self.old_blocks.len()]
+            != &self.old_blocks
         {
-            blocks.remove(self.physical_location);
-            Ok(())
-        } else {
-            Err(ReplayError::OldStateInconsistent)
-        }
+            return Err(ReplayError::OldStateInconsistent);
+        };
+        // exchange the blocks
+        blocks.splice(
+            self.physical_index_of_change..self.physical_index_of_change + self.old_blocks.len(),
+            self.new_blocks.clone().into_iter().map(|b| b.into()),
+        );
+        Ok(())
     }
 }
-
-/// Block deletion and insertion are inverse to each other, and both can replayed
-pub(super) struct BlockInsertion {
-    physical_location: usize,
-    block: EditorBlockDry,
-}
-impl BlockInsertion {
-    pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
-        BlockInsertion {
-            physical_location,
-            block,
-        }
-    }
-
-    fn as_deletion(self) -> BlockDeletion {
-        BlockDeletion {
-            physical_location: self.physical_location,
-            block: self.block,
-        }
-    }
-}
-impl Replay for BlockInsertion {
-    fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        // make sure this logical id is not currently in use
-        if blocks.iter().any(|b| b.id() == self.block.id()) {
-            Err(ReplayError::OldStateInconsistent)
-        } else {
-            let mut hydrated_block: EditorBlock = self.block.clone().into();
-            hydrated_block.set_autoload(true);
-            blocks.insert(self.physical_location, hydrated_block);
-            Ok(())
-        }
-    }
-}
+impl UnRe for BlockChange {}
