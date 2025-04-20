@@ -3,7 +3,7 @@
 //! This module defines, what blocks are available, do and look like. Interaction with other
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
-use leptos::{logging::log, prelude::*};
+use leptos::prelude::*;
 use web_sys::HtmlInputElement;
 
 use super::{undo::DataChange, UnReStack, UnReStep};
@@ -228,13 +228,21 @@ impl EditorBlockDry {
 /// Dehydrate an [`EditorBlock`]
 impl From<EditorBlock> for EditorBlockDry {
     fn from(value: EditorBlock) -> Self {
-        Self { id: value.id, inner: value.inner.into(), focus_on_load: value.focus_on_load, }
+        Self {
+            id: value.id,
+            inner: value.inner.into(),
+            focus_on_load: value.focus_on_load,
+        }
     }
 }
 /// Hydrate a dry [`EditorBlockDry`].
 impl From<EditorBlockDry> for EditorBlock {
     fn from(value: EditorBlockDry) -> Self {
-        Self { id: value.id, inner: value.inner.into(), focus_on_load: value.focus_on_load, }
+        Self {
+            id: value.id,
+            inner: value.inner.into(),
+            focus_on_load: value.focus_on_load,
+        }
     }
 }
 impl PartialEq<EditorBlock> for EditorBlockDry {
@@ -432,19 +440,14 @@ impl InnerBlockDry {
     pub fn new_from_type_and_content(block_type: InnerBlockType, content: String) -> Self {
         match block_type {
             InnerBlockType::Text => InnerBlockDry::Text(content),
-            InnerBlockType::Uncertain => {
-                InnerBlockDry::Uncertain(content, String::default())
-            }
-            InnerBlockType::Lacuna => {
-                InnerBlockDry::Lacuna(content, String::default())
-            }
+            InnerBlockType::Uncertain => InnerBlockDry::Uncertain(content, String::default()),
+            InnerBlockType::Lacuna => InnerBlockDry::Lacuna(content, String::default()),
             InnerBlockType::Break => {
                 // Breaks do not have content; ignore it
                 InnerBlockDry::Break(String::default())
             }
         }
     }
-
 }
 /// Dehydrate [`InnerBlock`]
 impl From<InnerBlock> for InnerBlockDry {

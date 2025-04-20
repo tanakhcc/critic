@@ -102,7 +102,7 @@ pub(crate) fn Editor() -> impl IntoView {
 
     let initial_id = 1;
     let (next_id, set_next_id) = signal(initial_id);
-    let init_blocks = Vec::<EditorBlock>::new(); 
+    let init_blocks = Vec::<EditorBlock>::new();
     let (blocks, set_blocks) = signal(init_blocks);
     let add_block = move |_| {
         set_blocks.update(|bs| {
@@ -112,9 +112,14 @@ pub(crate) fn Editor() -> impl IntoView {
                 InnerBlockType::Text,
                 "raw text".to_owned(),
                 true,
-                );
+            );
             let physical_index = bs.len();
-            undo_stack.write().push_undo(UnReStep::BlockInsertion(BlockInsertion::new(physical_index, new_block.clone())));
+            undo_stack
+                .write()
+                .push_undo(UnReStep::BlockInsertion(BlockInsertion::new(
+                    physical_index,
+                    new_block.clone(),
+                )));
             bs.push(new_block.into());
             set_next_id.update(|idx| *idx += 1);
         })

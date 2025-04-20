@@ -243,20 +243,30 @@ pub(super) struct BlockDeletion {
 }
 impl BlockDeletion {
     pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
-        BlockDeletion { physical_location, block, }
+        BlockDeletion {
+            physical_location,
+            block,
+        }
     }
 
     /// the inverse to this action, an insertion of the block instead of an insertion
     fn as_insertion(self) -> BlockInsertion {
-        BlockInsertion { physical_location: self.physical_location, block: self.block, }
+        BlockInsertion {
+            physical_location: self.physical_location,
+            block: self.block,
+        }
     }
 }
 impl Replay for BlockDeletion {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         // make sure this logical id is at the given index
-        if *blocks.get(self.physical_location).ok_or(ReplayError::OldStateInconsistent)? == self.block {
+        if *blocks
+            .get(self.physical_location)
+            .ok_or(ReplayError::OldStateInconsistent)?
+            == self.block
+        {
             blocks.remove(self.physical_location);
-                Ok(())
+            Ok(())
         } else {
             Err(ReplayError::OldStateInconsistent)
         }
@@ -270,11 +280,17 @@ pub(super) struct BlockInsertion {
 }
 impl BlockInsertion {
     pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
-        BlockInsertion { physical_location, block, }
+        BlockInsertion {
+            physical_location,
+            block,
+        }
     }
 
     fn as_deletion(self) -> BlockDeletion {
-        BlockDeletion { physical_location: self.physical_location, block: self.block, }
+        BlockDeletion {
+            physical_location: self.physical_location,
+            block: self.block,
+        }
     }
 }
 impl Replay for BlockInsertion {
@@ -290,4 +306,3 @@ impl Replay for BlockInsertion {
         }
     }
 }
-
