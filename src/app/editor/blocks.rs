@@ -161,6 +161,10 @@ impl EditorBlock {
         }
     }
 
+    pub(super) fn set_autoload(&mut self, focus_on_load: bool) {
+        self.focus_on_load = focus_on_load
+    }
+
     /// Overwrite the inner block with `new_inner` if it is currently `old_inner`
     ///
     /// Will clone new_inner if required, but not if the assert failed
@@ -202,10 +206,48 @@ impl EditorBlock {
             .collect()
     }
 }
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub(super) struct EditorBlockDry {
     id: i32,
     inner: InnerBlockDry,
+    focus_on_load: bool,
 }
+impl EditorBlockDry {
+    // construct a block with id, type, content, and focus state
+    pub fn new(id: i32, block_type: InnerBlockType, content: String, focus_on_load: bool) -> Self {
+        Self {
+            id,
+            inner: InnerBlockDry::new_from_type_and_content(block_type, content),
+            focus_on_load,
+        }
+    }
+    pub fn id(&self) -> i32 {
+        self.id
+    }
+}
+/// Dehydrate an [`EditorBlock`]
+impl From<EditorBlock> for EditorBlockDry {
+    fn from(value: EditorBlock) -> Self {
+        Self { id: value.id, inner: value.inner.into(), focus_on_load: value.focus_on_load, }
+    }
+}
+/// Hydrate a dry [`EditorBlockDry`].
+impl From<EditorBlockDry> for EditorBlock {
+    fn from(value: EditorBlockDry) -> Self {
+        Self { id: value.id, inner: value.inner.into(), focus_on_load: value.focus_on_load, }
+    }
+}
+impl PartialEq<EditorBlock> for EditorBlockDry {
+    fn eq(&self, other: &EditorBlock) -> bool {
+        self.id == other.id && self.inner == other.inner
+    }
+}
+impl PartialEq<EditorBlockDry> for EditorBlock {
+    fn eq(&self, other: &EditorBlockDry) -> bool {
+        self.id == other.id && self.inner == other.inner
+    }
+}
+
 /// Dataless types for Blocks
 pub(super) enum InnerBlockType {
     /// Raw text without special markup
@@ -300,24 +342,12 @@ impl InnerBlock {
 
     /// Create a new Block with content
     pub fn new_from_type_and_content(block_type: InnerBlockType, content: String) -> Self {
-        match block_type {
-            InnerBlockType::Text => InnerBlock::Text(RwSignal::new(content)),
-            InnerBlockType::Uncertain => {
-                InnerBlock::Uncertain(RwSignal::new(content), RwSignal::<String>::default())
-            }
-            InnerBlockType::Lacuna => {
-                InnerBlock::Lacuna(RwSignal::new(content), RwSignal::<String>::default())
-            }
-            InnerBlockType::Break => {
-                // Breaks do not have content; ignore it
-                InnerBlock::Break(RwSignal::<String>::default())
-            }
-        }
+        InnerBlockDry::new_from_type_and_content(block_type, content).into()
     }
 
     /// Create a new Block without content
     pub(super) fn new_from_type(block_type: InnerBlockType) -> Self {
-        Self::new_from_type_and_content(block_type, "".to_owned())
+        Self::new_from_type_and_content(block_type, String::default())
     }
 
     /// Split this block, returning new blocks and the index of the block which defaults as the
@@ -381,7 +411,7 @@ impl InnerBlock {
 }
 
 /// Version of [`InnerBlock`] without Signals
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub(super) enum InnerBlockDry {
     /// Raw text without special markup
     /// text
@@ -396,6 +426,25 @@ pub(super) enum InnerBlockDry {
     /// TODO: we want this to be an enum over type instead; with selection menu in GUI
     /// (type of break)
     Break(String),
+}
+impl InnerBlockDry {
+    /// Create a new Block with content
+    pub fn new_from_type_and_content(block_type: InnerBlockType, content: String) -> Self {
+        match block_type {
+            InnerBlockType::Text => InnerBlockDry::Text(content),
+            InnerBlockType::Uncertain => {
+                InnerBlockDry::Uncertain(content, String::default())
+            }
+            InnerBlockType::Lacuna => {
+                InnerBlockDry::Lacuna(content, String::default())
+            }
+            InnerBlockType::Break => {
+                // Breaks do not have content; ignore it
+                InnerBlockDry::Break(String::default())
+            }
+        }
+    }
+
 }
 /// Dehydrate [`InnerBlock`]
 impl From<InnerBlock> for InnerBlockDry {
@@ -445,9 +494,6 @@ impl PartialEq<InnerBlock> for InnerBlockDry {
             },
         }
     }
-    fn ne(&self, other: &InnerBlock) -> bool {
-        !self.eq(other)
-    }
 }
 /// Compare [`InnerBlockDry`] agains [`InnerBlock`] without (de-)hydrating either side
 ///
@@ -455,9 +501,5 @@ impl PartialEq<InnerBlock> for InnerBlockDry {
 impl PartialEq<InnerBlockDry> for InnerBlock {
     fn eq(&self, other: &InnerBlockDry) -> bool {
         other.eq(self)
-    }
-
-    fn ne(&self, other: &InnerBlockDry) -> bool {
-        other.ne(self)
     }
 }

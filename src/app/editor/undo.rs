@@ -11,9 +11,7 @@
 //! Doing anything other then an Undo/Redo clears the Redo-Stack. There is no Undo-Tree in this
 //! editor.
 
-use leptos::logging::log;
-
-use super::{EditorBlock, InnerBlockDry};
+use super::{EditorBlock, EditorBlockDry, InnerBlockDry};
 
 /// Replayable thing in the stack machine.
 trait Replay {
@@ -74,12 +72,16 @@ impl std::error::Error for ReplayError {}
 pub(super) enum UnReStep {
     DataChange(DataChange),
     BlockSwap(BlockSwap),
+    BlockDeletion(BlockDeletion),
+    BlockInsertion(BlockInsertion),
 }
 impl Replay for UnReStep {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         match self {
-            Self::DataChange(x) => Ok(x.replay(blocks)?),
+            Self::DataChange(x) => x.replay(blocks),
             Self::BlockSwap(x) => x.replay(blocks),
+            Self::BlockDeletion(x) => x.replay(blocks),
+            Self::BlockInsertion(x) => x.replay(blocks),
         }
     }
 }
@@ -88,10 +90,75 @@ impl Invert for UnReStep {
         match self {
             Self::DataChange(x) => Self::DataChange(x.invert()),
             Self::BlockSwap(x) => Self::BlockSwap(x.invert()),
+            Self::BlockInsertion(x) => Self::BlockDeletion(x.as_deletion()),
+            Self::BlockDeletion(x) => Self::BlockInsertion(x.as_insertion()),
         }
     }
 }
 impl UnRe for UnReStep {}
+
+pub(super) struct UnReStack {
+    undo_stack: Vec<UnReStep>,
+    redo_stack: Vec<UnReStep>,
+}
+impl Default for UnReStack {
+    fn default() -> Self {
+        Self {
+            undo_stack: vec![],
+            redo_stack: vec![],
+        }
+    }
+}
+impl UnReStack {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a new undo-task
+    ///
+    /// Note: this clears the Redo-stack
+    pub fn push_undo(&mut self, action: UnReStep) {
+        // pushing a new undo always clears the redo stack
+        self.redo_stack.clear();
+        self.undo_stack.push(action);
+    }
+
+    /// Return true iff the next call to undo will perform an action
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    /// Perform one undo step
+    ///
+    /// Returns Some(()) when a step was actually performed
+    pub fn undo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
+        // pop from the undo stack
+        let top_action = self.undo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
+        // undo
+        let inverted = top_action.undo(blocks)?;
+        // push to the redo stack
+        self.redo_stack.push(inverted);
+        Ok(())
+    }
+
+    /// Return true iff the next call to redo will perform an action
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+
+    /// Perform one redo step
+    ///
+    /// Returns Some(()) when a step was actually performed
+    pub fn redo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
+        // pop from the redo stack
+        let top_action = self.redo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
+        // redo
+        let inverted = top_action.undo(blocks)?;
+        // push to the redo stack
+        self.undo_stack.push(inverted);
+        Ok(())
+    }
+}
 
 pub(super) struct DataChange {
     /// The (logical) id of the block that was changed
@@ -169,65 +236,58 @@ impl Replay for BlockSwap {
 }
 impl UnRe for BlockSwap {}
 
-pub(super) struct UnReStack {
-    undo_stack: Vec<UnReStep>,
-    redo_stack: Vec<UnReStep>,
+/// Block deletion and insertion are inverse to each other, and both can replayed
+pub(super) struct BlockDeletion {
+    physical_location: usize,
+    block: EditorBlockDry,
 }
-impl Default for UnReStack {
-    fn default() -> Self {
-        Self {
-            undo_stack: vec![],
-            redo_stack: vec![],
+impl BlockDeletion {
+    pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
+        BlockDeletion { physical_location, block, }
+    }
+
+    /// the inverse to this action, an insertion of the block instead of an insertion
+    fn as_insertion(self) -> BlockInsertion {
+        BlockInsertion { physical_location: self.physical_location, block: self.block, }
+    }
+}
+impl Replay for BlockDeletion {
+    fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
+        // make sure this logical id is at the given index
+        if *blocks.get(self.physical_location).ok_or(ReplayError::OldStateInconsistent)? == self.block {
+            blocks.remove(self.physical_location);
+                Ok(())
+        } else {
+            Err(ReplayError::OldStateInconsistent)
         }
     }
 }
-impl UnReStack {
-    pub fn new() -> Self {
-        Self::default()
+
+/// Block deletion and insertion are inverse to each other, and both can replayed
+pub(super) struct BlockInsertion {
+    physical_location: usize,
+    block: EditorBlockDry,
+}
+impl BlockInsertion {
+    pub fn new(physical_location: usize, block: EditorBlockDry) -> Self {
+        BlockInsertion { physical_location, block, }
     }
 
-    /// Add a new undo-task
-    ///
-    /// Note: this clears the Redo-stack
-    pub fn push_undo(&mut self, action: UnReStep) {
-        // pushing a new undo always clears the redo stack
-        self.redo_stack.clear();
-        self.undo_stack.push(action);
-    }
-
-    /// Return true iff the next call to undo will perform an action
-    pub fn can_undo(&self) -> bool {
-        !self.undo_stack.is_empty()
-    }
-
-    /// Perform one undo step
-    ///
-    /// Returns Some(()) when a step was actually performed
-    pub fn undo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        // pop from the undo stack
-        let top_action = self.undo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
-        // undo
-        let inverted = top_action.undo(blocks)?;
-        // push to the redo stack
-        self.redo_stack.push(inverted);
-        Ok(())
-    }
-
-    /// Return true iff the next call to redo will perform an action
-    pub fn can_redo(&self) -> bool {
-        !self.redo_stack.is_empty()
-    }
-
-    /// Perform one redo step
-    ///
-    /// Returns Some(()) when a step was actually performed
-    pub fn redo(&mut self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
-        // pop from the redo stack
-        let top_action = self.redo_stack.pop().ok_or(ReplayError::NothingToReplay)?;
-        // redo
-        let inverted = top_action.undo(blocks)?;
-        // push to the redo stack
-        self.undo_stack.push(inverted);
-        Ok(())
+    fn as_deletion(self) -> BlockDeletion {
+        BlockDeletion { physical_location: self.physical_location, block: self.block, }
     }
 }
+impl Replay for BlockInsertion {
+    fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
+        // make sure this logical id is not currently in use
+        if blocks.iter().any(|b| b.id() == self.block.id()) {
+            Err(ReplayError::OldStateInconsistent)
+        } else {
+            let mut hydrated_block: EditorBlock = self.block.clone().into();
+            hydrated_block.set_autoload(true);
+            blocks.insert(self.physical_location, hydrated_block);
+            Ok(())
+        }
+    }
+}
+

@@ -2,11 +2,9 @@
 //!
 //! This is the GUI-area and directly related APIs/server functions to save its data.
 
-use std::sync::Arc;
-
 use leptos::{ev::keydown, logging::log, prelude::*};
 use leptos_use::{use_document, use_event_listener};
-use undo::{BlockSwap, UnReStack, UnReStep};
+use undo::{BlockDeletion, BlockInsertion, BlockSwap, UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlInputElement};
 
 mod blocks;
@@ -90,7 +88,7 @@ fn new_node(
                 set_blocks.write().insert(
                     physical_index,
                     // we want to focus on the next node
-                    EditorBlock::new(next_id.get(), block_type, "".to_owned(), true),
+                    EditorBlock::new(next_id.get(), block_type, String::default(), true),
                 );
                 *set_next_id.write() += 1;
             }
@@ -104,16 +102,20 @@ pub(crate) fn Editor() -> impl IntoView {
 
     let initial_id = 1;
     let (next_id, set_next_id) = signal(initial_id);
-    let init_blocks = vec![];
+    let init_blocks = Vec::<EditorBlock>::new(); 
     let (blocks, set_blocks) = signal(init_blocks);
     let add_block = move |_| {
         set_blocks.update(|bs| {
-            bs.push(EditorBlock::new(
-                next_id.get(),
+            let logical_index = next_id.get();
+            let new_block = EditorBlockDry::new(
+                logical_index,
                 InnerBlockType::Text,
                 "raw text".to_owned(),
                 true,
-            ));
+                );
+            let physical_index = bs.len();
+            undo_stack.write().push_undo(UnReStep::BlockInsertion(BlockInsertion::new(physical_index, new_block.clone())));
+            bs.push(new_block.into());
             set_next_id.update(|idx| *idx += 1);
         })
     };
@@ -253,7 +255,17 @@ pub(crate) fn Editor() -> impl IntoView {
                     <div>
                     {move || move_down_button(outer_id)}
                     {move || { outer_block.clone().view() }}
-                    <button on:click=move |_| set_blocks.write().retain(|blck| blck.id() != outer_id)>"Remove this thingy!"</button>
+                    <button on:click=move |_| {
+                        let physical_index = match blocks.read().iter().position(|blck| blck.id() == outer_id) {
+                            Some(x) => x,
+                            // the given element does not exist - this should be impossible
+                            None => { return; }
+                        };
+                        // remove this element
+                        let removed_block = set_blocks.write().remove(physical_index);
+                        // push this action to the undo stack
+                        undo_stack.write().push_undo(UnReStep::BlockDeletion(BlockDeletion::new(physical_index, removed_block.into())));
+                    }>"Remove this thingy!"</button>
                     {move || move_up_button(outer_id)}
                     </div>
                 }
