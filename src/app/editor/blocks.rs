@@ -88,28 +88,30 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                 }.into_any()
         }
         InnerBlock::Uncertain(content, reason) => {
+            let (old_content, set_old_content) = signal(content.get_untracked());
+            let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
                     <div>
                         <p>"Uncertain: "</p>
-                        <input id={format!("block-input-{id}")} prop:value=content on:input:target=move |ev| {
-                            let old_content = content.get();
+                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        on:input:target=move |ev| {
+                            content.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_content = old_content.get();
                             let new_content = ev.target().value();
-                            // change the content in the signal
-                            content.set(new_content.clone());
-                            // add the diff onto the undo stack
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(old_content, reason.get()), InnerBlockDry::Uncertain(new_content, reason.get())));
-                        }/>
-                        // we want to focus on the reason for a new uncertain passage
-                        // it is most likely that someone took a part of Text and marked a part as
-                        // uncertain. In this case, the main content is already correct but the reasons
-                        // needs to be supplied next
+                            set_old_content.set(new_content.clone());
+                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(current_old_content, reason.get()), InnerBlockDry::Uncertain(new_content, reason.get())));
+                        }
+                    />
                         <input node_ref=focus_element prop:value=reason on:input:target=move |ev| {
-                            let old_reason = reason.get();
+                            reason.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_reason = old_reason.get();
                             let new_reason = ev.target().value();
-                            // change the reason in the signal
-                            reason.set(new_reason.clone());
-                            // add the diff onto the undo stack
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(content.get(), old_reason), InnerBlockDry::Uncertain(content.get(), new_reason)));
+                            set_old_reason.set(new_reason.clone());
+                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(content.get(), current_old_reason), InnerBlockDry::Uncertain(content.get(), new_reason)));
                         }/>
                     </div>
                 }.into_any()
