@@ -186,11 +186,22 @@ pub(crate) fn Editor() -> impl IntoView {
         }
     };
 
+    let save_state_action = Action::new(|blocks: &Vec<EditorBlock>| {
+        let blocks_dehydrated = blocks.iter().map(|b| b.clone().into()).collect();
+        async move { save_editor_state(blocks_dehydrated).await }
+    });
+    let pending_save = save_state_action.pending();
+
+
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
         log!("{}", evt.key_code());
+        // <ctrl>-<alt>-S - Save
+        if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
+            // we can only dispatch and hope for the best here
+            save_state_action.dispatch(blocks.read().to_owned());
         // <ctrl>-<alt>-Z - undo
-        if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
             match undo_stack.write().undo(&mut set_blocks.write()) {
                 Ok(()) => {}
                 Err(e) => {
@@ -255,12 +266,6 @@ pub(crate) fn Editor() -> impl IntoView {
     // the undo_stack is used in most inner blocks later and we do not want to manually pass it
     // around
     provide_context(undo_stack);
-
-    let save_state_action = Action::new(|blocks: &Vec<EditorBlock>| {
-        let blocks_dehydrated = blocks.iter().map(|b| b.clone().into()).collect();
-        async move { save_editor_state(blocks_dehydrated).await }
-    });
-    let pending_save = save_state_action.pending();
 
     let load_state_resource = OnceResource::<Vec<EditorBlockDry>>::new(
         async move {
