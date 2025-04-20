@@ -2,8 +2,9 @@
 //!
 //! This is the GUI-area and directly related APIs/server functions to save its data.
 
-use leptos::{ev::keydown, logging::log, prelude::*};
+use leptos::{ev::keydown, logging::log, prelude::{Action, *}};
 use leptos_use::{use_document, use_event_listener};
+use save::{load_editor_state, save_editor_state};
 use undo::{UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlInputElement};
 
@@ -11,6 +12,8 @@ mod blocks;
 use blocks::*;
 
 mod undo;
+
+mod save;
 
 fn new_node(
     physical_index_maybe: impl Fn(i32) -> Option<usize>,
@@ -253,10 +256,37 @@ pub(crate) fn Editor() -> impl IntoView {
     // around
     provide_context(undo_stack);
 
+    let save_state_action = Action::new(|blocks: &Vec<EditorBlock>| {
+        let blocks_dehydrated = blocks.iter().map(|b| b.clone().into()).collect();
+        async move { save_editor_state(blocks_dehydrated).await }
+    });
+    let pending_save = save_state_action.pending();
+
+    let load_state_resource = OnceResource::<Vec<EditorBlockDry>>::new(
+        async move {
+            match load_editor_state().await {
+                Ok(x) => { x },
+                Err(e) => {
+                    log!("Error loading server state: {e}");
+                    vec![]
+                }
+            }
+        }
+    );
+
     view! {
         <div>
         <button on:click=add_block>"Add a new thingy"</button>
+        <button on:click=move |_| {
+            save_state_action.dispatch(blocks.read().to_owned());
+        }>"Save state"</button>
+        <p>{move || pending_save.get().then_some("Saving state...")}</p>
         <br/>
+        <Suspense fallback=|| { view!{ <p>"Loading editor state from the server..."</p> } }>
+        {move || Suspend::new(async move {
+            let init_blocks = load_state_resource.await;
+            set_blocks.set(init_blocks.into_iter().map(|b| b.into()).collect());
+        view!{
         <For each=move || blocks.get()
             key=|block| block.id()
             children={move |outer_block|
@@ -285,6 +315,8 @@ pub(crate) fn Editor() -> impl IntoView {
             }
         >
         </For>
+        }})}
+        </Suspense>
         </div>
     }
 }

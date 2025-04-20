@@ -18,6 +18,7 @@ wasm-bindgen = { version = "=0.2.100", optional = true }
 serde = { version = "1.0.219", features = ["derive"] }
 leptos-use = { version = "0.15.7", features = ["use_event_listener"] }
 web-sys = "0.3.77"
+serde_json = { version = "1.0.140", optional = true }
 
 [features]
 hydrate = [
@@ -33,6 +34,7 @@ ssr = [
     "leptos_meta/ssr",
     "leptos_router/ssr",
     "leptos-use/ssr",
+    "dep:serde_json",
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode

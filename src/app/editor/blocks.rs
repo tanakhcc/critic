@@ -209,7 +209,7 @@ impl EditorBlock {
     }
 }
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub(super) struct EditorBlockDry {
+pub struct EditorBlockDry {
     id: i32,
     inner: InnerBlockDry,
     focus_on_load: bool,
