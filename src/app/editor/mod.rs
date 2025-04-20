@@ -19,6 +19,7 @@ fn new_node(
     next_id: ReadSignal<i32>,
     set_next_id: WriteSignal<i32>,
     block_type: InnerBlockType,
+    undo_stack: RwSignal<UnReStack>,
 ) {
     let active_element = match use_document().active_element() {
         Some(el) => el,
@@ -79,17 +80,22 @@ fn new_node(
                     }
                 };
                 // replace the block currently at physical_index with the new blocks
-                set_blocks
+                let removed = set_blocks
                     .write()
-                    .splice(physical_index..physical_index + 1, new_blocks);
+                    .splice(physical_index..physical_index + 1, new_blocks.clone()).map(|b| b.into()).collect();
+                // add the change to the undo stack
+                undo_stack.write().push_undo(UnReStep::new_block_change(physical_index, removed, new_blocks.into_iter().map(|x| x.into()).collect()));
             }
             _ => {
                 // nothing selected, add a new empty node after this one
+                // we want to focus on the next node
+                let new_block = EditorBlockDry::new(next_id.get(), block_type, String::default(), true);
                 set_blocks.write().insert(
                     physical_index,
-                    // we want to focus on the next node
-                    EditorBlock::new(next_id.get(), block_type, String::default(), true),
+                    new_block.clone().into(),
                 );
+                // add the insertion to the undo stack
+                undo_stack.write().push_undo(UnReStep::new_insertion(physical_index, new_block));
                 *set_next_id.write() += 1;
             }
         };
@@ -205,6 +211,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 next_id,
                 set_next_id,
                 InnerBlockType::Text,
+                undo_stack,
             );
         // <ctrl>-<alt>-U (new Uncertain)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 85 {
@@ -215,6 +222,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 next_id,
                 set_next_id,
                 InnerBlockType::Uncertain,
+                undo_stack,
             )
         // <ctrl>-<alt>-L (new Lacuna)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 76 {
@@ -225,6 +233,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 next_id,
                 set_next_id,
                 InnerBlockType::Lacuna,
+                undo_stack,
             );
         // <ctrl>-<alt>-<ENTER> (new Break)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 13 {
@@ -235,6 +244,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 next_id,
                 set_next_id,
                 InnerBlockType::Break,
+                undo_stack,
             );
         };
     });
