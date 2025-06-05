@@ -14,7 +14,12 @@ for each:
 
 ## Make Break a dropdown instead of a raw string input
 
-## Actually communicate with the server
-
 ## Merge Blocks
+
+## Styling
+
+## Ribbon with the commands for which keycommands exist
+
+## bugs
+- behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)
 

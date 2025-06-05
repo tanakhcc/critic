@@ -6,7 +6,7 @@ use leptos::{ev::keydown, logging::log, prelude::{Action, *}};
 use leptos_use::{use_document, use_event_listener};
 use save::{load_editor_state, save_editor_state};
 use undo::{UnReStack, UnReStep};
-use web_sys::{wasm_bindgen::JsCast, HtmlInputElement};
+use web_sys::{wasm_bindgen::JsCast, HtmlTextAreaElement};
 
 mod blocks;
 use blocks::*;
@@ -30,7 +30,7 @@ fn new_node(
             return;
         }
     };
-    let primary_input = match active_element.dyn_into::<HtmlInputElement>() {
+    let primary_input = match active_element.dyn_into::<HtmlTextAreaElement>() {
         Ok(el) => el,
         Err(_) => {
             return;
@@ -147,15 +147,29 @@ pub(crate) fn Editor() -> impl IntoView {
 
     let move_up_button = move |id| {
         if let Some(physical_index) = index_if_not_first(id) {
-            Some(view! {
-                <button on:click=move |_| {
+            view! {
+                <button
+                    on:click=move |_| {
                     set_blocks.write().swap(physical_index, physical_index - 1);
                     // push the swap to the undo stack
                     undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index - 1));
-                }>"Move this thingy up"</button>
-            })
+                }>
+                // move up
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+</svg>
+                </button>
+            }.into_any()
         } else {
-            None
+            view! {
+                <button
+                    on:click=move |_| {} disabled=true>
+                // move up
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-300 size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+</svg>
+                </button>
+            }.into_any()
         }
     };
 
@@ -173,16 +187,29 @@ pub(crate) fn Editor() -> impl IntoView {
 
     let move_down_button = move |id| {
         if let Some(physical_index) = index_if_not_last(id) {
-            Some(view! {
-                <button on:click=move |_| {
+            view! {
+                <button
+                    on:click=move |_| {
                     // swap them
                     set_blocks.write().swap(physical_index, physical_index + 1);
                     // push the swap to the undo stack
                     undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index + 1));
-                }>"Move this thingy down"</button>
-            })
+                }>
+                // move down
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+</svg>
+                </button>
+            }.into_any()
         } else {
-            None
+            view! {
+                <button on:click=move |_| {} disabled=true>
+                // move down
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-300 size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+</svg>
+                </button>
+            }.into_any()
         }
     };
 
@@ -299,9 +326,14 @@ pub(crate) fn Editor() -> impl IntoView {
                 let outer_id = outer_block.id();
                 view!{
                     <br/>
-                    <div>
+                    <div class="flex justify-between">
+                    <span>
+                    {move || move_up_button(outer_id)}
                     {move || move_down_button(outer_id)}
+                    </span>
+
                     {move || { outer_block.clone().view() }}
+
                     <button on:click=move |_| {
                         let physical_index = match blocks.read().iter().position(|blck| blck.id() == outer_id) {
                             Some(x) => x,
@@ -312,8 +344,11 @@ pub(crate) fn Editor() -> impl IntoView {
                         let removed_block = set_blocks.write().remove(physical_index);
                         // push this action to the undo stack
                         undo_stack.write().push_undo(UnReStep::new_deletion(physical_index, removed_block.into()));
-                    }>"Remove this thingy!"</button>
-                    {move || move_up_button(outer_id)}
+                    }>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
+</svg>
+                    </button>
                     </div>
                 }
                 }

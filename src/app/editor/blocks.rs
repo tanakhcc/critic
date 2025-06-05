@@ -4,9 +4,11 @@
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
 use leptos::prelude::*;
-use web_sys::HtmlInputElement;
 
 use super::{UnReStack, UnReStep};
+
+const TEXTAREA_DEFAULT_ROWS : i32 = 2;
+const TEXTAREA_DEFAULT_COLS : i32 = 30;
 
 #[derive(Debug, Clone)]
 pub(super) struct EditorBlock {
@@ -20,7 +22,7 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
     // if do_focus is true, focus this input when it is created
     if focus_on_load {
         Effect::new(move |_| {
-            focus_element.on_load(|input: HtmlInputElement| {
+            focus_element.on_load(|input: web_sys::HtmlTextAreaElement| {
                 let _ = input.focus();
             });
         });
@@ -35,8 +37,19 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             let (old_content, set_old_content) = signal(content.get_untracked());
             view! {
                     <div>
-                        <p>"Raw Text: "</p>
-                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        <p
+                            class="font-light text-xs">
+                            "Raw Text: "
+                        </p>
+                        <textarea
+                        class="bg-yellow-100 text-black font-mono"
+                        id={format!("block-input-{id}")}
+                        node_ref=focus_element
+                        autocomplete="false"
+                        spellcheck="false"
+                        rows=TEXTAREA_DEFAULT_ROWS
+                        cols=TEXTAREA_DEFAULT_COLS
+                        prop:value=content
                         on:input:target=move |ev| {
                             //change the current content when updated
                             content.set(ev.target().value());
@@ -63,8 +76,39 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
                     <div>
-                        <p>"Lacuna: "</p>
-                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        <span
+                            class="font-light text-xs">
+                                "Lacuna because of "
+                        </span>
+                        <input
+                        prop:value=reason
+                        class="text-sm"
+                        placeholder="reason"
+                        autocomplete="false"
+                        spellcheck="false"
+                        on:input:target=move |ev| {
+                            reason.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_reason = old_reason.get();
+                            let new_reason = ev.target().value();
+                            set_old_reason.set(new_reason.clone());
+                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Lacuna(content.get(), current_old_reason), InnerBlockDry::Lacuna(content.get(), new_reason)));
+                        }/>
+                        <span
+                            class="font-light text-xs">
+                            :
+                        </span>
+                        <br/>
+                        <textarea
+                        class="bg-orange-100 text-black font-mono"
+                        id={format!("block-input-{id}")}
+                        node_ref=focus_element
+                        prop:value=content
+                        autocomplete="false"
+                        spellcheck="false"
+                        rows=TEXTAREA_DEFAULT_ROWS
+                        cols=TEXTAREA_DEFAULT_COLS
                         on:input:target=move |ev| {
                             content.set(ev.target().value());
                         }
@@ -75,15 +119,6 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                             undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Lacuna(current_old_content, reason.get()), InnerBlockDry::Lacuna(new_content, reason.get())));
                         }
                     />
-                        <input node_ref=focus_element prop:value=reason on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_reason = old_reason.get();
-                            let new_reason = ev.target().value();
-                            set_old_reason.set(new_reason.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Lacuna(content.get(), current_old_reason), InnerBlockDry::Lacuna(content.get(), new_reason)));
-                        }/>
                     </div>
                 }.into_any()
         }
@@ -92,8 +127,38 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
                     <div>
-                        <p>"Uncertain: "</p>
-                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=content
+                        <span
+                            class="font-light text-xs">
+                            "Uncertain because of "
+                        </span>
+                        <input
+                        class="text-sm"
+                        placeholder="reason"
+                        autocomplete="false"
+                        spellcheck="false"
+                        prop:value=reason
+                        on:input:target=move |ev| {
+                            reason.set(ev.target().value());
+                        }
+                        on:change:target=move |ev| {
+                            let current_old_reason = old_reason.get();
+                            let new_reason = ev.target().value();
+                            set_old_reason.set(new_reason.clone());
+                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(content.get(), current_old_reason), InnerBlockDry::Uncertain(content.get(), new_reason)));
+                        }/>
+                        <span class="font-light text-xs">
+                            :
+                        </span>
+                        <br/>
+                        <textarea
+                        id={format!("block-input-{id}")}
+                        class="bg-orange-100 text-black font-mono"
+                        node_ref=focus_element
+                        autocomplete="false"
+                        spellcheck="false"
+                        rows=TEXTAREA_DEFAULT_ROWS
+                        cols=TEXTAREA_DEFAULT_COLS
+                        prop:value=content
                         on:input:target=move |ev| {
                             content.set(ev.target().value());
                         }
@@ -104,15 +169,6 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                             undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(current_old_content, reason.get()), InnerBlockDry::Uncertain(new_content, reason.get())));
                         }
                     />
-                        <input node_ref=focus_element prop:value=reason on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_reason = old_reason.get();
-                            let new_reason = ev.target().value();
-                            set_old_reason.set(new_reason.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id, InnerBlockDry::Uncertain(content.get(), current_old_reason), InnerBlockDry::Uncertain(content.get(), new_reason)));
-                        }/>
                     </div>
                 }.into_any()
         }
@@ -120,9 +176,16 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
                     <div>
-                        <p>"Break: "</p>
+                        <p
+                            class="font-light text-xs">
+                            "Break: "
+                        </p>
                         // TODO make this a drop down instead
-                        <input node_ref=focus_element id={format!("block-input-{id}")} prop:value=reason
+                        <input
+                        id={format!("block-input-{id}")}
+                        autocomplete="false"
+                        spellcheck="false"
+                        prop:value=reason
                         on:input:target=move |ev| {
                             reason.set(ev.target().value());
                         }
@@ -159,7 +222,11 @@ impl EditorBlock {
     /// Display this block
     pub(super) fn view(self) -> impl IntoView {
         view! {
-            <span>{self.id}":"<InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView></span>
+            <span>
+                // we probably do not want to show the blocks ID to the user
+                // {self.id}
+                // ":"
+                <InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView></span>
         }
     }
 
