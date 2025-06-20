@@ -1,4 +1,4 @@
-# critic-web
+# critic
 This is a webapp to enable digital textual criticism.
 
 # TODOs - Editor
@@ -26,6 +26,15 @@ for each:
 
 # TODOs - General
 ## setup oauth2 flow with our own gitlab
+### setup host entries on my machine to make this work with proper https
+### setup server that intercepts the call to /oauth/redirect
+- we should get an authorization-code from that
+### trade for token
+### now have an ephemeral table (SQLite??) that holds user session tokens (aka oauth tokens and refresh tokens) for users
+### write some middleware to do this
+#### redirect to oauth if no session exists
+#### do the refresh-dance if it exists but is expired
+#### give access to the page if a session exists and is active
 
 ## setup docker for code deployment later
 
