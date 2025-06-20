@@ -16,9 +16,16 @@ leptos_meta = { version = "0.7.0" }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 wasm-bindgen = { version = "=0.2.100", optional = true }
 serde = { version = "1.0.219", features = ["derive"] }
+sqlx = { version = "0.8.2", default-features=false, features = ["chrono", "sqlite", "postgres", "runtime-tokio-rustls"], optional = true }
+tracing = { version = "0.1.40", features = ["attributes"], optional = true }
+tracing-appender = { version = "0.2.3", optional = true }
+tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"], optional = true }
 leptos-use = { version = "0.15.7", features = ["use_event_listener"] }
 web-sys = "0.3.77"
 serde_json = { version = "1.0.140", optional = true }
+toml = { version = "0.8.23", optional = true }
+# here so we can set the default crypto provider manually
+rustls = { version = "0.23.28", optional = true }
 
 [features]
 hydrate = [
@@ -35,6 +42,12 @@ ssr = [
     "leptos_router/ssr",
     "leptos-use/ssr",
     "dep:serde_json",
+    "dep:toml",
+    "dep:sqlx",
+    "dep:tracing",
+    "dep:tracing-appender",
+    "dep:tracing-subscriber",
+    "dep:rustls",
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
@@ -65,7 +78,7 @@ style-file = "style/output.css"
 assets-dir = "public"
 
 # The IP and port (ex: 127.0.0.1:3000) where the server serves the content. Use it in your server setup.
-site-addr = "127.0.0.1:3000"
+# site-addr = "127.0.0.1:3000"
 
 # The port to use for automatic reload monitoring
 reload-port = 3001

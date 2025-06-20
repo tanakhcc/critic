@@ -25,12 +25,14 @@ for each:
 - behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)
 
 # TODOs - General
+## do proper config parsing
+## add a postgres DB in the background
+- also needed for data anyways, we want to get away from putting transcriptions directly in the FS
 ## setup oauth2 flow with our own gitlab
-### setup host entries on my machine to make this work with proper https
 ### setup server that intercepts the call to /oauth/redirect
 - we should get an authorization-code from that
 ### trade for token
-### now have an ephemeral table (SQLite??) that holds user session tokens (aka oauth tokens and refresh tokens) for users
+### now have an table that holds user session tokens (aka oauth tokens and refresh tokens) for users
 ### write some middleware to do this
 #### redirect to oauth if no session exists
 #### do the refresh-dance if it exists but is expired
@@ -60,4 +62,26 @@ Using normal gitlab releases
 
 ## Should we host a matrix server as well for better chats?
 Would be nice, but require a central LDAP for auth management
+
+## Manuscripts, Pages
+- Manuscripts = a group of folios with meta-information (representable in TEI format)
+- Pages = File on the OS level (a single xml file)
+
+# Source of truth
+Source of truth is mixed.
+DB is used authoritatively for:
+- session stores (local sqlite)
+- current state of published files
+gitlab is used authoritatively for everything else:
+- actual transcription data (after reconciliation)
+- (source metadata - this is part of the XML files for transcriptions)
+
+## auto-rebuild
+- DB is rebuilt every now and then (daily??) from gitlab
+    - we check consistency of gitlab by building into a dev-db
+    - if that works, we build into the actual db
+
+## consistency check
+- check that all xml files are parsable in our subscheme
+- check that all metadata for a source is consistent
 
