@@ -19,3 +19,5 @@ tmp/
 tailwindcss
 
 style/output.css
+
+.env

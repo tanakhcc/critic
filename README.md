@@ -25,18 +25,14 @@ for each:
 - behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)
 
 # TODOs - General
-## do proper config parsing
-## add a postgres DB in the background
-- also needed for data anyways, we want to get away from putting transcriptions directly in the FS
 ## setup oauth2 flow with our own gitlab
+use `axum_login` for that, copy from the oauth2 example given
+- table that holds user sessions (username, `auth_token`, `refresh_token`)
 ### setup server that intercepts the call to /oauth/redirect
 - we should get an authorization-code from that
 ### trade for token
-### now have an table that holds user session tokens (aka oauth tokens and refresh tokens) for users
-### write some middleware to do this
-#### redirect to oauth if no session exists
-#### do the refresh-dance if it exists but is expired
-#### give access to the page if a session exists and is active
+### put in table
+### add the `login_required!` middleware over the correct routes - generate leptos routes without the `/api/protected` routes
 
 ## setup docker for code deployment later
 

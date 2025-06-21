@@ -7,8 +7,8 @@ use leptos::prelude::*;
 
 use super::{UnReStack, UnReStep};
 
-const TEXTAREA_DEFAULT_ROWS : i32 = 2;
-const TEXTAREA_DEFAULT_COLS : i32 = 30;
+const TEXTAREA_DEFAULT_ROWS: i32 = 2;
+const TEXTAREA_DEFAULT_COLS: i32 = 30;
 
 #[derive(Debug, Clone)]
 pub(super) struct EditorBlock {
