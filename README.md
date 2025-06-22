@@ -25,14 +25,12 @@ for each:
 - behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)
 
 # TODOs - General
-## setup oauth2 flow with our own gitlab
-### setup server that intercepts the call to /oauth/redirect
-- we should get an authorization-code from that
-### trade for token
-### put in table
-### add the `login_required!` middleware over the correct routes - generate leptos routes without the `/api/protected` routes
-
+## get the currently logged in user into leptos (frontend) somehow?
+we want to be able to show who the user is and such
+- maybe just have resources that pull that from the server??
 ## setup docker for code deployment later
+
+## emit xml files for transcripts
 
 # TODOs - Workflow
 - The user creates a transcription (using the editor)
