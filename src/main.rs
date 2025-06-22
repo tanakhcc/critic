@@ -1,18 +1,16 @@
 //! Critic README TODO
 
-use leptos::attr::value;
 use oauth2::TokenResponse;
 use serde::Deserialize;
 
 #[cfg(feature = "ssr")]
-mod auth;
+pub mod auth;
 
 #[cfg(feature = "ssr")]
 mod config;
 
 #[cfg(feature = "ssr")]
 mod db;
-
 
 // some basic types used across the app
 /// The JSON object returned from gitlabs get-user endpoint
@@ -92,10 +90,15 @@ impl TryFrom<oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    use std::sync::Arc;
+
+    use crate::auth::GitlabOauthBackend;
     use axum::Router;
+    use axum_login::{login_required, tower_sessions::{Expiry, MemoryStore, SessionManagerLayer}, AuthManagerLayerBuilder};
     use critic::app::*;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use time::Duration;
     use tracing::{debug, info};
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
@@ -105,10 +108,18 @@ async fn main() {
             panic!("Error reading config: {e}.");
         }
     };
+    let config_arc = Arc::new(config);
 
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
+
+    match sqlx::migrate!().run(&config_arc.db).await {
+        Ok(_) => {},
+        Err(e) => {
+            panic!("Error migrating database: {e}");
+        }
+    }
 
     let my_crate_filter = EnvFilter::new("critic");
     let subscriber = tracing_subscriber::registry().with(my_crate_filter).with(
@@ -116,7 +127,7 @@ async fn main() {
             .compact()
             .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
             .with_line_number(true)
-            .with_filter(config.log_level),
+            .with_filter(config_arc.log_level),
     );
     tracing::subscriber::set_global_default(subscriber).expect("static tracing config");
     debug!("Tracing enabled.");
@@ -129,18 +140,33 @@ async fn main() {
     // login layer
     // leptos_routes_with_exclusions (exclude protected and login layer) - this generates all other
     // leptos routes
-    let app = Router::new()
-        .leptos_routes(&config.leptos_options, routes, {
-            let leptos_options = config.leptos_options.clone();
+    let app_core = Router::new()
+        .leptos_routes(&config_arc.leptos_options, routes, {
+            let leptos_options = config_arc.leptos_options.clone();
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(config.leptos_options.clone());
+        .with_state(config_arc.leptos_options.clone())
+        ;
+
+    // create the auth layer on top of our application core
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false)
+        .with_same_site(axum_login::tower_sessions::cookie::SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::days(1)));
+    let backend = GitlabOauthBackend::new(config_arc.clone());
+    let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
+
+    let app = app_core
+        .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
+        .merge(crate::auth::backend::auth_router())
+        .layer(auth_layer);
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    info!("listening on http://{}", &config.leptos_options.site_addr);
-    let listener = tokio::net::TcpListener::bind(&config.leptos_options.site_addr)
+    info!("listening on http://{}", &config_arc.leptos_options.site_addr);
+    let listener = tokio::net::TcpListener::bind(&config_arc.leptos_options.site_addr)
         .await
         .unwrap();
     axum::serve(listener, app.into_make_service())

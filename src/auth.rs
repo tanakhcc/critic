@@ -1,15 +1,18 @@
+//! All types and endpoints for authenticating users
+
 use axum::http::header::{AUTHORIZATION, USER_AGENT};
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use oauth2::{
-    basic::{BasicClient, BasicRequestTokenError},
-    url::Url,
-    AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeVerifier, TokenResponse,
+    basic::{BasicClient, BasicRequestTokenError}, url::Url, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse
 };
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{config::Config, db::DBError, AuthenticatedUser, NormalizeTokenResponseError, NormalizedTokenResponse, UserInfo};
 use crate::db;
+
+// has all the backend APIs for auth flows
+pub mod backend;
 
 impl AuthUser for AuthenticatedUser {
     type Id = i32;
@@ -77,18 +80,28 @@ pub struct GitlabOauthBackend {
 }
 
 impl GitlabOauthBackend {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: std::sync::Arc<Config>) -> Self {
         let db = config.db.clone();
         let client = config.oauth_client.clone();
         Self { db, client, }
     }
 
-    pub fn authorize_url(&self) -> (Url, CsrfToken) {
-        self.client.authorize_url(CsrfToken::new_random).url()
+    /// URL to show to the user to start the oauth flow
+    /// RETURNS
+    ///     the url to show
+    ///     the CsrfToken in use
+    pub fn authorize_url(&self) -> (Url, CsrfToken, PkceCodeVerifier) {
+        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+        let (url, csrf_token) = self.client
+            .authorize_url(CsrfToken::new_random)
+            .add_scope(Scope::new("api".to_string()))
+            .set_pkce_challenge(pkce_challenge)
+            .url();
+        (url, csrf_token, pkce_verifier)
     }
 }
 
-#[axum::async_trait]
+#[async_trait::async_trait]
 impl AuthnBackend for GitlabOauthBackend {
     type User = AuthenticatedUser;
     type Credentials = Credentials;
@@ -120,7 +133,7 @@ impl AuthnBackend for GitlabOauthBackend {
 
         // Use access token to request user info.
         let user_info = client
-            .get("https://gitlab.tanakhcc.org/user")
+            .get("https://gitlab.tanakhcc.org/api/v4/user")
             .header(USER_AGENT.as_str(), "axum-login") // See: https://docs.github.com/en/rest/overview/resources-in-the-rest-api?apiVersion=2022-11-28#user-agent-required
             .header(
                 AUTHORIZATION.as_str(),
@@ -128,7 +141,8 @@ impl AuthnBackend for GitlabOauthBackend {
             )
             .send()
             .await
-            .map_err(Self::Error::Reqwest)?
+            .map_err(Self::Error::Reqwest)?;
+        let user_info = user_info
             .json::<UserInfo>()
             .await
             .map_err(Self::Error::Gitlab)?;

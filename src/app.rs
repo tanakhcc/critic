@@ -7,6 +7,7 @@ use leptos_router::{
 
 mod editor;
 use editor::Editor;
+pub mod auth;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -41,6 +42,11 @@ pub fn App() -> impl IntoView {
 
         // Router
         <Router>
+            <nav>
+                <a href="/get-started">"Get Started"</a>
+                <a href="/transcribe">"Transcribe"</a>
+                <a href="/reconcile">"Reconcile"</a>
+            </nav>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>

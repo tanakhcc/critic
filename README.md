@@ -26,8 +26,6 @@ for each:
 
 # TODOs - General
 ## setup oauth2 flow with our own gitlab
-use `axum_login` for that, copy from the oauth2 example given
-- table that holds user sessions (username, `auth_token`, `refresh_token`)
 ### setup server that intercepts the call to /oauth/redirect
 - we should get an authorization-code from that
 ### trade for token
