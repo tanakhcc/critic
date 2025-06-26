@@ -19,7 +19,10 @@ pub fn auth_router() -> Router {
         // redirect to the oauth endpoint on gitlab
         .route("/login", axum::routing::get(login_get_endpoint))
         // the endpoint that gitlab will redirect into after successful login there
-        .route("/oauth/redirect", axum::routing::get(oauth_redirect_endpoint))
+        .route(
+            "/oauth/redirect",
+            axum::routing::get(oauth_redirect_endpoint),
+        )
         // logout an existing session
         .route("/logout", axum::routing::post(logout_post_endpoint))
 }
@@ -58,7 +61,7 @@ pub async fn login_get_endpoint(
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthzResp {
     code: String,
-    state: CsrfToken
+    state: CsrfToken,
 }
 
 pub async fn oauth_redirect_endpoint(
@@ -76,7 +79,7 @@ pub async fn oauth_redirect_endpoint(
 
     let pkce_verifier = match session.get(PKCE_VERIFIER_KEY).await {
         // everything okay
-        Ok(Some(x)) => { x },
+        Ok(Some(x)) => x,
         // the pkce verifier was not set
         Ok(None) => {
             error!("The PKCE verifier was missing while dealing with an oauth redirect with valid CSRF state");
@@ -110,7 +113,10 @@ pub async fn oauth_redirect_endpoint(
     };
 
     if let Err(e) = auth_session.login(&user).await {
-        error!("Unable to login user {} after getting correct oauth redirect: {e}", user.username);
+        error!(
+            "Unable to login user {} after getting correct oauth redirect: {e}",
+            user.username
+        );
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
@@ -120,7 +126,6 @@ pub async fn oauth_redirect_endpoint(
         axum::response::Redirect::to("/").into_response()
     }
 }
-
 
 pub async fn logout_post_endpoint(mut auth_session: AuthSession) -> impl IntoResponse {
     match auth_session.logout().await {

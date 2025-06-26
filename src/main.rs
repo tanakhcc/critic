@@ -51,8 +51,6 @@ impl std::fmt::Debug for AuthenticatedUser {
     }
 }
 
-
-
 #[derive(Debug)]
 enum NormalizeTokenResponseError {
     NoRefresh,
@@ -61,8 +59,12 @@ enum NormalizeTokenResponseError {
 impl core::fmt::Display for NormalizeTokenResponseError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            Self::NoRefresh => {write!(f, "No refresh token was given")}
-            Self::NoExpiresIn => {write!(f, "No expires_in time was given")}
+            Self::NoRefresh => {
+                write!(f, "No refresh token was given")
+            }
+            Self::NoExpiresIn => {
+                write!(f, "No expires_in time was given")
+            }
         }
     }
 }
@@ -73,19 +75,34 @@ struct NormalizedTokenResponse {
     refresh_token: String,
     expires_at: time::OffsetDateTime,
 }
-impl TryFrom<oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>> for NormalizedTokenResponse {
+impl
+    TryFrom<
+        oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
+    > for NormalizedTokenResponse
+{
     type Error = NormalizeTokenResponseError;
 
-    fn try_from(value: oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>) -> Result<Self, Self::Error> {
-        let expires_at = time::OffsetDateTime::now_utc() + value.expires_in().ok_or(NormalizeTokenResponseError::NoExpiresIn)?;
+    fn try_from(
+        value: oauth2::StandardTokenResponse<
+            oauth2::EmptyExtraTokenFields,
+            oauth2::basic::BasicTokenType,
+        >,
+    ) -> Result<Self, Self::Error> {
+        let expires_at = time::OffsetDateTime::now_utc()
+            + value
+                .expires_in()
+                .ok_or(NormalizeTokenResponseError::NoExpiresIn)?;
         Ok(Self {
             access_token: value.access_token().clone().into_secret(),
-            refresh_token: value.refresh_token().ok_or(NormalizeTokenResponseError::NoRefresh)?.clone().into_secret(),
+            refresh_token: value
+                .refresh_token()
+                .ok_or(NormalizeTokenResponseError::NoRefresh)?
+                .clone()
+                .into_secret(),
             expires_at,
         })
     }
 }
-
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
@@ -94,7 +111,11 @@ async fn main() {
 
     use crate::auth::GitlabOauthBackend;
     use axum::Router;
-    use axum_login::{login_required, tower_sessions::{Expiry, MemoryStore, SessionManagerLayer}, AuthManagerLayerBuilder};
+    use axum_login::{
+        login_required,
+        tower_sessions::{Expiry, MemoryStore, SessionManagerLayer},
+        AuthManagerLayerBuilder,
+    };
     use critic::app::*;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -115,7 +136,7 @@ async fn main() {
         .expect("Failed to install rustls crypto provider");
 
     match sqlx::migrate!().run(&config_arc.db).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             panic!("Error migrating database: {e}");
         }
@@ -146,8 +167,7 @@ async fn main() {
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(config_arc.leptos_options.clone())
-        ;
+        .with_state(config_arc.leptos_options.clone());
 
     // create the auth layer on top of our application core
     let session_store = MemoryStore::default();
@@ -165,7 +185,10 @@ async fn main() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    info!("listening on http://{}", &config_arc.leptos_options.site_addr);
+    info!(
+        "listening on http://{}",
+        &config_arc.leptos_options.site_addr
+    );
     let listener = tokio::net::TcpListener::bind(&config_arc.leptos_options.site_addr)
         .await
         .unwrap();

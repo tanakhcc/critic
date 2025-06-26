@@ -4,22 +4,28 @@ This is a webapp to enable digital textual criticism.
 # TODOs - Editor
 ## How do we display global errors?
 
-## Other Blocks (copy the list from ATG)
+## rework blocks to conform to `critic_format::streamed::Block`
+### add content to `<gap>`
+### make InnerBlock data actual types
+### rename all text elements to content everywhere for consistency
+
+## remove editor block dry - instead Dry things as `critic_format::streamed::Block` when required
+
+## Other Blocks
 for each:
 - implement behaviour
 - implement view
 - implement undo/redo if required
 ### Anchors
 ### Corrections
-
-## Make Break a dropdown instead of a raw string input
+### Abbreviations
 
 ## Merge Blocks
 - up and down
 
 ## Styling
 
-## Ribbon with the commands for which keycommands exist
+## Ribbon which prints keyboard shortcuts for existing commands
 
 ## bugs
 - behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)

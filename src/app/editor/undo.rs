@@ -11,9 +11,10 @@
 //! Doing anything other then an Undo/Redo clears the Redo-Stack. There is no Undo-Tree in this
 //! editor.
 
+use critic_format::streamed::Block;
 use leptos::logging::log;
 
-use super::{EditorBlock, EditorBlockDry, InnerBlockDry};
+use super::EditorBlock;
 
 /// Replayable thing in the stack machine.
 trait Replay {
@@ -89,8 +90,8 @@ pub(super) enum UnReStep {
 impl UnReStep {
     pub fn new_data_change(
         logical_index: i32,
-        old_inner_block: InnerBlockDry,
-        new_inner_block: InnerBlockDry,
+        old_inner_block: Block,
+        new_inner_block: Block,
     ) -> Self {
         Self::DataChange(DataChange::new(
             logical_index,
@@ -100,8 +101,8 @@ impl UnReStep {
     }
     pub fn new_block_change(
         physical_index_of_change: usize,
-        old_blocks: Vec<EditorBlockDry>,
-        new_blocks: Vec<EditorBlockDry>,
+        old_blocks: Vec<EditorBlock>,
+        new_blocks: Vec<EditorBlock>,
     ) -> Self {
         Self::BlockChange(BlockChange::new(
             physical_index_of_change,
@@ -109,10 +110,10 @@ impl UnReStep {
             new_blocks,
         ))
     }
-    pub fn new_deletion(physical_index_of_change: usize, block: EditorBlockDry) -> Self {
+    pub fn new_deletion(physical_index_of_change: usize, block: EditorBlock) -> Self {
         Self::new_block_change(physical_index_of_change, vec![block], vec![])
     }
-    pub fn new_insertion(physical_index_of_change: usize, block: EditorBlockDry) -> Self {
+    pub fn new_insertion(physical_index_of_change: usize, block: EditorBlock) -> Self {
         Self::new_block_change(physical_index_of_change, vec![], vec![block])
     }
     pub fn new_swap(physical_index_1: usize, physical_index_2: usize) -> Self {
@@ -206,12 +207,12 @@ struct DataChange {
     /// The (logical) id of the block that was changed
     id: i32,
     /// The block before the change
-    old_inner: InnerBlockDry,
+    old_inner: Block,
     /// The block after the change
-    new_inner: InnerBlockDry,
+    new_inner: Block,
 }
 impl DataChange {
-    pub fn new(id: i32, old_inner: InnerBlockDry, new_inner: InnerBlockDry) -> Self {
+    pub fn new(id: i32, old_inner: Block, new_inner: Block) -> Self {
         Self {
             id,
             old_inner,
@@ -283,15 +284,15 @@ struct BlockChange {
     /// Location in the block vector where the touched blocks start
     physical_index_of_change: usize,
     /// The blocks before the chnage
-    old_blocks: Vec<EditorBlockDry>,
+    old_blocks: Vec<EditorBlock>,
     /// The blocks after the change
-    new_blocks: Vec<EditorBlockDry>,
+    new_blocks: Vec<EditorBlock>,
 }
 impl BlockChange {
     pub fn new(
         physical_index_of_change: usize,
-        old_blocks: Vec<EditorBlockDry>,
-        new_blocks: Vec<EditorBlockDry>,
+        old_blocks: Vec<EditorBlock>,
+        new_blocks: Vec<EditorBlock>,
     ) -> Self {
         Self {
             physical_index_of_change,

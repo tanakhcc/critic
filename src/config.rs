@@ -33,10 +33,16 @@ impl core::fmt::Display for ConfigError {
                 write!(f, "Unable to parse log_level: {e}")
             }
             Self::GitlabAddrParse(e) => {
-                write!(f, "Unable to interpret gitlab_addr as addr while using it to build a url: {e}")
+                write!(
+                    f,
+                    "Unable to interpret gitlab_addr as addr while using it to build a url: {e}"
+                )
             }
             Self::PublicAddrParse(e) => {
-                write!(f, "Unable to interpret public_addr as addr while using it to build a url: {e}")
+                write!(
+                    f,
+                    "Unable to interpret public_addr as addr while using it to build a url: {e}"
+                )
             }
         }
     }
@@ -89,20 +95,41 @@ struct OauthConfig {
     redirect_url: oauth2::RedirectUrl,
 }
 impl OauthConfig {
-    fn try_from_config_data(value: OauthConfigData, gitlab_addr: &str, public_addr: &str) -> Result<Self, ConfigError> {
+    fn try_from_config_data(
+        value: OauthConfigData,
+        gitlab_addr: &str,
+        public_addr: &str,
+    ) -> Result<Self, ConfigError> {
         Ok(Self {
             client_id: oauth2::ClientId::new(value.client_id),
             client_secret: oauth2::ClientSecret::new(value.client_secret),
-            auth_url: oauth2::AuthUrl::new(format!(
-                "https://{}/oauth/authorize",
-                gitlab_addr
-            )).map_err(ConfigError::GitlabAddrParse)?,
-            token_url: oauth2::TokenUrl::new(format!("https://{}/oauth/token", gitlab_addr)).map_err(ConfigError::GitlabAddrParse)?,
-            redirect_url: oauth2::RedirectUrl::new(format!("https://{}/oauth/redirect", public_addr)).map_err(ConfigError::PublicAddrParse)?,
+            auth_url: oauth2::AuthUrl::new(format!("https://{}/oauth/authorize", gitlab_addr))
+                .map_err(ConfigError::GitlabAddrParse)?,
+            token_url: oauth2::TokenUrl::new(format!("https://{}/oauth/token", gitlab_addr))
+                .map_err(ConfigError::GitlabAddrParse)?,
+            redirect_url: oauth2::RedirectUrl::new(format!(
+                "https://{}/oauth/redirect",
+                public_addr
+            ))
+            .map_err(ConfigError::PublicAddrParse)?,
         })
     }
 }
-pub type OauthClient = oauth2::Client<oauth2::StandardErrorResponse<oauth2::basic::BasicErrorResponseType>, oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>, oauth2::StandardTokenIntrospectionResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>, oauth2::StandardRevocableToken, oauth2::StandardErrorResponse<oauth2::RevocationErrorResponseType>, oauth2::EndpointSet, oauth2::EndpointNotSet, oauth2::EndpointNotSet, oauth2::EndpointNotSet, oauth2::EndpointSet>;
+pub type OauthClient = oauth2::Client<
+    oauth2::StandardErrorResponse<oauth2::basic::BasicErrorResponseType>,
+    oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
+    oauth2::StandardTokenIntrospectionResponse<
+        oauth2::EmptyExtraTokenFields,
+        oauth2::basic::BasicTokenType,
+    >,
+    oauth2::StandardRevocableToken,
+    oauth2::StandardErrorResponse<oauth2::RevocationErrorResponseType>,
+    oauth2::EndpointSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointNotSet,
+    oauth2::EndpointSet,
+>;
 impl From<OauthConfig> for OauthClient {
     fn from(value: OauthConfig) -> Self {
         oauth2::basic::BasicClient::new(value.client_id)
@@ -170,7 +197,12 @@ impl Config {
             db,
             leptos_options,
             log_level,
-            oauth_client: OauthConfig::try_from_config_data(value.oauth, &value.gitlab_addr, &value.web.public_addr)?.into(),
+            oauth_client: OauthConfig::try_from_config_data(
+                value.oauth,
+                &value.gitlab_addr,
+                &value.web.public_addr,
+            )?
+            .into(),
             gitlab_addr: value.gitlab_addr,
         })
     }

@@ -40,8 +40,11 @@ impl core::fmt::Display for DBError {
 }
 impl std::error::Error for DBError {}
 
-
-pub async fn insert_or_update_user_session(pool: &Pool<Postgres>, user_info: UserInfo, token_res: NormalizedTokenResponse) -> Result<AuthenticatedUser, DBError> {
+pub async fn insert_or_update_user_session(
+    pool: &Pool<Postgres>,
+    user_info: UserInfo,
+    token_res: NormalizedTokenResponse,
+) -> Result<AuthenticatedUser, DBError> {
     let mut tx = pool
         .begin()
         .await
@@ -57,15 +60,15 @@ pub async fn insert_or_update_user_session(pool: &Pool<Postgres>, user_info: Use
             expires_at = excluded.expires_at,
             id = excluded.id
             returning *",
-            user_info.id,
-            user_info.username,
-            token_res.access_token,
-            token_res.refresh_token,
-            token_res.expires_at,
-            )
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(DBError::CannotInsertOrUpdateUsersession)?;
+        user_info.id,
+        user_info.username,
+        token_res.access_token,
+        token_res.refresh_token,
+        token_res.expires_at,
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(DBError::CannotInsertOrUpdateUsersession)?;
 
     tx.commit()
         .await
@@ -73,4 +76,3 @@ pub async fn insert_or_update_user_session(pool: &Pool<Postgres>, user_info: Use
 
     Ok(authenticated_user)
 }
-

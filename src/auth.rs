@@ -3,13 +3,19 @@
 use axum::http::header::{AUTHORIZATION, USER_AGENT};
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use oauth2::{
-    basic::{BasicClient, BasicRequestTokenError}, url::Url, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse
+    basic::{BasicClient, BasicRequestTokenError},
+    url::Url,
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
+    Scope, TokenResponse,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{config::Config, db::DBError, AuthenticatedUser, NormalizeTokenResponseError, NormalizedTokenResponse, UserInfo};
 use crate::db;
+use crate::{
+    config::Config, db::DBError, AuthenticatedUser, NormalizeTokenResponseError,
+    NormalizedTokenResponse, UserInfo,
+};
 
 // has all the backend APIs for auth flows
 pub mod backend;
@@ -57,7 +63,10 @@ impl core::fmt::Display for BackendError {
                 write!(f, "Failure while talking to our own database: {e}")
             }
             Self::TokenExchange(e) => {
-                write!(f, "Failure while exchanging authorization code for access token: {e}")
+                write!(
+                    f,
+                    "Failure while exchanging authorization code for access token: {e}"
+                )
             }
             Self::Reqwest(e) => {
                 write!(f, "Failure sending http request: {e}")
@@ -66,7 +75,10 @@ impl core::fmt::Display for BackendError {
                 write!(f, "Failure to parse response JSON from gitlab API: {e}")
             }
             Self::TokenResponse(e) => {
-                write!(f, "Token response from gitlabs api was not as expected: {e}")
+                write!(
+                    f,
+                    "Token response from gitlabs api was not as expected: {e}"
+                )
             }
         }
     }
@@ -83,7 +95,7 @@ impl GitlabOauthBackend {
     pub fn new(config: std::sync::Arc<Config>) -> Self {
         let db = config.db.clone();
         let client = config.oauth_client.clone();
-        Self { db, client, }
+        Self { db, client }
     }
 
     /// URL to show to the user to start the oauth flow
@@ -92,7 +104,8 @@ impl GitlabOauthBackend {
     ///     the CsrfToken in use
     pub fn authorize_url(&self) -> (Url, CsrfToken, PkceCodeVerifier) {
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let (url, csrf_token) = self.client
+        let (url, csrf_token) = self
+            .client
             .authorize_url(CsrfToken::new_random)
             .add_scope(Scope::new("api".to_string()))
             .set_pkce_challenge(pkce_challenge)
@@ -148,7 +161,13 @@ impl AuthnBackend for GitlabOauthBackend {
             .map_err(Self::Error::Gitlab)?;
 
         // Persist user in our database so we can use `get_user`.
-        let user = db::insert_or_update_user_session(&self.db, user_info, token_res.try_into().map_err(BackendError::TokenResponse)?).await.map_err(BackendError::DB)?;
+        let user = db::insert_or_update_user_session(
+            &self.db,
+            user_info,
+            token_res.try_into().map_err(BackendError::TokenResponse)?,
+        )
+        .await
+        .map_err(BackendError::DB)?;
         Ok(Some(user))
     }
 
@@ -157,10 +176,10 @@ impl AuthnBackend for GitlabOauthBackend {
             AuthenticatedUser,
             "select * from user_session where id = $1",
             user_id,
-            )
-            .fetch_optional(&self.db)
-            .await
-            .map_err(|e| Self::Error::DB(DBError::CannotGetUsersession(e)))
+        )
+        .fetch_optional(&self.db)
+        .await
+        .map_err(|e| Self::Error::DB(DBError::CannotGetUsersession(e)))
     }
 }
 

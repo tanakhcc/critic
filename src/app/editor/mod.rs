@@ -2,6 +2,7 @@
 //!
 //! This is the GUI-area and directly related APIs/server functions to save its data.
 
+use critic_format::streamed::BlockType;
 use leptos::{
     ev::keydown,
     logging::log,
@@ -25,7 +26,7 @@ fn new_node(
     set_blocks: WriteSignal<Vec<EditorBlock>>,
     next_id: ReadSignal<i32>,
     set_next_id: WriteSignal<i32>,
-    block_type: InnerBlockType,
+    block_type: BlockType,
     undo_stack: RwSignal<UnReStack>,
 ) {
     let active_element = match use_document().active_element() {
@@ -103,7 +104,7 @@ fn new_node(
                 // nothing selected, add a new empty node after this one
                 // we want to focus on the next node
                 let new_block =
-                    EditorBlockDry::new(next_id.get(), block_type, String::default(), true);
+                    EditorBlock::new(next_id.get(), block_type, todo!("lang"), String::default(), true);
                 set_blocks
                     .write()
                     .insert(physical_index, new_block.clone().into());
@@ -128,12 +129,8 @@ pub(crate) fn Editor() -> impl IntoView {
     let add_block = move |_| {
         set_blocks.update(|bs| {
             let logical_index = next_id.get();
-            let new_block = EditorBlockDry::new(
-                logical_index,
-                InnerBlockType::Text,
-                "raw text".to_owned(),
-                true,
-            );
+            let new_block =
+                EditorBlock::new(logical_index, BlockType::Text, todo!("lang"), "raw text".to_owned(), true);
             let physical_index = bs.len();
             undo_stack
                 .write()
@@ -262,7 +259,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 set_blocks,
                 next_id,
                 set_next_id,
-                InnerBlockType::Text,
+                BlockType::Text,
                 undo_stack,
             );
         // <ctrl>-<alt>-U (new Uncertain)
@@ -273,7 +270,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 set_blocks,
                 next_id,
                 set_next_id,
-                InnerBlockType::Uncertain,
+                BlockType::Uncertain,
                 undo_stack,
             )
         // <ctrl>-<alt>-L (new Lacuna)
@@ -284,7 +281,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 set_blocks,
                 next_id,
                 set_next_id,
-                InnerBlockType::Lacuna,
+                BlockType::Lacuna,
                 undo_stack,
             );
         // <ctrl>-<alt>-<ENTER> (new Break)
@@ -295,7 +292,7 @@ pub(crate) fn Editor() -> impl IntoView {
                 set_blocks,
                 next_id,
                 set_next_id,
-                InnerBlockType::Break,
+                BlockType::Break,
                 undo_stack,
             );
         };
@@ -305,7 +302,7 @@ pub(crate) fn Editor() -> impl IntoView {
     // around
     provide_context(undo_stack);
 
-    let load_state_resource = OnceResource::<Vec<EditorBlockDry>>::new(async move {
+    let load_state_resource = OnceResource::<Vec<EditorBlock>>::new(async move {
         match load_editor_state().await {
             Ok(x) => x,
             Err(e) => {
