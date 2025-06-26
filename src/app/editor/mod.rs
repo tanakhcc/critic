@@ -103,8 +103,13 @@ fn new_node(
             _ => {
                 // nothing selected, add a new empty node after this one
                 // we want to focus on the next node
-                let new_block =
-                    EditorBlock::new(next_id.get(), block_type, todo!("lang"), String::default(), true);
+                let new_block = EditorBlock::new(
+                    next_id.get(),
+                    block_type,
+                    todo!("lang"),
+                    String::default(),
+                    true,
+                );
                 set_blocks
                     .write()
                     .insert(physical_index, new_block.clone().into());
@@ -129,8 +134,13 @@ pub(crate) fn Editor() -> impl IntoView {
     let add_block = move |_| {
         set_blocks.update(|bs| {
             let logical_index = next_id.get();
-            let new_block =
-                EditorBlock::new(logical_index, BlockType::Text, todo!("lang"), "raw text".to_owned(), true);
+            let new_block = EditorBlock::new(
+                logical_index,
+                BlockType::Text,
+                todo!("lang"),
+                "raw text".to_owned(),
+                true,
+            );
             let physical_index = bs.len();
             undo_stack
                 .write()

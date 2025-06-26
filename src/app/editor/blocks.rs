@@ -44,127 +44,129 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             // initialize the old content with the current one
             let (old_content, set_old_content) = signal(content.get_untracked());
             view! {
-                    <div>
-                        <p
-                            class="font-light text-xs">
-                            "Raw Text: "
-                        </p>
-                        <textarea
-                        class="bg-yellow-100 text-black font-mono"
-                        id={format!("block-input-{id}")}
-                        node_ref=focus_element
-                        autocomplete="false"
-                        spellcheck="false"
-                        rows=TEXTAREA_DEFAULT_ROWS
-                        cols=TEXTAREA_DEFAULT_COLS
-                        prop:value=content
-                        on:input:target=move |ev| {
-                            //change the current content when updated
-                            content.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            // the input is unfocused - we now want to add something to the undo
-                            // machine
-                            // the content that was last saved (on last unfocus of this element)
-                            let current_old_content = old_content.get();
-                            // current real value
-                            let new_content = ev.target().value();
-                            // save the new content on this unfocus (for the next run of this
-                            // closure)
-                            set_old_content.set(new_content.clone());
-                            // add the diff between the last unfocus and this unfocus to the stack
-                            undo_stack.write().push_undo(UnReStep::new_data_change(
-                                    id,
-                                    Block::Text(Paragraph {
-                                        lang: todo!("lang"),
-                                        content: current_old_content }),
-                                    Block::Text(Paragraph {
-                                        lang: todo!("lang"),
-                                        content: new_content }
-                                )));
-                        }
-                    />
-                    </div>
-                }.into_any()
+                <div>
+                    <p
+                        class="font-light text-xs">
+                        "Raw Text: "
+                    </p>
+                    <textarea
+                    class="bg-yellow-100 text-black font-mono"
+                    id={format!("block-input-{id}")}
+                    node_ref=focus_element
+                    autocomplete="false"
+                    spellcheck="false"
+                    rows=TEXTAREA_DEFAULT_ROWS
+                    cols=TEXTAREA_DEFAULT_COLS
+                    prop:value=content
+                    on:input:target=move |ev| {
+                        //change the current content when updated
+                        content.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        // the input is unfocused - we now want to add something to the undo
+                        // machine
+                        // the content that was last saved (on last unfocus of this element)
+                        let current_old_content = old_content.get();
+                        // current real value
+                        let new_content = ev.target().value();
+                        // save the new content on this unfocus (for the next run of this
+                        // closure)
+                        set_old_content.set(new_content.clone());
+                        // add the diff between the last unfocus and this unfocus to the stack
+                        undo_stack.write().push_undo(UnReStep::new_data_change(
+                                id,
+                                Block::Text(Paragraph {
+                                    lang: todo!("lang"),
+                                    content: current_old_content }),
+                                Block::Text(Paragraph {
+                                    lang: todo!("lang"),
+                                    content: new_content }
+                            )));
+                    }
+                />
+                </div>
+            }
+            .into_any()
         }
         InnerBlock::Lacuna(content, reason) => {
             let (old_content, set_old_content) = signal(content.get_untracked());
             let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
-                    <div>
-                        <span
-                            class="font-light text-xs">
-                                "Lacuna because of "
-                        </span>
-                        <input
-                        prop:value=reason
-                        class="text-sm"
-                        placeholder="reason"
-                        autocomplete="false"
-                        spellcheck="false"
-                        on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_reason = old_reason.get();
-                            let new_reason = ev.target().value();
-                            set_old_reason.set(new_reason.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Lacuna(Lacuna {
-                                        reason: current_old_reason,
-                                        n: todo!("lacuna-len"),
-                                        unit: todo!("lacuna-unit"),
-                                        cert: todo!("lacuna-cert"),
-                                        content: Some(content.get_untracked()),
-                                    }),
-                                    Block::Lacuna(Lacuna {
-                                        reason: new_reason,
-                                        n: todo!("lacuna-len"),
-                                        unit: todo!("lacuna-unit"),
-                                        cert: todo!("lacuna-cert"),
-                                        content: Some(content.get_untracked()),
-                                    })));
-                        }/>
-                        <span
-                            class="font-light text-xs">
-                            :
-                        </span>
-                        <br/>
-                        <textarea
-                        class="bg-orange-100 text-black font-mono"
-                        id={format!("block-input-{id}")}
-                        node_ref=focus_element
-                        prop:value=content
-                        autocomplete="false"
-                        spellcheck="false"
-                        rows=TEXTAREA_DEFAULT_ROWS
-                        cols=TEXTAREA_DEFAULT_COLS
-                        on:input:target=move |ev| {
-                            content.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_content = old_content.get();
-                            let new_content = ev.target().value();
-                            set_old_content.set(new_content.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Lacuna(Lacuna {
-                                        reason: reason.get_untracked(),
-                                        n: todo!("lacuna-len"),
-                                        unit: todo!("lacuna-unit"),
-                                        cert: todo!("lacuna-cert"),
-                                        content: Some(current_old_content),
-                                    }),
-                                    Block::Lacuna(Lacuna {
-                                        reason: reason.get_untracked(),
-                                        n: todo!("lacuna-len"),
-                                        unit: todo!("lacuna-unit"),
-                                        cert: todo!("lacuna-cert"),
-                                        content: Some(new_content),
-                                    })));
-                        }
-                    />
-                    </div>
-                }.into_any()
+                <div>
+                    <span
+                        class="font-light text-xs">
+                            "Lacuna because of "
+                    </span>
+                    <input
+                    prop:value=reason
+                    class="text-sm"
+                    placeholder="reason"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        reason.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        let current_old_reason = old_reason.get();
+                        let new_reason = ev.target().value();
+                        set_old_reason.set(new_reason.clone());
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Lacuna(Lacuna {
+                                    reason: current_old_reason,
+                                    n: todo!("lacuna-len"),
+                                    unit: todo!("lacuna-unit"),
+                                    cert: todo!("lacuna-cert"),
+                                    content: Some(content.get_untracked()),
+                                }),
+                                Block::Lacuna(Lacuna {
+                                    reason: new_reason,
+                                    n: todo!("lacuna-len"),
+                                    unit: todo!("lacuna-unit"),
+                                    cert: todo!("lacuna-cert"),
+                                    content: Some(content.get_untracked()),
+                                })));
+                    }/>
+                    <span
+                        class="font-light text-xs">
+                        :
+                    </span>
+                    <br/>
+                    <textarea
+                    class="bg-orange-100 text-black font-mono"
+                    id={format!("block-input-{id}")}
+                    node_ref=focus_element
+                    prop:value=content
+                    autocomplete="false"
+                    spellcheck="false"
+                    rows=TEXTAREA_DEFAULT_ROWS
+                    cols=TEXTAREA_DEFAULT_COLS
+                    on:input:target=move |ev| {
+                        content.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        let current_old_content = old_content.get();
+                        let new_content = ev.target().value();
+                        set_old_content.set(new_content.clone());
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Lacuna(Lacuna {
+                                    reason: reason.get_untracked(),
+                                    n: todo!("lacuna-len"),
+                                    unit: todo!("lacuna-unit"),
+                                    cert: todo!("lacuna-cert"),
+                                    content: Some(current_old_content),
+                                }),
+                                Block::Lacuna(Lacuna {
+                                    reason: reason.get_untracked(),
+                                    n: todo!("lacuna-len"),
+                                    unit: todo!("lacuna-unit"),
+                                    cert: todo!("lacuna-cert"),
+                                    content: Some(new_content),
+                                })));
+                    }
+                />
+                </div>
+            }
+            .into_any()
         }
         InnerBlock::Uncertain(content, reason) => {
             let (old_content, set_old_content) = signal(content.get_untracked());
@@ -189,8 +191,16 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                             let new_reason = ev.target().value();
                             set_old_reason.set(new_reason.clone());
                             undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: current_old_reason, text: content.get_untracked() }),
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: new_reason, text: content.get_untracked() }) ));
+                                    Block::Uncertain(Uncertain {
+                                        lang: todo!("lang"),
+                                        cert: todo!("cert"),
+                                        agent: current_old_reason,
+                                        content: content.get_untracked() }),
+                                    Block::Uncertain(Uncertain {
+                                        lang: todo!("lang"),
+                                        cert: todo!("cert"),
+                                        agent: new_reason,
+                                        content: content.get_untracked() }) ));
                         }/>
                         <span class="font-light text-xs">
                             :
@@ -213,8 +223,8 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                             let new_content = ev.target().value();
                             set_old_content.set(new_content.clone());
                             undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), text: current_old_content }),
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), text: new_content }) ));
+                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), content: current_old_content }),
+                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), content: new_content }) ));
                         }
                     />
                     </div>
@@ -254,7 +264,13 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
 
 impl EditorBlock {
     // construct a block with id, type, lang, content, and focus state
-    pub fn new(id: i32, block_type: BlockType, lang: String, content: String, focus_on_load: bool) -> Self {
+    pub fn new(
+        id: i32,
+        block_type: BlockType,
+        lang: String,
+        content: String,
+        focus_on_load: bool,
+    ) -> Self {
         Self {
             id,
             inner: InnerBlock::from_type_lang_and_content(block_type, lang, content),
@@ -285,11 +301,7 @@ impl EditorBlock {
     /// Overwrite the inner block with `new_inner` if it is currently `old_inner`
     ///
     /// Will clone new_inner if required, but not if the assert failed
-    pub(super) fn overwrite_inner(
-        &mut self,
-        old_inner: &Block,
-        new_inner: &Block,
-    ) -> Option<()> {
+    pub(super) fn overwrite_inner(&mut self, old_inner: &Block, new_inner: &Block) -> Option<()> {
         if *old_inner != self.inner {
             None
         } else {
@@ -327,41 +339,31 @@ impl EditorBlock {
 impl PartialEq<Block> for InnerBlock {
     fn eq(&self, other: &Block) -> bool {
         match self {
-            Self::Text(x) => {
-                match other {
-                    Block::Text(y) => {
-                        y.content == x.get_untracked()
-                    }
-                    _ => false,
-                }
-            }
-            Self::Break(x) => {
-                match other {
-                    Block::Break(y) => *y == x.get_untracked(),
-                    _ => false
-                }
-            }
-            Self::Lacuna(x, y) => {
-                match other {
-                    Block::Lacuna(l) => {
-                        l.reason == y.get_untracked() &&
-                        if let Some(content) = &l.content {
+            Self::Text(x) => match other {
+                Block::Text(y) => y.content == x.get_untracked(),
+                _ => false,
+            },
+            Self::Break(x) => match other {
+                Block::Break(y) => *y == x.get_untracked(),
+                _ => false,
+            },
+            Self::Lacuna(x, y) => match other {
+                Block::Lacuna(l) => {
+                    l.reason == y.get_untracked()
+                        && if let Some(content) = &l.content {
                             *content == x.get_untracked()
                         } else {
                             x.get_untracked() == ""
                         }
-                    }
-                    _ => false,
                 }
-            }
-            Self::Uncertain(x, y) => {
-                match other {
-                    Block::Uncertain(u) => {
-                        u.agent == y.get_untracked() && u.text == x.get_untracked()
-                    }
-                    _ => false,
+                _ => false,
+            },
+            Self::Uncertain(x, y) => match other {
+                Block::Uncertain(u) => {
+                    u.agent == y.get_untracked() && u.content == x.get_untracked()
                 }
-            }
+                _ => false,
+            },
         }
     }
 }
@@ -417,7 +419,7 @@ impl InnerBlock {
             },
             Self::Uncertain(x, y) => match new_block {
                 Block::Uncertain(new_uncertain) => {
-                    *x.write() = new_uncertain.text;
+                    *x.write() = new_uncertain.content;
                     *y.write() = new_uncertain.agent;
                 }
                 _ => {}
@@ -541,7 +543,7 @@ impl From<InnerBlock> for Block {
                 lang: todo!(),
                 cert: todo!(),
                 agent: y.get_untracked(),
-                text: x.get_untracked(),
+                content: x.get_untracked(),
             }),
         }
     }
@@ -551,7 +553,7 @@ impl From<Block> for InnerBlock {
     fn from(value: Block) -> Self {
         match value {
             Block::Uncertain(x) => {
-                InnerBlock::Uncertain(RwSignal::new(x.text), RwSignal::new(x.lang))
+                InnerBlock::Uncertain(RwSignal::new(x.content), RwSignal::new(x.lang))
             }
             Block::Text(x) => InnerBlock::Text(RwSignal::new(x.content)),
             Block::Break(x) => InnerBlock::Break(RwSignal::new(x)),
