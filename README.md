@@ -5,11 +5,8 @@ This is a webapp to enable digital textual criticism.
 ## How do we display global errors?
 
 ## rework blocks to conform to `critic_format::streamed::Block`
-### add content to `<gap>`
 ### make InnerBlock data actual types
-### rename all text elements to content everywhere for consistency
-
-## remove editor block dry - instead Dry things as `critic_format::streamed::Block` when required
+### add the correct data (Cert, hand, ...) for the innerblocktypes
 
 ## Other Blocks
 for each:

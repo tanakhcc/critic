@@ -124,7 +124,7 @@ fn new_node(
 }
 
 #[component]
-pub(crate) fn Editor() -> impl IntoView {
+pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let undo_stack = RwSignal::new(UnReStack::new());
 
     let initial_id = 1;
@@ -137,7 +137,7 @@ pub(crate) fn Editor() -> impl IntoView {
             let new_block = EditorBlock::new(
                 logical_index,
                 BlockType::Text,
-                todo!("lang"),
+                default_language.clone(),
                 "raw text".to_owned(),
                 true,
             );

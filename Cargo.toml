@@ -33,7 +33,7 @@ reqwest = { version = "0.12.20", default-features = false, features = ["http2", 
 time = { version = "0.3.41", optional = true }
 async-trait = { version = "0.1.88", optional = true }
 # todo remove this - critic format should handle serialization
-quick-xml = { version = "0.37.5", features = ["serialize"] }
+quick-xml = { git="https://github.com/curatorsigma/quick-xml.git", branch="serde_roundtrip_xml_attrs", features = ["serialize"] }
 
 [features]
 hydrate = [

@@ -6,7 +6,7 @@
 use critic_format::streamed::{
     Block, BlockType, BreakType, FromTypeLangAndContent, Lacuna, Paragraph, Uncertain,
 };
-use leptos::prelude::*;
+use leptos::{html::Textarea, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use super::{UnReStack, UnReStep};
@@ -18,37 +18,47 @@ const TEXTAREA_DEFAULT_COLS: i32 = 30;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub(super) struct EditorBlock {
     /// ID of the block (i.e. creation-order, NOT position)
-    id: i32,
+    pub id: i32,
     /// The actual content
     pub inner: InnerBlock,
     /// Should this block focus when loaded?
-    focus_on_load: bool,
+    pub focus_on_load: bool,
 }
-#[component]
-fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
-    let focus_element = NodeRef::new();
-    // if do_focus is true, focus this input when it is created
-    if focus_on_load {
-        Effect::new(move |_| {
-            focus_element.on_load(|input: web_sys::HtmlTextAreaElement| {
-                let _ = input.focus();
-            });
-        });
-    }
 
-    let undo_stack = use_context::<RwSignal<UnReStack>>()
-        .expect("Blocks need to be nested in an editor providing an undo stack");
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct Text {
+    content: RwSignal<String>,
+    lang: RwSignal<String>,
+}
 
-    match inner {
-        InnerBlock::Text(content) => {
+fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
             // initialize the old content with the current one
-            let (old_content, set_old_content) = signal(content.get_untracked());
+            let (old_content, set_old_content) = signal(text.content.get_untracked());
+            let (old_lang, set_old_lang) = signal(text.lang.get_untracked());
             view! {
                 <div>
                     <p
                         class="font-light text-xs">
                         "Raw Text: "
                     </p>
+                    <input
+                    prop:value=text.lang
+                    class="text-sm"
+                    placeholder="reason"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        text.lang.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        let current_old_lang = old_lang.get();
+                        let new_lang = ev.target().value();
+                        set_old_lang.set(new_lang.clone());
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Text(Paragraph { lang: current_old_lang, content: text.content.get_untracked() }),
+                                Block::Text(Paragraph { lang: new_lang, content: text.content.get_untracked() }),
+                                ));
+                    }/>
                     <textarea
                     class="bg-yellow-100 text-black font-mono"
                     id={format!("block-input-{id}")}
@@ -57,10 +67,10 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                     spellcheck="false"
                     rows=TEXTAREA_DEFAULT_ROWS
                     cols=TEXTAREA_DEFAULT_COLS
-                    prop:value=content
+                    prop:value=text.content
                     on:input:target=move |ev| {
                         //change the current content when updated
-                        content.set(ev.target().value());
+                        text.content.set(ev.target().value());
                     }
                     on:change:target=move |ev| {
                         // the input is unfocused - we now want to add something to the undo
@@ -76,16 +86,36 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
                         undo_stack.write().push_undo(UnReStep::new_data_change(
                                 id,
                                 Block::Text(Paragraph {
-                                    lang: todo!("lang"),
+                                    lang: text.lang.get_untracked(),
                                     content: current_old_content }),
                                 Block::Text(Paragraph {
-                                    lang: todo!("lang"),
+                                    lang: text.lang.get_untracked(),
                                     content: new_content }
                             )));
                     }
                 />
                 </div>
             }
+}
+
+#[component]
+fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
+    let focus_element = NodeRef::<Textarea>::new();
+    // if do_focus is true, focus this input when it is created
+    if focus_on_load {
+        Effect::new(move |_| {
+            focus_element.on_load(|input: web_sys::HtmlTextAreaElement| {
+                let _ = input.focus();
+            });
+        });
+    }
+
+    let undo_stack = use_context::<RwSignal<UnReStack>>()
+        .expect("Blocks need to be nested in an editor providing an undo stack");
+
+    match inner {
+        InnerBlock::Text(content) => {
+            inner_text_view(undo_stack, Text { content, lang: RwSignal::new(todo!("lang")) }, focus_element, id)
             .into_any()
         }
         InnerBlock::Lacuna(content, reason) => {
@@ -172,63 +202,72 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
             let (old_content, set_old_content) = signal(content.get_untracked());
             let (old_reason, set_old_reason) = signal(reason.get_untracked());
             view! {
-                    <div>
-                        <span
-                            class="font-light text-xs">
-                            "Uncertain because of "
-                        </span>
-                        <input
-                        class="text-sm"
-                        placeholder="reason"
-                        autocomplete="false"
-                        spellcheck="false"
-                        prop:value=reason
-                        on:input:target=move |ev| {
-                            reason.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_reason = old_reason.get();
-                            let new_reason = ev.target().value();
-                            set_old_reason.set(new_reason.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Uncertain(Uncertain {
-                                        lang: todo!("lang"),
-                                        cert: todo!("cert"),
-                                        agent: current_old_reason,
-                                        content: content.get_untracked() }),
-                                    Block::Uncertain(Uncertain {
-                                        lang: todo!("lang"),
-                                        cert: todo!("cert"),
-                                        agent: new_reason,
-                                        content: content.get_untracked() }) ));
-                        }/>
-                        <span class="font-light text-xs">
-                            :
-                        </span>
-                        <br/>
-                        <textarea
-                        id={format!("block-input-{id}")}
-                        class="bg-orange-100 text-black font-mono"
-                        node_ref=focus_element
-                        autocomplete="false"
-                        spellcheck="false"
-                        rows=TEXTAREA_DEFAULT_ROWS
-                        cols=TEXTAREA_DEFAULT_COLS
-                        prop:value=content
-                        on:input:target=move |ev| {
-                            content.set(ev.target().value());
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_content = old_content.get();
-                            let new_content = ev.target().value();
-                            set_old_content.set(new_content.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), content: current_old_content }),
-                                    Block::Uncertain(Uncertain { lang: todo!("lang"), cert: todo!("cert"), agent: reason.get_untracked(), content: new_content }) ));
-                        }
-                    />
-                    </div>
-                }.into_any()
+                <div>
+                    <span
+                        class="font-light text-xs">
+                        "Uncertain because of "
+                    </span>
+                    <input
+                    class="text-sm"
+                    placeholder="reason"
+                    autocomplete="false"
+                    spellcheck="false"
+                    prop:value=reason
+                    on:input:target=move |ev| {
+                        reason.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        let current_old_reason = old_reason.get();
+                        let new_reason = ev.target().value();
+                        set_old_reason.set(new_reason.clone());
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Uncertain(Uncertain {
+                                    lang: todo!("lang"),
+                                    cert: todo!("cert"),
+                                    agent: current_old_reason,
+                                    content: content.get_untracked() }),
+                                Block::Uncertain(Uncertain {
+                                    lang: todo!("lang"),
+                                    cert: todo!("cert"),
+                                    agent: new_reason,
+                                    content: content.get_untracked() }) ));
+                    }/>
+                    <span class="font-light text-xs">
+                        :
+                    </span>
+                    <br/>
+                    <textarea
+                    id={format!("block-input-{id}")}
+                    class="bg-orange-100 text-black font-mono"
+                    node_ref=focus_element
+                    autocomplete="false"
+                    spellcheck="false"
+                    rows=TEXTAREA_DEFAULT_ROWS
+                    cols=TEXTAREA_DEFAULT_COLS
+                    prop:value=content
+                    on:input:target=move |ev| {
+                        content.set(ev.target().value());
+                    }
+                    on:change:target=move |ev| {
+                        let current_old_content = old_content.get();
+                        let new_content = ev.target().value();
+                        set_old_content.set(new_content.clone());
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Uncertain(Uncertain {
+                                    lang: todo!("lang"),
+                                    cert: todo!("cert"),
+                                    agent: reason.get_untracked(),
+                                    content: current_old_content }),
+                                Block::Uncertain(Uncertain {
+                                    lang: todo!("lang"),
+                                    cert: todo!("cert"),
+                                    agent: reason.get_untracked(),
+                                    content: new_content }) ));
+                    }
+                />
+                </div>
+            }
+            .into_any()
         }
         InnerBlock::Break(reason) => {
             let (old_reason, set_old_reason) = signal(reason.get_untracked());

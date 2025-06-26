@@ -50,7 +50,11 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>
-                    <Route path=path!("/editor") view=Editor/>
+                    <Route path=path!("/editor") view=|| {
+                        view! {
+                            <Editor default_language="hbo-Hebr".to_string()/>
+                        }.into_view()
+                    }/>
                 </Routes>
             </main>
         </Router>
