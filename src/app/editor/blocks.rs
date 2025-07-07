@@ -4,7 +4,7 @@
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
 use critic_format::streamed::{
-    Block, BlockType, BreakType, FromTypeLangAndContent, Lacuna, Paragraph, Uncertain,
+    Abbreviation, Anchor, Block, BlockType, BreakType, Correction, FromTypeLangAndContent, Lacuna, Paragraph, Uncertain, Version
 };
 use leptos::{html::Textarea, prelude::*};
 use serde::{Deserialize, Serialize};
@@ -31,10 +31,11 @@ struct Text {
     lang: RwSignal<String>,
 }
 
-fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
+fn inner_text_view(undo_stack: RwSignal<UnReStack>, paragraph: RwSignal::<Paragraph>, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
             // initialize the old content with the current one
-            let (old_content, set_old_content) = signal(text.content.get_untracked());
-            let (old_lang, set_old_lang) = signal(text.lang.get_untracked());
+            let initial_state = paragraph.get_untracked();
+            let (old_content, set_old_content) = signal(initial_state.content);
+            let (old_lang, set_old_lang) = signal(initial_state.lang);
             view! {
                 <div>
                     <p
@@ -42,21 +43,21 @@ fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: l
                         "Raw Text: "
                     </p>
                     <input
-                    prop:value=text.lang
+                    prop:value=paragraph.with(|p| p.content.clone())
                     class="text-sm"
                     placeholder="reason"
                     autocomplete="false"
                     spellcheck="false"
                     on:input:target=move |ev| {
-                        text.lang.set(ev.target().value());
+                        paragraph.update(|p| p.lang = ev.target().value())
                     }
                     on:change:target=move |ev| {
                         let current_old_lang = old_lang.get();
                         let new_lang = ev.target().value();
                         set_old_lang.set(new_lang.clone());
                         undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Text(Paragraph { lang: current_old_lang, content: text.content.get_untracked() }),
-                                Block::Text(Paragraph { lang: new_lang, content: text.content.get_untracked() }),
+                                Block::Text(Paragraph { lang: current_old_lang, content: paragraph.read_untracked().content.clone() }),
+                                Block::Text(Paragraph { lang: new_lang, content: paragraph.read_untracked().content.clone() }),
                                 ));
                     }/>
                     <textarea
@@ -67,10 +68,10 @@ fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: l
                     spellcheck="false"
                     rows=TEXTAREA_DEFAULT_ROWS
                     cols=TEXTAREA_DEFAULT_COLS
-                    prop:value=text.content
+                    prop:value=paragraph.get_untracked().content
                     on:input:target=move |ev| {
                         //change the current content when updated
-                        text.content.set(ev.target().value());
+                        paragraph.write().content=ev.target().value();
                     }
                     on:change:target=move |ev| {
                         // the input is unfocused - we now want to add something to the undo
@@ -86,10 +87,10 @@ fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: l
                         undo_stack.write().push_undo(UnReStep::new_data_change(
                                 id,
                                 Block::Text(Paragraph {
-                                    lang: text.lang.get_untracked(),
+                                    lang: paragraph.read().lang.clone(),
                                     content: current_old_content }),
                                 Block::Text(Paragraph {
-                                    lang: text.lang.get_untracked(),
+                                    lang: paragraph.read().lang.clone(),
                                     content: new_content }
                             )));
                     }
@@ -97,6 +98,170 @@ fn inner_text_view(undo_stack: RwSignal<UnReStack>, text: Text, focus_element: l
                 </div>
             }
 }
+
+fn inner_lacuna_view(undo_stack: RwSignal<UnReStack>, lacuna: RwSignal::<Lacuna>, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
+    // clone the lacuna into a new block with separate tracking
+    // `lacuna` itself will contain the displayed setting, `current_lacuna`
+    // will contain the value from the last savepoint (of the Undo-stack)
+    let current_lacuna = RwSignal::new(lacuna.get_untracked());
+    view! {
+        <div>
+            <span
+                class="font-light text-xs">
+                    "Lacuna because of "
+            </span>
+            <input
+            prop:value=lacuna.get_untracked().content
+            class="text-sm"
+            placeholder="reason"
+            autocomplete="false"
+            spellcheck="false"
+            on:input:target=move |ev| {
+                lacuna.write().reason = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                lacuna.write().reason = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Lacuna(current_lacuna.get_untracked()),
+                        Block::Lacuna(lacuna.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                *current_lacuna.write() = lacuna.get_untracked();
+            }/>
+            <span
+                class="font-light text-xs">
+                :
+            </span>
+            <br/>
+            <textarea
+            class="bg-orange-100 text-black font-mono"
+            id={format!("block-input-{id}")}
+            node_ref=focus_element
+            prop:value=lacuna.get_untracked().content
+            autocomplete="false"
+            spellcheck="false"
+            rows=TEXTAREA_DEFAULT_ROWS
+            cols=TEXTAREA_DEFAULT_COLS
+            on:input:target=move |ev| {
+                let x = ev.target().value();
+                lacuna.write().content = if x.is_empty() {
+                    None
+                } else {
+                    Some(x)
+                };
+            }
+            on:change:target=move |ev| {
+                let x = ev.target().value();
+                lacuna.write().content = if x.is_empty() {
+                    None
+                } else {
+                    Some(x)
+                };
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Lacuna(current_lacuna.get_untracked()),
+                        Block::Lacuna(lacuna.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                *current_lacuna.write() = lacuna.get_untracked();
+            }
+        />
+        </div>
+    }
+}
+
+fn inner_uncertain_view(undo_stack: RwSignal<UnReStack>, uncertain: RwSignal::<Uncertain>, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
+    // clone the uncertain passage into a new block with separate tracking
+    // `uncertain` itself will contain the displayed setting, `current_unceretain`
+    // will contain the value from the last savepoint (of the Undo-stack)
+    let current_uncertain = RwSignal::new(uncertain.get_untracked());
+    view! {
+        <div>
+            <span
+                class="font-light text-xs">
+                    "Uncertain because of "
+            </span>
+            <input
+            prop:value=uncertain.get_untracked().content
+            class="text-sm"
+            placeholder="reason"
+            autocomplete="false"
+            spellcheck="false"
+            on:input:target=move |ev| {
+                uncertain.write().agent = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                uncertain.write().agent = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Uncertain(current_uncertain.get_untracked()),
+                        Block::Uncertain(uncertain.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                *current_uncertain.write() = uncertain.get_untracked();
+            }/>
+            <span
+                class="font-light text-xs">
+                :
+            </span>
+            <br/>
+            <textarea
+            class="bg-orange-100 text-black font-mono"
+            id={format!("block-input-{id}")}
+            node_ref=focus_element
+            prop:value=uncertain.get_untracked().content
+            autocomplete="false"
+            spellcheck="false"
+            rows=TEXTAREA_DEFAULT_ROWS
+            cols=TEXTAREA_DEFAULT_COLS
+            on:input:target=move |ev| {
+                uncertain.write().content = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                uncertain.write().content = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Uncertain(current_uncertain.get_untracked()),
+                        Block::Uncertain(uncertain.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                *current_uncertain.write() = uncertain.get_untracked();
+            }
+        />
+        </div>
+    }
+}
+
+fn inner_break_view(undo_stack: RwSignal<UnReStack>, break_block: RwSignal::<BreakType>, focus_element: leptos::prelude::NodeRef<Textarea>, id: i32) -> impl IntoView {
+    let current_break_block = RwSignal::new(break_block.get_untracked());
+    view! {
+            <div>
+                <p
+                    class="font-light text-xs">
+                    "Break: "
+                </p>
+                <select
+                id={format!("block-input-{id}")}
+                prop:value=break_block.get_untracked().name()
+                on:input:target=move |ev| {
+                    *break_block.write() = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                }
+                on:change:target=move |ev| {
+                    *break_block.write() = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                    undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                            Block::Break(current_break_block.get_untracked()),
+                            Block::Break(break_block.get_untracked())));
+                    *current_break_block.write() = break_block.get_untracked();
+                }
+            >
+                <option value="Line">Line</option>
+                <option value="Column">Column</option>
+            </select>
+            </div>
+    }
+}
+
 
 #[component]
 fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
@@ -114,189 +279,25 @@ fn InnerView(inner: InnerBlock, id: i32, focus_on_load: bool) -> impl IntoView {
         .expect("Blocks need to be nested in an editor providing an undo stack");
 
     match inner {
-        InnerBlock::Text(content) => {
-            inner_text_view(undo_stack, Text { content, lang: RwSignal::new(todo!("lang")) }, focus_element, id)
+        InnerBlock::Text(paragraph) => {
+            inner_text_view(undo_stack, paragraph, focus_element, id)
             .into_any()
         }
-        InnerBlock::Lacuna(content, reason) => {
-            let (old_content, set_old_content) = signal(content.get_untracked());
-            let (old_reason, set_old_reason) = signal(reason.get_untracked());
-            view! {
-                <div>
-                    <span
-                        class="font-light text-xs">
-                            "Lacuna because of "
-                    </span>
-                    <input
-                    prop:value=reason
-                    class="text-sm"
-                    placeholder="reason"
-                    autocomplete="false"
-                    spellcheck="false"
-                    on:input:target=move |ev| {
-                        reason.set(ev.target().value());
-                    }
-                    on:change:target=move |ev| {
-                        let current_old_reason = old_reason.get();
-                        let new_reason = ev.target().value();
-                        set_old_reason.set(new_reason.clone());
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Lacuna(Lacuna {
-                                    reason: current_old_reason,
-                                    n: todo!("lacuna-len"),
-                                    unit: todo!("lacuna-unit"),
-                                    cert: todo!("lacuna-cert"),
-                                    content: Some(content.get_untracked()),
-                                }),
-                                Block::Lacuna(Lacuna {
-                                    reason: new_reason,
-                                    n: todo!("lacuna-len"),
-                                    unit: todo!("lacuna-unit"),
-                                    cert: todo!("lacuna-cert"),
-                                    content: Some(content.get_untracked()),
-                                })));
-                    }/>
-                    <span
-                        class="font-light text-xs">
-                        :
-                    </span>
-                    <br/>
-                    <textarea
-                    class="bg-orange-100 text-black font-mono"
-                    id={format!("block-input-{id}")}
-                    node_ref=focus_element
-                    prop:value=content
-                    autocomplete="false"
-                    spellcheck="false"
-                    rows=TEXTAREA_DEFAULT_ROWS
-                    cols=TEXTAREA_DEFAULT_COLS
-                    on:input:target=move |ev| {
-                        content.set(ev.target().value());
-                    }
-                    on:change:target=move |ev| {
-                        let current_old_content = old_content.get();
-                        let new_content = ev.target().value();
-                        set_old_content.set(new_content.clone());
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Lacuna(Lacuna {
-                                    reason: reason.get_untracked(),
-                                    n: todo!("lacuna-len"),
-                                    unit: todo!("lacuna-unit"),
-                                    cert: todo!("lacuna-cert"),
-                                    content: Some(current_old_content),
-                                }),
-                                Block::Lacuna(Lacuna {
-                                    reason: reason.get_untracked(),
-                                    n: todo!("lacuna-len"),
-                                    unit: todo!("lacuna-unit"),
-                                    cert: todo!("lacuna-cert"),
-                                    content: Some(new_content),
-                                })));
-                    }
-                />
-                </div>
-            }
+        InnerBlock::Lacuna(lacuna) => {
+            inner_lacuna_view(undo_stack, lacuna, focus_element, id)
             .into_any()
         }
-        InnerBlock::Uncertain(content, reason) => {
-            let (old_content, set_old_content) = signal(content.get_untracked());
-            let (old_reason, set_old_reason) = signal(reason.get_untracked());
-            view! {
-                <div>
-                    <span
-                        class="font-light text-xs">
-                        "Uncertain because of "
-                    </span>
-                    <input
-                    class="text-sm"
-                    placeholder="reason"
-                    autocomplete="false"
-                    spellcheck="false"
-                    prop:value=reason
-                    on:input:target=move |ev| {
-                        reason.set(ev.target().value());
-                    }
-                    on:change:target=move |ev| {
-                        let current_old_reason = old_reason.get();
-                        let new_reason = ev.target().value();
-                        set_old_reason.set(new_reason.clone());
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Uncertain(Uncertain {
-                                    lang: todo!("lang"),
-                                    cert: todo!("cert"),
-                                    agent: current_old_reason,
-                                    content: content.get_untracked() }),
-                                Block::Uncertain(Uncertain {
-                                    lang: todo!("lang"),
-                                    cert: todo!("cert"),
-                                    agent: new_reason,
-                                    content: content.get_untracked() }) ));
-                    }/>
-                    <span class="font-light text-xs">
-                        :
-                    </span>
-                    <br/>
-                    <textarea
-                    id={format!("block-input-{id}")}
-                    class="bg-orange-100 text-black font-mono"
-                    node_ref=focus_element
-                    autocomplete="false"
-                    spellcheck="false"
-                    rows=TEXTAREA_DEFAULT_ROWS
-                    cols=TEXTAREA_DEFAULT_COLS
-                    prop:value=content
-                    on:input:target=move |ev| {
-                        content.set(ev.target().value());
-                    }
-                    on:change:target=move |ev| {
-                        let current_old_content = old_content.get();
-                        let new_content = ev.target().value();
-                        set_old_content.set(new_content.clone());
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Uncertain(Uncertain {
-                                    lang: todo!("lang"),
-                                    cert: todo!("cert"),
-                                    agent: reason.get_untracked(),
-                                    content: current_old_content }),
-                                Block::Uncertain(Uncertain {
-                                    lang: todo!("lang"),
-                                    cert: todo!("cert"),
-                                    agent: reason.get_untracked(),
-                                    content: new_content }) ));
-                    }
-                />
-                </div>
-            }
+        InnerBlock::Uncertain(uncertain) => {
+            inner_uncertain_view(undo_stack, uncertain, focus_element, id)
             .into_any()
         }
-        InnerBlock::Break(reason) => {
-            let (old_reason, set_old_reason) = signal(reason.get_untracked());
-            view! {
-                    <div>
-                        <p
-                            class="font-light text-xs">
-                            "Break: "
-                        </p>
-                        <select
-                        id={format!("block-input-{id}")}
-                        prop:value=reason.get().name()
-                        on:input:target=move |ev| {
-                            reason.set(ev.target().value().parse().expect("Only correct Names in the options for this select field."));
-                        }
-                        on:change:target=move |ev| {
-                            let current_old_reason = old_reason.get();
-                            let new_reason: BreakType = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
-                            set_old_reason.set(new_reason.clone());
-                            undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                    Block::Break(current_old_reason),
-                                    Block::Break(new_reason)));
-                        }
-                    >
-                        <option value="Line">Line</option>
-                        <option value="Column">Column</option>
-                    </select>
-                    </div>
-                }.into_any()
+        InnerBlock::Break(break_block) => {
+            inner_break_view(undo_stack, break_block, focus_element, id)
+            .into_any()
+        }
+        _ => {
+            // Add Anchor, Correction, Abbreviation etc.
+            todo!()
         }
     }
 }
@@ -338,6 +339,7 @@ impl EditorBlock {
     }
 
     /// Overwrite the inner block with `new_inner` if it is currently `old_inner`
+    /// and only if the types match.
     ///
     /// Will clone new_inner if required, but not if the assert failed
     pub(super) fn overwrite_inner(&mut self, old_inner: &Block, new_inner: &Block) -> Option<()> {
@@ -374,35 +376,51 @@ impl EditorBlock {
             .collect()
     }
 }
-/// TODO: rework this to compare all the things
 impl PartialEq<Block> for InnerBlock {
     fn eq(&self, other: &Block) -> bool {
         match self {
-            Self::Text(x) => match other {
-                Block::Text(y) => y.content == x.get_untracked(),
-                _ => false,
-            },
-            Self::Break(x) => match other {
-                Block::Break(y) => *y == x.get_untracked(),
-                _ => false,
-            },
-            Self::Lacuna(x, y) => match other {
-                Block::Lacuna(l) => {
-                    l.reason == y.get_untracked()
-                        && if let Some(content) = &l.content {
-                            *content == x.get_untracked()
-                        } else {
-                            x.get_untracked() == ""
-                        }
+            InnerBlock::Text(x) => {
+                match other {
+                    Block::Text(y) => x.read() == *y,
+                    _ => false,
                 }
-                _ => false,
-            },
-            Self::Uncertain(x, y) => match other {
-                Block::Uncertain(u) => {
-                    u.agent == y.get_untracked() && u.content == x.get_untracked()
+            }
+            InnerBlock::Break(x) => {
+                match other {
+                    Block::Break(y) => x.read() == *y,
+                    _ => false,
                 }
-                _ => false,
-            },
+            }
+            InnerBlock::Lacuna(x) => {
+                match other {
+                    Block::Lacuna(y) => x.read() == *y,
+                    _ => false,
+                }
+            }
+            InnerBlock::Anchor(x) => {
+                match other {
+                    Block::Anchor(y) => x.read() == *y,
+                    _ => false,
+                }
+            }
+            InnerBlock::Correction(x) => {
+                match other {
+                    Block::Correction(y) => x.read() == *y,
+                    _ => false,
+                }
+            }
+            InnerBlock::Uncertain(x) => {
+                match other {
+                    Block::Uncertain(y) => x.read() == *y,
+                    _ => false,
+                }
+            }
+            InnerBlock::Abbreviation(x) => {
+                match other {
+                    Block::Abbreviation(y) => x.read() == *y,
+                    _ => false,
+                }
+            }
         }
     }
 }
@@ -414,24 +432,23 @@ impl PartialEq<InnerBlock> for Block {
 
 /// Block type with data
 ///
-/// NOTE: this could also be done with Traits and generic functions.
-/// That would be nicer in a sense, but we are compiling into WASM, so binary size is more
-/// important then nice generics imho. I keep it as this enum with some runtimechecks.
+/// This is the same as [`critic_format::streamed::Block`], but all data is wrapped in an [`RwSignal`]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub(super) enum InnerBlock {
-    /// Raw text without special markup
-    /// text
-    Text(RwSignal<String>),
-    /// A part of Text with uncertainty
-    /// (proposed-text, reason)
-    Uncertain(RwSignal<String>, RwSignal<String>),
-    /// A part of Text that is absent or entirely unreadable
-    /// (proposed-text, reason)
-    Lacuna(RwSignal<String>, RwSignal<String>),
-    /// A break (Line, Column, Page, ...)
-    /// TODO: we want this to be an enum over type instead; with selection menu in GUI
-    /// (type of break)
+    /// A break in the text - line or column break
     Break(RwSignal<BreakType>),
+    /// A lacuna in the manuscript
+    Lacuna(RwSignal<Lacuna>),
+    /// An anchor - the beginning of a verse
+    Anchor(RwSignal<Anchor>),
+    // Normal unmarked text
+    Text(RwSignal<Paragraph>),
+    /// A correction in the manuscript - where one scribal hand has overwritte / struck through / .. a text that was present earlier
+    Correction(RwSignal<Correction>),
+    // A part of text that is damaged but still legible
+    Uncertain(RwSignal<Uncertain>),
+    // An expanded abbreviation
+    Abbreviation(RwSignal<Abbreviation>),
 }
 impl InnerBlock {
     /// overwrite own data with that given from new_block, but only if the types are the same
@@ -439,7 +456,7 @@ impl InnerBlock {
         match self {
             Self::Text(x) => match new_block {
                 Block::Text(y) => {
-                    *x.write() = y.content;
+                    *x.write() = y;
                 }
                 _ => {}
             },
@@ -449,48 +466,117 @@ impl InnerBlock {
                 }
                 _ => {}
             },
-            Self::Lacuna(x, y) => match new_block {
+            Self::Lacuna(x) => match new_block {
                 Block::Lacuna(new_lacuna) => {
-                    *x.write() = todo!("add text to gap");
-                    *y.write() = new_lacuna.reason;
+                    *x.write() = new_lacuna;
                 }
                 _ => {}
             },
-            Self::Uncertain(x, y) => match new_block {
+            Self::Uncertain(x) => match new_block {
                 Block::Uncertain(new_uncertain) => {
-                    *x.write() = new_uncertain.content;
-                    *y.write() = new_uncertain.agent;
+                    *x.write() = new_uncertain;
                 }
                 _ => {}
             },
+            Self::Anchor(x) => match new_block {
+                Block::Anchor(new_anchor) => {
+                    *x.write() = new_anchor;
+                }
+                _ => {}
+            }
+            Self::Correction(x) => match new_block {
+                Block::Correction(new_correction) => {
+                    *x.write() = new_correction;
+                }
+                _ => {}
+            }
+            Self::Abbreviation(x) => match new_block {
+                Block::Abbreviation(new_abbreviation) => {
+                    *x.write() = new_abbreviation
+                }
+                _ => {}
+            }
         }
     }
 
-    /// Copy the metadata from [`self`] but get the content from another string
-    pub fn clone_with_new_content(&self, content: String) -> Self {
+    fn clone_with_new_content(&self, new_content: String) -> InnerBlock {
         match self {
-            Self::Text(_) => InnerBlock::Text(RwSignal::new(content.to_owned())),
-            Self::Uncertain(_, y) => InnerBlock::Uncertain(RwSignal::new(content.to_owned()), *y),
-            Self::Lacuna(_, y) => InnerBlock::Lacuna(RwSignal::new(content.to_owned()), *y),
-            Self::Break(y) => InnerBlock::Break(*y),
+            InnerBlock::Break(_) => self.clone(),
+            InnerBlock::Lacuna(lacuna) => {
+                InnerBlock::Lacuna(RwSignal::new(Lacuna {
+                    lang: lacuna.read().lang.clone(),
+                    cert: lacuna.read().cert.clone(),
+                    content: Some(new_content),
+                    n: lacuna.read().n,
+                    unit: lacuna.read().unit.clone(),
+                    reason: lacuna.read().reason.clone(),
+                }))
+            }
+            InnerBlock::Anchor(_) => self.clone(),
+            InnerBlock::Text(paragraph) => {
+                InnerBlock::Text(RwSignal::new(Paragraph { lang: paragraph.read().lang.clone(), content: new_content }))
+            }
+            InnerBlock::Correction(correction) => {
+                InnerBlock::Correction(RwSignal::new(Correction { lang: correction.read().lang.clone(), versions: vec![Version { lang: correction.read().lang.clone(), hand: None, content: new_content }] }))
+            }
+            InnerBlock::Uncertain(uncertain) => {
+                InnerBlock::Uncertain(RwSignal::new(Uncertain { lang: uncertain.read().lang.clone(), cert: uncertain.read().cert.clone(), agent: uncertain.read().agent.clone(), content: new_content }))
+            }
+            InnerBlock::Abbreviation(abbreviation) => {
+                InnerBlock::Abbreviation(RwSignal::new(Abbreviation { lang: abbreviation.read().lang.clone(), surface: new_content.clone(), expansion: new_content }))
+            }
         }
     }
 
-    /// get this blocks content if this blocktype has content
+    /// The primary surface content of this block
     ///
-    /// This is one of the functions which would be nicer with Traits, but here we need to return
-    /// Option instead.
-    pub fn content(&self) -> Option<guards::ReadGuard<String, guards::Plain<String>>> {
-        match &self {
-            Self::Text(el) => Some(el.read()),
-            Self::Uncertain(el, _) => Some(el.read()),
-            Self::Lacuna(el, _) => Some(el.read()),
-            Self::Break(_) => None,
+    /// i.e. the most natural reconstruction of what is physically on the MS
+    fn content(&self) -> Option<String> {
+        match self {
+            InnerBlock::Text(x) => {
+                Some(x.read().content.to_string())
+            }
+            InnerBlock::Break(_) => None,
+            InnerBlock::Lacuna(x) => {
+                x.read().content.clone()
+            }
+            InnerBlock::Anchor(_) => None,
+            InnerBlock::Uncertain(x) => {
+                Some(x.read().content.to_string())
+            }
+            InnerBlock::Correction(x) => {
+                x.read().versions.first().map(|v| v.content.to_string())
+            }
+            InnerBlock::Abbreviation(x) => {
+                Some(x.read().surface.to_string())
+            }
         }
     }
 
-    /// Split this block, returning new blocks and the index of the block which defaults as the
-    /// newly inserted one.
+    /// The primary language for this block if applicable
+    fn lang(&self) -> Option<String> {
+        match self {
+            InnerBlock::Text(x) => {
+                Some(x.read().lang.clone())
+            }
+            InnerBlock::Break(_) => None,
+            InnerBlock::Lacuna(x) => {
+                x.read().lang.clone()
+            }
+            InnerBlock::Anchor(_) => None,
+            InnerBlock::Uncertain(x) => {
+                Some(x.read().lang.clone())
+            }
+            InnerBlock::Correction(x) => {
+                Some(x.read().lang.clone())
+            }
+            InnerBlock::Abbreviation(x) => {
+                Some(x.read().lang.clone())
+            }
+        }
+    }
+
+    /// Split this block into 1-3 new blocks, so that the content in [start, end] is a new block
     ///
     /// Returns a vec of InnerBlock, focus_on_load
     fn split_at_selection(
@@ -502,9 +588,9 @@ impl InnerBlock {
         let complete_value = match self.content() {
             Some(x) => x,
             // Block types without content can never fire split_at_selection,
-            // so the function should return itself
+            // so the function should panic
             None => {
-                return vec![(self.clone(), false)];
+                unreachable!("split_at_selection cannot be called when the Blocktype has no content.");
             }
         };
         let (before_part, new_part, after_part) = if start == 0 {
@@ -540,7 +626,7 @@ impl InnerBlock {
         res.push((
             InnerBlock::from_type_lang_and_content(
                 new_block_type,
-                todo!("lang"),
+                self.lang().unwrap_or_else(|| "".to_string()),
                 new_part.to_owned(),
             ),
             // we do want to autofocus on the middle block
@@ -563,27 +649,27 @@ impl FromTypeLangAndContent for InnerBlock {
 impl From<InnerBlock> for Block {
     fn from(value: InnerBlock) -> Self {
         match value {
-            InnerBlock::Text(x) => Block::Text(Paragraph {
-                lang: todo!(),
-                content: x.get_untracked(),
-            }),
-            InnerBlock::Break(x) => Block::Break(x.get_untracked()),
-            InnerBlock::Lacuna(x, y) => {
-                todo!();
-                Block::Lacuna(Lacuna {
-                    reason: y.get_untracked(),
-                    unit: todo!(),
-                    n: todo!(),
-                    cert: todo!(),
-                    content: Some(x.get_untracked()),
-                })
+            InnerBlock::Text(x) => {
+                Block::Text(x.get_untracked())
             }
-            InnerBlock::Uncertain(x, y) => Block::Uncertain(Uncertain {
-                lang: todo!(),
-                cert: todo!(),
-                agent: y.get_untracked(),
-                content: x.get_untracked(),
-            }),
+            InnerBlock::Break(x) => {
+                Block::Break(x.get_untracked())
+            },
+            InnerBlock::Lacuna(x) => {
+                Block::Lacuna(x.get_untracked())
+            }
+            InnerBlock::Anchor(x) => {
+                Block::Anchor(x.get_untracked())
+            },
+            InnerBlock::Uncertain(x) => {
+                Block::Uncertain(x.get_untracked())
+            }
+            InnerBlock::Correction(x) => {
+                Block::Correction(x.get_untracked())
+            }
+            InnerBlock::Abbreviation(x) => {
+                Block::Abbreviation(x.get_untracked())
+            }
         }
     }
 }
@@ -591,20 +677,26 @@ impl From<InnerBlock> for Block {
 impl From<Block> for InnerBlock {
     fn from(value: Block) -> Self {
         match value {
-            Block::Uncertain(x) => {
-                InnerBlock::Uncertain(RwSignal::new(x.content), RwSignal::new(x.lang))
+            Block::Text(x) => {
+                InnerBlock::Text(RwSignal::new(x))
             }
-            Block::Text(x) => InnerBlock::Text(RwSignal::new(x.content)),
-            Block::Break(x) => InnerBlock::Break(RwSignal::new(x)),
-            Block::Lacuna(x) => InnerBlock::Lacuna(RwSignal::new(todo!()), RwSignal::new(x.reason)),
+            Block::Break(x) => {
+                InnerBlock::Break(RwSignal::new(x))
+            },
+            Block::Lacuna(x) => {
+                InnerBlock::Lacuna(RwSignal::new(x))
+            }
             Block::Anchor(x) => {
-                todo!()
+                InnerBlock::Anchor(RwSignal::new(x))
+            },
+            Block::Uncertain(x) => {
+                InnerBlock::Uncertain(RwSignal::new(x))
             }
             Block::Correction(x) => {
-                todo!()
+                InnerBlock::Correction(RwSignal::new(x))
             }
             Block::Abbreviation(x) => {
-                todo!()
+                InnerBlock::Abbreviation(RwSignal::new(x))
             }
         }
     }
