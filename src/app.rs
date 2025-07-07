@@ -9,6 +9,9 @@ mod editor;
 use editor::Editor;
 pub mod auth;
 
+mod accordion;
+
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>

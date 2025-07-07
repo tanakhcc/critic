@@ -4,15 +4,7 @@ This is a webapp to enable digital textual criticism.
 # TODOs - Editor
 ## How do we display global errors?
 
-## rework blocks to conform to `critic_format::streamed::Block`
-### make InnerBlock data actual types
-### add the correct data (Cert, hand, ...) for the innerblocktypes
-
-## Other Blocks
-for each:
-- implement behaviour
-- implement view
-- implement undo/redo if required
+## Blocks
 ### Anchors
 ### Corrections
 ### Abbreviations
@@ -32,8 +24,6 @@ for each:
 we want to be able to show who the user is and such
 - maybe just have resources that pull that from the server??
 ## setup docker for code deployment later
-
-## emit xml files for transcripts
 
 # TODOs - Workflow
 - The user creates a transcription (using the editor)

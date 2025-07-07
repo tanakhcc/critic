@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{UnReStack, UnReStep};
 
+use crate::app::accordion::{Accordion, Align, Item, List};
+
 const TEXTAREA_DEFAULT_ROWS: i32 = 2;
 const TEXTAREA_DEFAULT_COLS: i32 = 30;
 
@@ -26,40 +28,28 @@ pub(super) struct EditorBlock {
     pub focus_on_load: bool,
 }
 
+#[component]
+fn CogSvg() -> impl IntoView {
+    view!{
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+    }
+}
+
 fn inner_text_view(
     undo_stack: RwSignal<UnReStack>,
     paragraph: RwSignal<Paragraph>,
     focus_element: leptos::prelude::NodeRef<Textarea>,
     id: usize,
 ) -> impl IntoView {
-    // initialize the old content with the current one
-    let initial_state = paragraph.get_untracked();
-    let (old_content, set_old_content) = signal(initial_state.content);
-    let (old_lang, set_old_lang) = signal(initial_state.lang);
+    let current_paragraph = RwSignal::new(paragraph.get_untracked());
+    let config_expanded = signal(false);
     view! {
+        <div class="flex justify-between">
         <div>
             <p
                 class="font-light text-xs">
                 "Raw Text: "
             </p>
-            <input
-            prop:value=paragraph.read_untracked().lang.clone()
-            class="text-sm"
-            placeholder="language"
-            autocomplete="false"
-            spellcheck="false"
-            on:input:target=move |ev| {
-                paragraph.update(|p| p.lang = ev.target().value())
-            }
-            on:change:target=move |ev| {
-                let current_old_lang = old_lang.get();
-                let new_lang = ev.target().value();
-                set_old_lang.set(new_lang.clone());
-                undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                        Block::Text(Paragraph { lang: current_old_lang, content: paragraph.read_untracked().content.clone() }),
-                        Block::Text(Paragraph { lang: new_lang, content: paragraph.read_untracked().content.clone() }),
-                        ));
-            }/>
             <textarea
             class="bg-yellow-100 text-black font-mono"
             id={format!("block-input-{id}")}
@@ -68,33 +58,54 @@ fn inner_text_view(
             spellcheck="false"
             rows=TEXTAREA_DEFAULT_ROWS
             cols=TEXTAREA_DEFAULT_COLS
-            prop:value=paragraph.get_untracked().content
+            // reactive, so undo/redo actions can change the view
+            prop:value=move || paragraph.read().content.clone()
             on:input:target=move |ev| {
                 //change the current content when updated
                 paragraph.write().content=ev.target().value();
             }
             on:change:target=move |ev| {
-                // the input is unfocused - we now want to add something to the undo
-                // machine
-                // the content that was last saved (on last unfocus of this element)
-                let current_old_content = old_content.get();
-                // current real value
-                let new_content = ev.target().value();
-                // save the new content on this unfocus (for the next run of this
-                // closure)
-                set_old_content.set(new_content.clone());
-                // add the diff between the last unfocus and this unfocus to the stack
-                undo_stack.write().push_undo(UnReStep::new_data_change(
-                        id,
-                        Block::Text(Paragraph {
-                            lang: paragraph.read_untracked().lang.clone(),
-                            content: current_old_content }),
-                        Block::Text(Paragraph {
-                            lang: paragraph.read_untracked().lang.clone(),
-                            content: new_content }
-                    )));
+                paragraph.write().content = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Text(current_paragraph.get_untracked()),
+                        Block::Text(paragraph.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                current_paragraph.write().content = paragraph.read_untracked().content.clone();
             }
         />
+        </div>
+        <Accordion
+            expand={config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Language: "</span>
+                    <input
+                    prop:value=move || paragraph.read().lang.clone()
+                    class="text-sm"
+                    placeholder="language"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        paragraph.write().lang = ev.target().value();
+                    }
+                    on:change:target=move |ev| {
+                        paragraph.write().lang = ev.target().value();
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Text(current_paragraph.get_untracked()),
+                                Block::Text(paragraph.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_paragraph.write().lang = paragraph.read_untracked().lang.clone();
+                    }/>
+                </Item>
+            </List>
+        </Accordion>
         </div>
     }
 }
@@ -102,21 +113,22 @@ fn inner_text_view(
 fn inner_lacuna_view(
     undo_stack: RwSignal<UnReStack>,
     lacuna: RwSignal<Lacuna>,
-    focus_element: leptos::prelude::NodeRef<Textarea>,
     id: usize,
 ) -> impl IntoView {
     // clone the lacuna into a new block with separate tracking
     // `lacuna` itself will contain the displayed setting, `current_lacuna`
     // will contain the value from the last savepoint (of the Undo-stack)
     let current_lacuna = RwSignal::new(lacuna.get_untracked());
+    let config_expanded = signal(false);
     view! {
+        <div class="flex justify-between">
         <div>
             <span
                 class="font-light text-xs">
                     "Lacuna because of "
             </span>
             <input
-            prop:value=lacuna.get_untracked().reason
+            prop:value=move || lacuna.read().reason.clone()
             class="text-sm"
             placeholder="reason"
             autocomplete="false"
@@ -132,13 +144,66 @@ fn inner_lacuna_view(
                         Block::Lacuna(lacuna.get_untracked().into()))
                     );
                 // now set the new savepoint
-                *current_lacuna.write() = lacuna.get_untracked();
+                current_lacuna.write().reason = lacuna.read_untracked().reason.clone();
             }/>
-            <span
-                class="font-light text-xs">
-                :
-            </span>
-            <br/>
+        </div>
+        <Accordion
+            expand={config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Extent: "</span>
+                    <input
+                    prop:value=move || lacuna.read().n.clone()
+                    class="text-sm"
+                    placeholder="n"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        // here we can allow the value to be unparsable, but we want to prevent
+                        // this if possible
+                        let x = ev.target().value();
+                        if x.is_empty() {
+                        } else {
+                            lacuna.write().n = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        }
+                    }
+                    on:change:target=move |ev| {
+                        // just throw away values that are not parsable
+                        lacuna.write().n = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Lacuna(current_lacuna.get_untracked()),
+                                Block::Lacuna(lacuna.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_lacuna.write().n = lacuna.get_untracked().n;
+                    }/>
+                </Item>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Unit of Extent: "</span>
+                    <select
+                    prop:value=move || lacuna.read().unit.name()
+                    on:input:target=move |ev| {
+                        lacuna.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                    }
+                    on:change:target=move |ev| {
+                        lacuna.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Lacuna(current_lacuna.get_untracked()),
+                                Block::Lacuna(lacuna.get_untracked())));
+                        current_lacuna.write().unit = lacuna.get_untracked().unit;
+                    }
+                >
+                    <option value="Character">Column</option>
+                    <option value="Line">Line</option>
+                    <option value="Column">Column</option>
+                </select>
+                </Item>
+            </List>
+        </Accordion>
         </div>
     }
 }
@@ -153,14 +218,19 @@ fn inner_uncertain_view(
     // `uncertain` itself will contain the displayed setting, `current_unceretain`
     // will contain the value from the last savepoint (of the Undo-stack)
     let current_uncertain = RwSignal::new(uncertain.get_untracked());
+
+    let config_expanded = signal(false);
     view! {
+        <div class="flex justify-between">
         <div>
+            // header line
             <span
                 class="font-light text-xs">
                     "Uncertain because of "
             </span>
+            // reason for the uncertainty
             <input
-            prop:value=uncertain.get_untracked().agent
+            prop:value=move || uncertain.read().agent.clone()
             class="text-sm"
             placeholder="reason"
             autocomplete="false"
@@ -176,18 +246,19 @@ fn inner_uncertain_view(
                         Block::Uncertain(uncertain.get_untracked().into()))
                     );
                 // now set the new savepoint
-                *current_uncertain.write() = uncertain.get_untracked();
+                current_uncertain.write().agent = uncertain.get_untracked().agent;
             }/>
             <span
                 class="font-light text-xs">
                 :
             </span>
             <br/>
+            // proposed (reconstructed) content
             <textarea
             class="bg-orange-100 text-black font-mono"
             id={format!("block-input-{id}")}
             node_ref=focus_element
-            prop:value=uncertain.get_untracked().content
+            prop:value=move || uncertain.read().content.clone()
             autocomplete="false"
             spellcheck="false"
             rows=TEXTAREA_DEFAULT_ROWS
@@ -203,9 +274,66 @@ fn inner_uncertain_view(
                         Block::Uncertain(uncertain.get_untracked().into()))
                     );
                 // now set the new savepoint
-                *current_uncertain.write() = uncertain.get_untracked();
+                current_uncertain.write().content = uncertain.get_untracked().content;
             }
         />
+        </div>
+        <Accordion
+            expand={config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Language: "</span>
+                    <input
+                    prop:value=move || uncertain.read().lang.clone()
+                    class="text-sm"
+                    placeholder="language"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        uncertain.write().lang = ev.target().value();
+                    }
+                    on:change:target=move |ev| {
+                        uncertain.write().lang = ev.target().value();
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Uncertain(current_uncertain.get_untracked()),
+                                Block::Uncertain(uncertain.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_uncertain.write().lang = uncertain.read_untracked().lang.clone();
+                    }/>
+                </Item>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Certainty: "</span>
+                    <input
+                    // the unwrap_or_else is required, because cert can be None but we want to push
+                    // "" to the user in that case
+                    prop:value=move || uncertain.read().cert.clone().unwrap_or_else(String::default)
+                    class="text-sm"
+                    placeholder="certainty"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        let x = ev.target().value();
+                        uncertain.write().cert = (!x.is_empty()).then(|| x);
+                    }
+                    on:change:target=move |ev| {
+                        let x = ev.target().value();
+                        uncertain.write().cert = (!x.is_empty()).then(|| x);
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Uncertain(current_uncertain.get_untracked()),
+                                Block::Uncertain(uncertain.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_uncertain.write().cert = uncertain.read_untracked().cert.clone();
+                    }/>
+                </Item>
+            </List>
+        </Accordion>
         </div>
     }
 }
@@ -213,7 +341,6 @@ fn inner_uncertain_view(
 fn inner_break_view(
     undo_stack: RwSignal<UnReStack>,
     break_block: RwSignal<BreakType>,
-    focus_element: leptos::prelude::NodeRef<Textarea>,
     id: usize,
 ) -> impl IntoView {
     let current_break_block = RwSignal::new(break_block.get_untracked());
@@ -263,13 +390,13 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
             inner_text_view(undo_stack, paragraph, focus_element, id).into_any()
         }
         InnerBlock::Lacuna(lacuna) => {
-            inner_lacuna_view(undo_stack, lacuna, focus_element, id).into_any()
+            inner_lacuna_view(undo_stack, lacuna, id).into_any()
         }
         InnerBlock::Uncertain(uncertain) => {
             inner_uncertain_view(undo_stack, uncertain, focus_element, id).into_any()
         }
         InnerBlock::Break(break_block) => {
-            inner_break_view(undo_stack, break_block, focus_element, id).into_any()
+            inner_break_view(undo_stack, break_block, id).into_any()
         }
         _ => {
             // Add Anchor, Correction, Abbreviation etc.
@@ -545,7 +672,6 @@ impl InnerBlock {
             // Block types without content can never fire split_at_selection,
             // so the function should panic
             None => {
-                leptos::logging::log!("called split_at_selection. self: {self:?}");
                 unreachable!(
                     "split_at_selection cannot be called when the Blocktype has no content."
                 );

@@ -71,12 +71,10 @@ fn new_node(
     let complete_value = primary_input.value();
     // split this element in blocks
     if let Some(physical_index) = physical_index_maybe(id) {
-        leptos::logging::log!("physical_index of selected block: {physical_index}");
         // this one block will usually be split in three: before-selection, selection,
         // after-selection
         match (current_select_start, current_select_end) {
             (Some(x), Some(y)) => {
-                leptos::logging::log!("start and end of text selection: {x}, {y}");
                 // convert indices to byte offsets (they are given as utf-8 character indices)
                 let mut indices = complete_value.char_indices().map(|(i, _)| i);
                 let start_utf8 = match indices.nth(x as usize) {
@@ -92,18 +90,12 @@ fn new_node(
                 };
                 let new_blocks = match blocks.read().get(physical_index) {
                     Some(el) => {
-                        leptos::logging::log!(
-                            "the block that was selected from the physical index: {el:?}"
-                        );
-                        leptos::logging::log!("all blocks: {:?}", blocks.get_untracked());
-                        leptos::logging::log!("next ID to give out: {:?}", next_id.get());
                         let res = el.split_at_selection(
                             start_utf8,
                             end_utf8,
                             block_type,
                             &mut next_id.write(),
                         );
-                        leptos::logging::log!("result from split_at_selection: {res:?}");
                         res
                     }
                     None => {
@@ -264,7 +256,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
 
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
-        log!("{}", evt.key_code());
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
             // we can only dispatch and hope for the best here

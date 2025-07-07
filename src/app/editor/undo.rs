@@ -72,6 +72,7 @@ impl core::fmt::Display for ReplayError {
 impl std::error::Error for ReplayError {}
 
 /// The different types of Undo/Redo
+#[derive(Debug, Clone)]
 pub(super) enum UnReStep {
     /// Data inside a block has changed (on:change of an input field)
     DataChange(DataChange),
@@ -140,6 +141,7 @@ impl Invert for UnReStep {
 }
 impl UnRe for UnReStep {}
 
+#[derive(Debug, Clone)]
 pub(super) struct UnReStack {
     undo_stack: Vec<UnReStep>,
     redo_stack: Vec<UnReStep>,
@@ -203,6 +205,7 @@ impl UnReStack {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DataChange {
     /// The (logical) id of the block that was changed
     id: usize,
@@ -244,6 +247,7 @@ impl Replay for DataChange {
 impl UnRe for DataChange {}
 
 /// The two blocks given by their logical IDs were swapped.
+#[derive(Debug, Clone)]
 struct BlockSwap {
     /// physical position of the first block
     first: usize,
@@ -280,6 +284,7 @@ impl Replay for BlockSwap {
 impl UnRe for BlockSwap {}
 
 /// Any number of consecutive blocks was exchanged for any other number of consecutive blocks
+#[derive(Debug, Clone)]
 struct BlockChange {
     /// Location in the block vector where the touched blocks start
     physical_index_of_change: usize,
