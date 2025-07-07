@@ -6,6 +6,8 @@ This is a webapp to enable digital textual criticism.
 
 ## Blocks
 ### Anchors
+- when the editor is instantiated, pull the versification schemes from the db (with a resource)
+- create a search field
 ### Corrections
 ### Abbreviations
 
@@ -16,14 +18,12 @@ This is a webapp to enable digital textual criticism.
 
 ## Ribbon which prints keyboard shortcuts for existing commands
 
-## bugs
-- behaviour for lacuna and break sometimes does not work correctly (getting wrong index and splitting the field incorrectly)
-
 # TODOs - General
-## get the currently logged in user into leptos (frontend) somehow?
-we want to be able to show who the user is and such
-- maybe just have resources that pull that from the server??
 ## setup docker for code deployment later
+
+## create admin pages for
+### editing versification schemes
+### adding manuscripts / folios
 
 # TODOs - Workflow
 - The user creates a transcription (using the editor)
