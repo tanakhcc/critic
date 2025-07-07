@@ -5,4 +5,5 @@ CREATE TABLE versification_scheme (
 	shorthand TEXT UNIQUE NOT NULL
 );
 
+-- please make sure to change the statically used schemes throughout the code if you ever change this or add more static schemes in later migrations
 INSERT INTO versification_scheme (full_name, shorthand) VALUES ('Common', 'C'), ('Present', 'P');

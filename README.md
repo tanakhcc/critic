@@ -6,8 +6,8 @@ This is a webapp to enable digital textual criticism.
 
 ## Blocks
 ### Anchors
-- when the editor is instantiated, pull the versification schemes from the db (with a resource)
-- create a search field
+- actually add keyboard shortcut / creation
+- test anchors
 ### Corrections
 ### Abbreviations
 

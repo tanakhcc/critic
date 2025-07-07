@@ -20,6 +20,8 @@ mod undo;
 
 mod save;
 
+mod versification_scheme;
+
 /// Add a new Block to the editor
 ///
 /// `physical_index_maybe`: find the physical position of the block with this id
@@ -340,7 +342,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                         id: idx,
                     })
                     .collect();
-                *next_id.write() = blocks.len() + 1;
                 blocks
             }
             Err(e) => {
@@ -349,6 +350,12 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
             }
         }
     });
+
+    // Start loading versification schemes and provide them - only the Anchor components will use
+    // them, and probably only much later then page load
+    let versification_schemes =
+        OnceResource::new(versification_scheme::get_versification_schemes());
+    provide_context(versification_schemes);
 
     view! {
             <div>
@@ -362,7 +369,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
             {move || Suspend::new(async move {
                 let init_blocks = load_state_resource.await;
                 *next_id.write() = init_blocks.len() + 1;
-                set_blocks.set(init_blocks.into_iter().map(|b| b.into()).collect());
+                set_blocks.set(init_blocks);
             view!{
             <For each=move || blocks.get()
                 key=|block| block.id()

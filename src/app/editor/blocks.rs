@@ -10,7 +10,7 @@ use critic_format::streamed::{
 use leptos::{html::Textarea, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use super::{UnReStack, UnReStep};
+use super::{versification_scheme::VersificationScheme, UnReStack, UnReStep};
 
 use crate::app::accordion::{Accordion, Align, Item, List};
 
@@ -30,9 +30,9 @@ pub(super) struct EditorBlock {
 
 #[component]
 fn CogSvg() -> impl IntoView {
-    view!{
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-    }
+    view! {
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+        }
 }
 
 fn inner_text_view(
@@ -370,6 +370,92 @@ fn inner_break_view(
     }
 }
 
+/// display an anchor
+fn inner_anchor_view(
+    undo_stack: RwSignal<UnReStack>,
+    anchor: RwSignal<Anchor>,
+    _focus_element: leptos::prelude::NodeRef<Textarea>,
+    id: usize,
+) -> impl IntoView {
+    let current_anchor = RwSignal::new(anchor.get_untracked());
+
+    let config_expanded = signal(false);
+    let Some(versification_schemes) = use_context::<OnceResource<Vec<VersificationScheme>>>() else {
+        leptos::logging::log!("Did not get a provided context for versification schemes. Please open a bug report.");
+        return leptos::either::Either::Left(view! {
+            <p>"No versification schemes present. Anchor cannot be represented! Please open a bug report."</p>
+        })
+        };
+
+    leptos::either::Either::Right(
+    view! {
+        <div class="flex justify-between">
+        <div>
+            // Anchor 'content', i.e. the actual id not containing the versification scheme
+            <input
+            prop:value=move || anchor.read().anchor_id.clone()
+            class="text-sm"
+            placeholder="id"
+            autocomplete="false"
+            spellcheck="false"
+            on:input:target=move |ev| {
+                anchor.write().anchor_id = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                anchor.write().anchor_id = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Anchor(current_anchor.get_untracked()),
+                        Block::Anchor(anchor.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                current_anchor.write().anchor_id = anchor.get_untracked().anchor_id;
+            }/>
+        </div>
+        <Accordion
+            expand={config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Versification Scheme: "</span>
+                    <select
+                    prop:value=move || anchor.read().anchor_type.clone()
+                    on:input:target=move |ev| {
+                        anchor.write().anchor_type = ev.target().value();
+                    }
+                    on:change:target=move |ev| {
+                        anchor.write().anchor_type = ev.target().value();
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Anchor(current_anchor.get_untracked()),
+                                Block::Anchor(anchor.get_untracked())));
+                        current_anchor.write().anchor_type = anchor.get_untracked().anchor_type;
+                    }
+                >
+                    // these two schemes are static and can always be show.
+                    // please change if you change the static schemes in
+                    // `202507071848_versification_scheme.up.sql`
+                    <Suspense fallback = move || view!{ <option value="Present">Present</option><option value="Common">Common</option>}>
+                    {
+                        versification_schemes.get().map(|schemes|
+                            schemes.into_iter().map(|scheme|
+                                view! {
+                                    <option value=scheme.full_name>{scheme.full_name.clone()}</option>
+                                }).collect::<Vec<_>>())
+                    }
+                    </Suspense>
+                    <option value="Character">Column</option>
+                    <option value="Line">Line</option>
+                    <option value="Column">Column</option>
+                </select>
+                </Item>
+            </List>
+        </Accordion>
+        </div>
+    })
+}
+
 #[component]
 fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView {
     let focus_element = NodeRef::<Textarea>::new();
@@ -389,17 +475,14 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
         InnerBlock::Text(paragraph) => {
             inner_text_view(undo_stack, paragraph, focus_element, id).into_any()
         }
-        InnerBlock::Lacuna(lacuna) => {
-            inner_lacuna_view(undo_stack, lacuna, id).into_any()
-        }
+        InnerBlock::Lacuna(lacuna) => inner_lacuna_view(undo_stack, lacuna, id).into_any(),
         InnerBlock::Uncertain(uncertain) => {
             inner_uncertain_view(undo_stack, uncertain, focus_element, id).into_any()
         }
-        InnerBlock::Break(break_block) => {
-            inner_break_view(undo_stack, break_block, id).into_any()
-        }
+        InnerBlock::Break(break_block) => inner_break_view(undo_stack, break_block, id).into_any(),
+        InnerBlock::Anchor(anchor) => inner_anchor_view(undo_stack, anchor, focus_element, id).into_any(),
         _ => {
-            // Add Anchor, Correction, Abbreviation etc.
+            // Add Correction, Abbreviation etc.
             todo!()
         }
     }
