@@ -8,34 +8,40 @@ use leptos::prelude::*;
 use super::EditorBlock;
 
 /// TODO do these properly with writing and getting functions in critic-format
-//#[server]
-pub(super) async fn load_editor_state() -> Result<Vec<EditorBlock>, ServerFnError> {
+#[server]
+pub(super) async fn load_editor_state() -> Result<critic_format::streamed::Manuscript, ServerFnError>
+{
     use std::path::Path;
 
     let path = Path::new("tmp/data");
     let file = std::fs::File::open(path).map_err(|e| ServerFnError::new(e.to_string()))?;
     let buf_reader = std::io::BufReader::new(file);
-    let ds: critic_format::schema::Tei = quick_xml::de::from_reader(buf_reader).map_err(|e| ServerFnError::new(e.to_string()))?;
-    let normalized: critic_format::normalized::Manuscript = ds.try_into().map_err(|e: critic_format::denorm::NormalizationError| ServerFnError::new(e.to_string()))?;
-    let streamed: critic_format::streamed::Manuscript = normalized.try_into().map_err(|e: critic_format::destream::StreamError| ServerFnError::new(e.to_string()))?;
-    let blocks = streamed.content.into_iter().enumerate().map(|(idx, x)| EditorBlock { focus_on_load: false, inner: x.into(), id: idx as i32, }).collect();
+    let ds: critic_format::schema::Tei =
+        quick_xml::de::from_reader(buf_reader).map_err(|e| ServerFnError::new(e.to_string()))?;
+    let normalized: critic_format::normalized::Manuscript =
+        ds.try_into()
+            .map_err(|e: critic_format::denorm::NormalizationError| {
+                ServerFnError::new(e.to_string())
+            })?;
+    let streamed: critic_format::streamed::Manuscript = normalized
+        .try_into()
+        .map_err(|e: critic_format::destream::StreamError| ServerFnError::new(e.to_string()))?;
 
-    Ok(blocks)
+    Ok(streamed)
 }
 
+/// We take streamed blocks because they have no Signals and so can properly (de-)serialize
 #[server]
 pub(super) async fn save_editor_state(
-    blocks: Vec<super::EditorBlock>,
+    blocks: Vec<critic_format::streamed::Block>,
 ) -> Result<(), ServerFnError> {
     use std::io::Write;
     use std::path::Path;
-    use tracing::info;
 
     let path = Path::new("tmp/data");
     let mut file = std::fs::File::create(path).map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    let streamed: Vec<critic_format::streamed::Block> =
-        blocks.into_iter().map(|x| x.inner.into()).collect();
+    // todo fill actual data
     let ms = critic_format::streamed::Manuscript {
         meta: critic_format::normalized::Meta {
             name: "name".to_string(),
@@ -46,7 +52,7 @@ pub(super) async fn save_editor_state(
             hand_desc: "handDesc".to_string(),
             script_desc: "scriptDesc".to_string(),
         },
-        content: streamed,
+        content: blocks,
     };
 
     let destreamed: critic_format::normalized::Manuscript = ms

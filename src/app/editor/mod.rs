@@ -30,11 +30,10 @@ mod save;
 /// `default_language`: use this language for the new block if its language cannot be determined
 /// automatically
 fn new_node(
-    physical_index_maybe: impl Fn(i32) -> Option<usize>,
+    physical_index_maybe: impl Fn(usize) -> Option<usize>,
     blocks: ReadSignal<Vec<EditorBlock>>,
     set_blocks: WriteSignal<Vec<EditorBlock>>,
-    next_id: ReadSignal<i32>,
-    set_next_id: WriteSignal<i32>,
+    next_id: RwSignal<usize>,
     block_type: BlockType,
     undo_stack: RwSignal<UnReStack>,
     default_language: &str,
@@ -58,7 +57,7 @@ fn new_node(
         return;
     };
     let id_stripped = &primary_input.id()[12..];
-    let id = match id_stripped.parse::<i32>() {
+    let id = match id_stripped.parse::<usize>() {
         Ok(el) => el,
         Err(_) => {
             return;
@@ -72,10 +71,12 @@ fn new_node(
     let complete_value = primary_input.value();
     // split this element in blocks
     if let Some(physical_index) = physical_index_maybe(id) {
+        leptos::logging::log!("physical_index of selected block: {physical_index}");
         // this one block will usually be split in three: before-selection, selection,
         // after-selection
         match (current_select_start, current_select_end) {
             (Some(x), Some(y)) => {
+                leptos::logging::log!("start and end of text selection: {x}, {y}");
                 // convert indices to byte offsets (they are given as utf-8 character indices)
                 let mut indices = complete_value.char_indices().map(|(i, _)| i);
                 let start_utf8 = match indices.nth(x as usize) {
@@ -90,12 +91,21 @@ fn new_node(
                         .unwrap_or(complete_value.len())
                 };
                 let new_blocks = match blocks.read().get(physical_index) {
-                    Some(el) => el.split_at_selection(
-                        start_utf8,
-                        end_utf8,
-                        block_type,
-                        &mut set_next_id.write(),
-                    ),
+                    Some(el) => {
+                        leptos::logging::log!(
+                            "the block that was selected from the physical index: {el:?}"
+                        );
+                        leptos::logging::log!("all blocks: {:?}", blocks.get_untracked());
+                        leptos::logging::log!("next ID to give out: {:?}", next_id.get());
+                        let res = el.split_at_selection(
+                            start_utf8,
+                            end_utf8,
+                            block_type,
+                            &mut next_id.write(),
+                        );
+                        leptos::logging::log!("result from split_at_selection: {res:?}");
+                        res
+                    }
                     None => {
                         return;
                     }
@@ -130,7 +140,7 @@ fn new_node(
                 undo_stack
                     .write()
                     .push_undo(UnReStep::new_insertion(physical_index, new_block));
-                *set_next_id.write() += 1;
+                *next_id.write() += 1;
             }
         };
     };
@@ -140,8 +150,8 @@ fn new_node(
 pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let undo_stack = RwSignal::new(UnReStack::new());
 
-    let initial_id = 1;
-    let (next_id, set_next_id) = signal(initial_id);
+    // logical ID of blocks, 1-based
+    let next_id = RwSignal::new(1_usize);
     let init_blocks = Vec::<EditorBlock>::new();
     let (blocks, set_blocks) = signal(init_blocks);
     let add_blocks_lang = default_language.clone();
@@ -160,13 +170,13 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 .write()
                 .push_undo(UnReStep::new_insertion(physical_index, new_block.clone()));
             bs.push(new_block.into());
-            set_next_id.update(|idx| *idx += 1);
+            next_id.update(|idx| *idx += 1);
         })
     };
 
-    let physical_index_maybe = move |id: i32| blocks.read().iter().position(|b| b.id() == id);
+    let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
-    let index_if_not_first = move |id: i32| {
+    let index_if_not_first = move |id: usize| {
         if let Some(physical_index) = physical_index_maybe(id) {
             if physical_index != 0 {
                 Some(physical_index)
@@ -206,7 +216,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
         }
     };
 
-    let index_if_not_last = move |id: i32| {
+    let index_if_not_last = move |id: usize| {
         if let Some(physical_index) = physical_index_maybe(id) {
             if physical_index < blocks.read().len() - 1 {
                 Some(physical_index)
@@ -247,7 +257,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
     };
 
     let save_state_action = Action::new(|blocks: &Vec<EditorBlock>| {
-        let blocks_dehydrated = blocks.iter().map(|b| b.clone().into()).collect();
+        let blocks_dehydrated = blocks.iter().map(|b| b.inner.clone().into()).collect();
         async move { save_editor_state(blocks_dehydrated).await }
     });
     let pending_save = save_state_action.pending();
@@ -282,7 +292,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 blocks,
                 set_blocks,
                 next_id,
-                set_next_id,
                 BlockType::Text,
                 undo_stack,
                 &default_language,
@@ -294,7 +303,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 blocks,
                 set_blocks,
                 next_id,
-                set_next_id,
                 BlockType::Uncertain,
                 undo_stack,
                 &default_language,
@@ -306,7 +314,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 blocks,
                 set_blocks,
                 next_id,
-                set_next_id,
                 BlockType::Lacuna,
                 undo_stack,
                 &default_language,
@@ -318,7 +325,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 blocks,
                 set_blocks,
                 next_id,
-                set_next_id,
                 BlockType::Break,
                 undo_stack,
                 &default_language,
@@ -332,7 +338,20 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
 
     let load_state_resource = OnceResource::<Vec<EditorBlock>>::new(async move {
         match load_editor_state().await {
-            Ok(x) => x,
+            Ok(streamed) => {
+                let blocks: Vec<EditorBlock> = streamed
+                    .content
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, x)| EditorBlock {
+                        focus_on_load: false,
+                        inner: x.into(),
+                        id: idx,
+                    })
+                    .collect();
+                *next_id.write() = blocks.len() + 1;
+                blocks
+            }
             Err(e) => {
                 log!("Error loading server state: {e}");
                 vec![]
@@ -351,6 +370,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
             <Suspense fallback=|| { view!{ <p>"Loading editor state from the server..."</p> } }>
             {move || Suspend::new(async move {
                 let init_blocks = load_state_resource.await;
+                *next_id.write() = init_blocks.len() + 1;
                 set_blocks.set(init_blocks.into_iter().map(|b| b.into()).collect());
             view!{
             <For each=move || blocks.get()

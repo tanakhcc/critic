@@ -43,7 +43,7 @@ pub enum ReplayError {
     /// The block with this id was not found
     ///
     /// This should never happen and is always a programmer error.
-    BlockNotFound(i32),
+    BlockNotFound(usize),
     /// There was some way in which the current state is not the old state expected from the action
     /// to undo
     ///
@@ -89,7 +89,7 @@ pub(super) enum UnReStep {
 }
 impl UnReStep {
     pub fn new_data_change(
-        logical_index: i32,
+        logical_index: usize,
         old_inner_block: Block,
         new_inner_block: Block,
     ) -> Self {
@@ -205,14 +205,14 @@ impl UnReStack {
 
 struct DataChange {
     /// The (logical) id of the block that was changed
-    id: i32,
+    id: usize,
     /// The block before the change
     old_inner: Block,
     /// The block after the change
     new_inner: Block,
 }
 impl DataChange {
-    pub fn new(id: i32, old_inner: Block, new_inner: Block) -> Self {
+    pub fn new(id: usize, old_inner: Block, new_inner: Block) -> Self {
         Self {
             id,
             old_inner,
