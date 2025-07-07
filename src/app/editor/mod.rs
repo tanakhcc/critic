@@ -20,6 +20,15 @@ mod undo;
 
 mod save;
 
+/// Add a new Block to the editor
+///
+/// `physical_index_maybe`: find the physical position of the block with this id
+/// `blocks`: the blocks currently present
+/// `next_id`: use this ID for the new block
+/// `block_type`: create a block of this type
+/// `undo_stack`: add an undo-action for the block creation to this [`UnReStack`]
+/// `default_language`: use this language for the new block if its language cannot be determined
+/// automatically
 fn new_node(
     physical_index_maybe: impl Fn(i32) -> Option<usize>,
     blocks: ReadSignal<Vec<EditorBlock>>,
@@ -28,7 +37,9 @@ fn new_node(
     set_next_id: WriteSignal<i32>,
     block_type: BlockType,
     undo_stack: RwSignal<UnReStack>,
+    default_language: &str,
 ) {
+    // first find out the id of the block currently selected
     let active_element = match use_document().active_element() {
         Some(el) => el,
         None => {
@@ -54,6 +65,8 @@ fn new_node(
         }
     };
 
+    // If text is currently selected, the block should be created with the selected text as its
+    // content
     let current_select_start = primary_input.selection_start().unwrap_or(None);
     let current_select_end = primary_input.selection_end().unwrap_or(None);
     let complete_value = primary_input.value();
@@ -106,7 +119,7 @@ fn new_node(
                 let new_block = EditorBlock::new(
                     next_id.get(),
                     block_type,
-                    todo!("lang"),
+                    default_language.to_string(),
                     String::default(),
                     true,
                 );
@@ -131,13 +144,14 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let (next_id, set_next_id) = signal(initial_id);
     let init_blocks = Vec::<EditorBlock>::new();
     let (blocks, set_blocks) = signal(init_blocks);
+    let add_blocks_lang = default_language.clone();
     let add_block = move |_| {
         set_blocks.update(|bs| {
             let logical_index = next_id.get();
             let new_block = EditorBlock::new(
                 logical_index,
                 BlockType::Text,
-                default_language.clone(),
+                add_blocks_lang.clone(),
                 "raw text".to_owned(),
                 true,
             );
@@ -271,6 +285,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 set_next_id,
                 BlockType::Text,
                 undo_stack,
+                &default_language,
             );
         // <ctrl>-<alt>-U (new Uncertain)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 85 {
@@ -282,6 +297,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 set_next_id,
                 BlockType::Uncertain,
                 undo_stack,
+                &default_language,
             )
         // <ctrl>-<alt>-L (new Lacuna)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 76 {
@@ -293,6 +309,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 set_next_id,
                 BlockType::Lacuna,
                 undo_stack,
+                &default_language,
             );
         // <ctrl>-<alt>-<ENTER> (new Break)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 13 {
@@ -304,6 +321,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 set_next_id,
                 BlockType::Break,
                 undo_stack,
+                &default_language,
             );
         };
     });
