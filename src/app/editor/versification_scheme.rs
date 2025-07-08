@@ -27,12 +27,13 @@ struct __VersificationScheme {
 #[cfg(feature = "ssr")]
 impl From<__VersificationScheme> for VersificationScheme {
     fn from(value: __VersificationScheme) -> Self {
-        Self{
-            id: value.id,full_name: value.full_name, shorthand: value.shorthand,
+        Self {
+            id: value.id,
+            full_name: value.full_name,
+            shorthand: value.shorthand,
         }
     }
 }
-
 
 #[server]
 pub async fn get_versification_schemes() -> Result<Vec<VersificationScheme>, ServerFnError> {
@@ -46,6 +47,8 @@ pub async fn get_versification_schemes() -> Result<Vec<VersificationScheme>, Ser
             .fetch_all(&db_pool)
             .await
             .map_err(|e| ServerFnError::new(format!("Unable to get versification schemes: {e}")))?
-            .into_iter().map(Into::<VersificationScheme>::into).collect()
+            .into_iter()
+            .map(Into::<VersificationScheme>::into)
+            .collect(),
     )
 }

@@ -40,7 +40,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/critic.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="critic - textual criticism"/>
 
         // Router
         <Router>

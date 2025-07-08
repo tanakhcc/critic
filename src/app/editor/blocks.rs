@@ -8,6 +8,7 @@ use critic_format::streamed::{
     Paragraph, Uncertain, Version,
 };
 use leptos::{html::Textarea, prelude::*};
+use leptos_use::{use_interval, UseIntervalReturn};
 use serde::{Deserialize, Serialize};
 
 use super::{versification_scheme::VersificationScheme, UnReStack, UnReStep};
@@ -197,7 +198,7 @@ fn inner_lacuna_view(
                         current_lacuna.write().unit = lacuna.get_untracked().unit;
                     }
                 >
-                    <option value="Character">Column</option>
+                    <option value="Character">Character</option>
                     <option value="Line">Line</option>
                     <option value="Column">Column</option>
                 </select>
@@ -380,29 +381,65 @@ fn inner_anchor_view(
     let current_anchor = RwSignal::new(anchor.get_untracked());
 
     let config_expanded = signal(false);
-    let Some(versification_schemes) = use_context::<OnceResource<Vec<VersificationScheme>>>() else {
-        leptos::logging::log!("Did not get a provided context for versification schemes. Please open a bug report.");
+    let Some(versification_schemes_res) =
+        use_context::<OnceResource<Result<Vec<VersificationScheme>, ServerFnError>>>()
+    else {
+        leptos::logging::log!(
+            "Did not get a provided context for versification schemes. Please open a bug report."
+        );
         return leptos::either::Either::Left(view! {
             <p>"No versification schemes present. Anchor cannot be represented! Please open a bug report."</p>
-        })
-        };
+        });
+    };
 
-    leptos::either::Either::Right(
-    view! {
+    let raw_id = RwSignal::new(if !anchor.read_untracked().anchor_id.starts_with("A_V_") {
+        String::default()
+    } else {
+        anchor.read_untracked().anchor_id[4..]
+            .split("_")
+            .nth(2)
+            .map_or(String::default(), |substr| substr.to_string())
+    });
+
+    // The shorthand associated to the currently selected versification scheme, which is needed
+    // both when changing the id as well as the type
+    let scheme_shorthand = Memo::new(move |_| 'await_response: loop {
+        match versification_schemes_res.get() {
+            Some(Ok(schemes)) => {
+                for scheme in schemes {
+                    if scheme.full_name == anchor.read().anchor_type {
+                        break 'await_response scheme.shorthand;
+                    }
+                }
+                leptos::logging::log!("Did get versification schemes, but could not find the short hand form for long form: {}", anchor.read().anchor_type);
+                break 'await_response "???".to_string();
+            }
+            _ => {
+                // wait until the server responds with the versification schemes
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+    });
+
+    leptos::either::Either::Right(view! {
         <div class="flex justify-between">
         <div>
             // Anchor 'content', i.e. the actual id not containing the versification scheme
             <input
-            prop:value=move || anchor.read().anchor_id.clone()
+            prop:value=move || raw_id.get()
             class="text-sm"
             placeholder="id"
             autocomplete="false"
             spellcheck="false"
             on:input:target=move |ev| {
-                anchor.write().anchor_id = ev.target().value();
+                // just set the raw input value
+                *raw_id.write() = ev.target().value();
             }
             on:change:target=move |ev| {
-                anchor.write().anchor_id = ev.target().value();
+                *raw_id.write() = ev.target().value();
+
+                let full_anchor_id = format!("A_V_{}_{}", scheme_shorthand.get(), raw_id.read());
+                anchor.write().anchor_id = full_anchor_id;
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Anchor(current_anchor.get_untracked()),
@@ -427,6 +464,12 @@ fn inner_anchor_view(
                     }
                     on:change:target=move |ev| {
                         anchor.write().anchor_type = ev.target().value();
+
+                        // we also need to update the anchor id with the new shorthand for the
+                        // scheme when the anchor type is changed
+                        let full_anchor_id = format!("A_V_{}_{}", scheme_shorthand.get(), raw_id.read());
+                        anchor.write().anchor_id = full_anchor_id;
+
                         undo_stack.write().push_undo(UnReStep::new_data_change(id,
                                 Block::Anchor(current_anchor.get_untracked()),
                                 Block::Anchor(anchor.get_untracked())));
@@ -438,16 +481,24 @@ fn inner_anchor_view(
                     // `202507071848_versification_scheme.up.sql`
                     <Suspense fallback = move || view!{ <option value="Present">Present</option><option value="Common">Common</option>}>
                     {
-                        versification_schemes.get().map(|schemes|
-                            schemes.into_iter().map(|scheme|
-                                view! {
-                                    <option value=scheme.full_name>{scheme.full_name.clone()}</option>
-                                }).collect::<Vec<_>>())
+                        versification_schemes_res.get_untracked().map(|scheme_res|
+                            match scheme_res {
+                                Ok(schemes) => {
+                                    leptos::either::Either::Left(
+                                        schemes.into_iter().map(|scheme|
+                                            view! {
+                                                <option value=scheme.full_name>{scheme.full_name.clone()}</option>
+                                            }).collect::<Vec<_>>())
+                                }
+                                Err(e) => {
+                                    leptos::either::Either::Right(
+                                    view!{
+                                        <p>"Unable to get versification schemes from the server: "{e.to_string()}". Please open a bug report."</p>
+                                    })
+                                }
+                            })
                     }
                     </Suspense>
-                    <option value="Character">Column</option>
-                    <option value="Line">Line</option>
-                    <option value="Column">Column</option>
                 </select>
                 </Item>
             </List>
@@ -480,7 +531,9 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
             inner_uncertain_view(undo_stack, uncertain, focus_element, id).into_any()
         }
         InnerBlock::Break(break_block) => inner_break_view(undo_stack, break_block, id).into_any(),
-        InnerBlock::Anchor(anchor) => inner_anchor_view(undo_stack, anchor, focus_element, id).into_any(),
+        InnerBlock::Anchor(anchor) => {
+            inner_anchor_view(undo_stack, anchor, focus_element, id).into_any()
+        }
         _ => {
             // Add Correction, Abbreviation etc.
             todo!()

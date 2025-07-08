@@ -258,6 +258,7 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
 
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
+        log!("Pressed: {}", evt.key_code());
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
             // we can only dispatch and hope for the best here
@@ -308,6 +309,17 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 set_blocks,
                 next_id,
                 BlockType::Lacuna,
+                undo_stack,
+                &default_language,
+            );
+        // <ctrl>-<alt>-A (new Anchor)
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 65 {
+            new_node(
+                physical_index_maybe,
+                blocks,
+                set_blocks,
+                next_id,
+                BlockType::Anchor,
                 undo_stack,
                 &default_language,
             );
