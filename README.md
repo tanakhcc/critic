@@ -5,18 +5,17 @@ This is a webapp to enable digital textual criticism.
 ## How do we display global errors?
 
 ## Blocks
-### Anchors
-- actually add keyboard shortcut / creation
-- test anchors
 ### Corrections
-### Abbreviations
+### Intentional white space
 
 ## Merge Blocks
 - up and down
 
-## Styling
+## automatically set lr/rl based on language
 
-## Ribbon which prints keyboard shortcuts for existing commands
+## Ribbon which shows keyboard shortcuts for existing commands
+
+## Styling
 
 # TODOs - General
 ## setup docker for code deployment later
@@ -25,6 +24,26 @@ This is a webapp to enable digital textual criticism.
 ### editing versification schemes
 ### adding manuscripts / folios
 
+# TODOs - diff
+We will need a good multi-diff algorithm
+take the idea from multidiff:
+- use wu-diff-by-hash on two inputs
+- create a mapping "content"-"present-in-inputs" like in multidiff
+
+This multi-diff will be used in collation, but also during reconciliation
+
+# TODOs - Branches
+## master
+- the default branch that end users see and pull the data from
+- used for releases
+    - releases are tagged commits
+- high branch protection, forced CI, ...
+
+## `rec/<source>/<user>`
+- active reconciliations that `<user>` wants to be final for `<source>`
+- highly incentivise users to not open new reconciliations when ones already exist for a source
+- merged into `master` when accepted
+
 # TODOs - Workflow
 - The user creates a transcription (using the editor)
     - one version (current) for each source and user is kept
@@ -32,12 +51,21 @@ This is a webapp to enable digital textual criticism.
     - this adds an older version for that user and source
     - all older versions are visible to everyone
 - Another or the same user can then create Reconciliations
-    - Select a source
-    - Select any number of base transcriptions from the published transcriptions for that source
+    - Select a source (a single page/image)
+    - all newest transcriptions for that source will be displayed
     - create one reconciled version (we need a new editor for this)
-    - create a new branch on top of master ("rec/user/source"), setting the transcript file for that source and a merge request into master for it
-    - (reconciliation is equivalent to MR - when the MR is merged, the reconciliation no longer exists)
-    - debate on reconciliations happens in the MR in gitlab like for a normal MR
+        - always pick the majority view for blocks by default
+        - allow picking blocks from different versions (copy them over from one displayer into the final editor)
+        - allow a full editor for the final version
+    - create a new branch on top of master ("rec/source/user"), setting the transcript file for that source
+    - create a MR from this branch onto some working branch ("critic/accepted"), with a message containing:
+        - (ignore blocks that are equal)
+        - how often was majority decision taken
+        - how often was minority decision taken
+        - how often was a completely different decision taken
+- Releases then take multiple branches (e.g. for one manuscript, or for one logical part of text)
+    - all these branches are merged into one big feature branch
+    - that branch is rebased onto master
 
 ## Q&A
 Using normal gitlab issues

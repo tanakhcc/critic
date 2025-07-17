@@ -290,6 +290,17 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 undo_stack,
                 &default_language,
             );
+        // <ctrl>-<alt>-A (new Abbreviation)
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 65 {
+            new_node(
+                physical_index_maybe,
+                blocks,
+                set_blocks,
+                next_id,
+                BlockType::Abbreviation,
+                undo_stack,
+                &default_language,
+            )
         // <ctrl>-<alt>-U (new Uncertain)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 85 {
             new_node(
@@ -312,8 +323,8 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 undo_stack,
                 &default_language,
             );
-        // <ctrl>-<alt>-A (new Anchor)
-        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 65 {
+        // <ctrl>-<alt>-V (new Anchor/Verse)
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 86 {
             new_node(
                 physical_index_maybe,
                 blocks,

@@ -8,7 +8,6 @@ use critic_format::streamed::{
     Paragraph, Uncertain, Version,
 };
 use leptos::{html::Textarea, prelude::*};
-use leptos_use::{use_interval, UseIntervalReturn};
 use serde::{Deserialize, Serialize};
 
 use super::{versification_scheme::VersificationScheme, UnReStack, UnReStep};
@@ -507,6 +506,145 @@ fn inner_anchor_view(
     })
 }
 
+/// View for an abbreviation
+fn inner_abbreviation_view(
+    undo_stack: RwSignal<UnReStack>,
+    abbreviation: RwSignal<Abbreviation>,
+    focus_element: leptos::prelude::NodeRef<Textarea>,
+    id: usize,
+) -> impl IntoView {
+    let current_abbreviation = RwSignal::new(abbreviation.get_untracked());
+
+    let expansion_config_expanded = signal(false);
+    let surface_config_expanded = signal(false);
+    view! {
+        <div class="flex justify-between">
+        <span>
+            "Surface form:"
+        </span>
+        <div>
+            // surface form
+            <textarea
+            class="bg-orange-100 text-black font-mono"
+            id={format!("block-input-{id}")}
+            node_ref=focus_element
+            prop:value=move || abbreviation.read().surface.clone()
+            autocomplete="false"
+            spellcheck="false"
+            rows=1
+            cols=TEXTAREA_DEFAULT_COLS
+            on:input:target=move |ev| {
+                abbreviation.write().surface = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                abbreviation.write().surface = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Abbreviation(current_abbreviation.get_untracked()),
+                        Block::Abbreviation(abbreviation.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                current_abbreviation.write().surface = abbreviation.get_untracked().surface;
+            }
+        />
+        <Accordion
+            expand={surface_config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Surface Language: "</span>
+                    <input
+                    prop:value=move || abbreviation.read().surface_lang.clone()
+                    class="text-sm"
+                    placeholder="surface-language"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        abbreviation.write().surface_lang = ev.target().value();
+                    }
+                    on:change:target=move |ev| {
+                        abbreviation.write().surface_lang= ev.target().value();
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Abbreviation(current_abbreviation.get_untracked()),
+                                Block::Abbreviation(abbreviation.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_abbreviation.write().surface_lang = abbreviation.read_untracked().surface_lang.clone();
+                    }/>
+                </Item>
+            </List>
+        </Accordion>
+        </div>
+        </div>
+
+        <div class="flex justify-between">
+        <span>
+            "Expanded form:"
+        </span>
+        <div>
+            // expanded form
+            <textarea
+            class="bg-orange-100 text-black font-mono"
+            id={format!("block-input-{id}")}
+            node_ref=focus_element
+            prop:value=move || abbreviation.read().expansion.clone()
+            autocomplete="false"
+            spellcheck="false"
+            rows=1
+            cols=TEXTAREA_DEFAULT_COLS
+            on:input:target=move |ev| {
+                abbreviation.write().expansion = ev.target().value();
+            }
+            on:change:target=move |ev| {
+                abbreviation.write().expansion = ev.target().value();
+                undo_stack.write().push_undo(
+                    UnReStep::new_data_change(id,
+                        Block::Abbreviation(current_abbreviation.get_untracked()),
+                        Block::Abbreviation(abbreviation.get_untracked().into()))
+                    );
+                // now set the new savepoint
+                current_abbreviation.write().expansion = abbreviation.get_untracked().expansion;
+            }
+        />
+        <Accordion
+            expand={expansion_config_expanded}
+            expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+            collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+        >
+            <List>
+                <Item align={Align::Left}>
+                    <span class="font-light text-xs">"Expansion Language: "</span>
+                    <input
+                    prop:value=move || abbreviation.read().expansion_lang.clone()
+                    class="text-sm"
+                    placeholder="expansion-language"
+                    autocomplete="false"
+                    spellcheck="false"
+                    on:input:target=move |ev| {
+                        abbreviation.write().expansion_lang = ev.target().value();
+                    }
+                    on:change:target=move |ev| {
+                        abbreviation.write().expansion_lang = ev.target().value();
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Abbreviation(current_abbreviation.get_untracked()),
+                                Block::Abbreviation(abbreviation.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_abbreviation.write().expansion_lang = abbreviation.read_untracked().expansion_lang.clone();
+                    }/>
+                </Item>
+            </List>
+        </Accordion>
+        </div>
+        </div>
+    }
+}
+
+
 #[component]
 fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView {
     let focus_element = NodeRef::<Textarea>::new();
@@ -533,6 +671,9 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
         InnerBlock::Break(break_block) => inner_break_view(undo_stack, break_block, id).into_any(),
         InnerBlock::Anchor(anchor) => {
             inner_anchor_view(undo_stack, anchor, focus_element, id).into_any()
+        }
+        InnerBlock::Abbreviation(abbreviation) => {
+            inner_abbreviation_view(undo_stack, abbreviation, focus_element, id).into_any()
         }
         _ => {
             // Add Correction, Abbreviation etc.
@@ -722,6 +863,7 @@ impl InnerBlock {
         }
     }
 
+    /// Create a new Block with this ones metadata, but change the content to be the new string
     fn clone_with_new_content(&self, new_content: String) -> InnerBlock {
         match self {
             InnerBlock::Break(_) => self.clone(),
@@ -754,7 +896,8 @@ impl InnerBlock {
             })),
             InnerBlock::Abbreviation(abbreviation) => {
                 InnerBlock::Abbreviation(RwSignal::new(Abbreviation {
-                    lang: abbreviation.read_untracked().lang.clone(),
+                    surface_lang: abbreviation.read_untracked().surface_lang.clone(),
+                    expansion_lang: abbreviation.read_untracked().expansion_lang.clone(),
                     surface: new_content.clone(),
                     expansion: new_content,
                 }))
@@ -790,7 +933,7 @@ impl InnerBlock {
             InnerBlock::Anchor(_) => None,
             InnerBlock::Uncertain(x) => Some(x.read_untracked().lang.clone()),
             InnerBlock::Correction(x) => Some(x.read_untracked().lang.clone()),
-            InnerBlock::Abbreviation(x) => Some(x.read_untracked().lang.clone()),
+            InnerBlock::Abbreviation(x) => Some(x.read_untracked().expansion_lang.clone()),
         }
     }
 
