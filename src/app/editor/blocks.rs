@@ -526,7 +526,6 @@ fn inner_abbreviation_view(
             // surface form
             <textarea
             class="bg-orange-100 text-black font-mono"
-            id={format!("block-input-{id}")}
             node_ref=focus_element
             prop:value=move || abbreviation.read().surface.clone()
             autocomplete="false"
