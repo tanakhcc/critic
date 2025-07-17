@@ -4,8 +4,7 @@
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
 use critic_format::streamed::{
-    Abbreviation, Anchor, Block, BlockType, BreakType, Correction, FromTypeLangAndContent, Lacuna,
-    Paragraph, Uncertain, Version,
+    Abbreviation, Anchor, Block, BlockType, BreakType, Correction, FromTypeLangAndContent, Lacuna, Paragraph, Space, Uncertain, Version
 };
 use leptos::{html::Textarea, prelude::*};
 use serde::{Deserialize, Serialize};
@@ -344,6 +343,69 @@ fn inner_uncertain_view(
     }
 }
 
+fn inner_space_view(
+    undo_stack: RwSignal<UnReStack>,
+    space: RwSignal<Space>,
+    id: usize,
+) -> impl IntoView {
+    let current_space = RwSignal::new(space.get_untracked());
+    view! {
+        <div class="flex justify-between">
+        <span
+            class="font-light text-xs">
+                "Space: "
+        </span>
+                    <span class="font-light text-xs">"Extent: "</span>
+                    <input
+                    prop:value=move || space.read().quantity.clone()
+                    class="text-sm"
+                    placeholder="extent"
+                    autocomplete="false"
+                    spellcheck="false"
+                    id={format!("block-input-{id}-extent")}
+                    on:input:target=move |ev| {
+                        // here we can allow the value to be unparsable, but we want to prevent
+                        // this if possible
+                        let x = ev.target().value();
+                        if x.is_empty() {
+                        } else {
+                            space.write().quantity = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        }
+                    }
+                    on:change:target=move |ev| {
+                        // just throw away values that are not parsable
+                        space.write().quantity = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Space(current_space.get_untracked()),
+                                Block::Space(space.get_untracked().into()))
+                            );
+                        // now set the new savepoint
+                        current_space.write().quantity = space.get_untracked().quantity;
+                    }/>
+                    <span class="font-light text-xs">"Unit of Extent: "</span>
+                    <select
+                    prop:value=move || space.read().unit.name()
+                    on:input:target=move |ev| {
+                        space.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                    }
+                    on:change:target=move |ev| {
+                        space.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                                Block::Space(current_space.get_untracked()),
+                                Block::Space(space.get_untracked())));
+                        current_space.write().unit = space.get_untracked().unit;
+                    }
+                >
+                    <option value="Character">Character</option>
+                    <option value="Line">Line</option>
+                    <option value="Column">Column</option>
+                </select>
+        </div>
+    }
+}
+
+
 fn inner_break_view(
     undo_stack: RwSignal<UnReStack>,
     break_block: RwSignal<BreakType>,
@@ -380,7 +442,6 @@ fn inner_break_view(
 fn inner_anchor_view(
     undo_stack: RwSignal<UnReStack>,
     anchor: RwSignal<Anchor>,
-    _focus_element: leptos::prelude::NodeRef<Textarea>,
     id: usize,
 ) -> impl IntoView {
     let current_anchor = RwSignal::new(anchor.get_untracked());
@@ -862,7 +923,7 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
         }
         InnerBlock::Break(break_block) => inner_break_view(undo_stack, break_block, id).into_any(),
         InnerBlock::Anchor(anchor) => {
-            inner_anchor_view(undo_stack, anchor, focus_element, id).into_any()
+            inner_anchor_view(undo_stack, anchor, id).into_any()
         }
         InnerBlock::Abbreviation(abbreviation) => {
             inner_abbreviation_view(undo_stack, abbreviation, focus_element, id).into_any()
@@ -870,9 +931,8 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
         InnerBlock::Correction(correction) => {
             inner_correction_view(undo_stack, correction, focus_element, id).into_any()
         }
-        _ => {
-            // Add Correction, Abbreviation etc.
-            todo!()
+        InnerBlock::Space(space) => {
+            inner_space_view(undo_stack, space, id).into_any()
         }
     }
 }
@@ -966,6 +1026,10 @@ impl PartialEq<Block> for InnerBlock {
                 Block::Lacuna(y) => x.read_untracked() == *y,
                 _ => false,
             },
+            InnerBlock::Space(x) => match other {
+                Block::Space(y) => x.read_untracked() == *y,
+                _ => false,
+            },
             InnerBlock::Anchor(x) => match other {
                 Block::Anchor(y) => x.read_untracked() == *y,
                 _ => false,
@@ -1006,10 +1070,12 @@ pub(super) enum InnerBlock {
     Text(RwSignal<Paragraph>),
     /// A correction in the manuscript - where one scribal hand has overwritte / struck through / .. a text that was present earlier
     Correction(RwSignal<Correction>),
-    // A part of text that is damaged but still legible
+    /// A part of text that is damaged but still legible
     Uncertain(RwSignal<Uncertain>),
-    // An expanded abbreviation
+    /// An expanded abbreviation
     Abbreviation(RwSignal<Abbreviation>),
+    /// A bit of whitespace in the manuscript
+    Space(RwSignal<Space>),
 }
 impl InnerBlock {
     /// overwrite own data with that given from new_block, but only if the types are the same
@@ -1033,6 +1099,12 @@ impl InnerBlock {
                 }
                 _ => {}
             },
+            Self::Space(x) => match new_block {
+                Block::Space(new_space) => {
+                    *x.write() = new_space;
+                }
+                _ => {}
+            }
             Self::Uncertain(x) => match new_block {
                 Block::Uncertain(new_uncertain) => {
                     *x.write() = new_uncertain;
@@ -1062,6 +1134,12 @@ impl InnerBlock {
     fn clone_with_new_content(&self, new_content: String) -> InnerBlock {
         match self {
             InnerBlock::Break(_) => self.clone(),
+            InnerBlock::Space(space) => {
+                InnerBlock::Space(RwSignal::new(Space {
+                    quantity: space.read_untracked().quantity,
+                    unit: space.read_untracked().unit,
+                }))
+            }
             InnerBlock::Lacuna(lacuna) => InnerBlock::Lacuna(RwSignal::new(Lacuna {
                 cert: lacuna.read_untracked().cert.clone(),
                 n: lacuna.read_untracked().n,
@@ -1111,7 +1189,8 @@ impl InnerBlock {
         match self {
             InnerBlock::Text(x) => Some(x.read_untracked().content.to_string()),
             InnerBlock::Break(_) => None,
-            InnerBlock::Lacuna(x) => None,
+            InnerBlock::Lacuna(_) => None,
+            InnerBlock::Space(_) => None,
             InnerBlock::Anchor(_) => None,
             InnerBlock::Uncertain(x) => Some(x.read_untracked().content.to_string()),
             InnerBlock::Correction(x) => x
@@ -1128,7 +1207,8 @@ impl InnerBlock {
         match self {
             InnerBlock::Text(x) => Some(x.read_untracked().lang.clone()),
             InnerBlock::Break(_) => None,
-            InnerBlock::Lacuna(x) => None,
+            InnerBlock::Lacuna(_) => None,
+            InnerBlock::Space(_) => None,
             InnerBlock::Anchor(_) => None,
             InnerBlock::Uncertain(x) => Some(x.read_untracked().lang.clone()),
             InnerBlock::Correction(x) => x
@@ -1222,6 +1302,7 @@ impl From<InnerBlock> for Block {
             InnerBlock::Uncertain(x) => Block::Uncertain(x.get_untracked()),
             InnerBlock::Correction(x) => Block::Correction(x.get_untracked()),
             InnerBlock::Abbreviation(x) => Block::Abbreviation(x.get_untracked()),
+            InnerBlock::Space(x) => Block::Space(x.get_untracked()),
         }
     }
 }
@@ -1236,6 +1317,7 @@ impl From<Block> for InnerBlock {
             Block::Uncertain(x) => InnerBlock::Uncertain(RwSignal::new(x)),
             Block::Correction(x) => InnerBlock::Correction(RwSignal::new(x)),
             Block::Abbreviation(x) => InnerBlock::Abbreviation(RwSignal::new(x)),
+            Block::Space(x) => InnerBlock::Space(RwSignal::new(x)),
         }
     }
 }

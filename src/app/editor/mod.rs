@@ -345,6 +345,17 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
                 undo_stack,
                 &default_language,
             );
+        // <ctrl>-<alt>-<space> (new Space)
+        } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 32 {
+            new_node(
+                physical_index_maybe,
+                blocks,
+                set_blocks,
+                next_id,
+                BlockType::Space,
+                undo_stack,
+                &default_language,
+            );
         // <ctrl>-<alt>-<ENTER> (new Break)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 13 {
             new_node(

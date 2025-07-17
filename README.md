@@ -2,8 +2,6 @@
 This is a webapp to enable digital textual criticism.
 
 # TODOs - Editor
-## How do we display global errors?
-
 ## Blocks
 ### Intentional white space
 
@@ -16,6 +14,10 @@ This is a webapp to enable digital textual criticism.
 ## Ribbon which shows keyboard shortcuts for existing commands
 
 ## Styling
+
+## Output styles
+### Render to some html that is easily digestible
+### allow copying the produced xml
 
 # TODOs - General
 ## setup docker for code deployment later
