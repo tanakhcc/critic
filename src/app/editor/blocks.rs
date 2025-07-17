@@ -90,6 +90,7 @@ fn inner_text_view(
                     placeholder="language"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-language")}
                     on:input:target=move |ev| {
                         paragraph.write().lang = ev.target().value();
                     }
@@ -133,6 +134,7 @@ fn inner_lacuna_view(
             placeholder="reason"
             autocomplete="false"
             spellcheck="false"
+            id={format!("block-input-{id}-reason")}
             on:input:target=move |ev| {
                 lacuna.write().reason = ev.target().value();
             }
@@ -161,6 +163,7 @@ fn inner_lacuna_view(
                     placeholder="n"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-extent")}
                     on:input:target=move |ev| {
                         // here we can allow the value to be unparsable, but we want to prevent
                         // this if possible
@@ -235,6 +238,7 @@ fn inner_uncertain_view(
             placeholder="reason"
             autocomplete="false"
             spellcheck="false"
+            id={format!("block-input-{id}-agent")}
             on:input:target=move |ev| {
                 uncertain.write().agent = ev.target().value();
             }
@@ -292,6 +296,7 @@ fn inner_uncertain_view(
                     placeholder="language"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-language")}
                     on:input:target=move |ev| {
                         uncertain.write().lang = ev.target().value();
                     }
@@ -316,6 +321,7 @@ fn inner_uncertain_view(
                     placeholder="certainty"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-certainty")}
                     on:input:target=move |ev| {
                         let x = ev.target().value();
                         uncertain.write().cert = (!x.is_empty()).then(|| x);
@@ -430,6 +436,7 @@ fn inner_anchor_view(
             placeholder="id"
             autocomplete="false"
             spellcheck="false"
+            id={format!("block-input-{id}-anchor_id")}
             on:input:target=move |ev| {
                 // just set the raw input value
                 *raw_id.write() = ev.target().value();
@@ -530,6 +537,7 @@ fn inner_abbreviation_view(
             prop:value=move || abbreviation.read().surface.clone()
             autocomplete="false"
             spellcheck="false"
+            id={format!("block-input-{id}-surface")}
             rows=1
             cols=TEXTAREA_DEFAULT_COLS
             on:input:target=move |ev| {
@@ -546,6 +554,7 @@ fn inner_abbreviation_view(
                 current_abbreviation.write().surface = abbreviation.get_untracked().surface;
             }
         />
+        </div>
         <Accordion
             expand={surface_config_expanded}
             expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
@@ -560,6 +569,7 @@ fn inner_abbreviation_view(
                     placeholder="surface-language"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-surface_lang")}
                     on:input:target=move |ev| {
                         abbreviation.write().surface_lang = ev.target().value();
                     }
@@ -576,7 +586,6 @@ fn inner_abbreviation_view(
                 </Item>
             </List>
         </Accordion>
-        </div>
         </div>
 
         <div class="flex justify-between">
@@ -608,6 +617,7 @@ fn inner_abbreviation_view(
                 current_abbreviation.write().expansion = abbreviation.get_untracked().expansion;
             }
         />
+        </div>
         <Accordion
             expand={expansion_config_expanded}
             expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
@@ -622,6 +632,7 @@ fn inner_abbreviation_view(
                     placeholder="expansion-language"
                     autocomplete="false"
                     spellcheck="false"
+                    id={format!("block-input-{id}-expansion_lang")}
                     on:input:target=move |ev| {
                         abbreviation.write().expansion_lang = ev.target().value();
                     }
@@ -639,10 +650,187 @@ fn inner_abbreviation_view(
             </List>
         </Accordion>
         </div>
-        </div>
     }
 }
 
+fn inner_correction_view(
+    undo_stack: RwSignal<UnReStack>,
+    correction: RwSignal<Correction>,
+    focus_element: leptos::prelude::NodeRef<Textarea>,
+    id: usize,
+) -> impl IntoView {
+    let current_correction = RwSignal::new(correction.get_untracked());
+
+    let default_language = correction
+        .read_untracked()
+        .lang()
+        .map_or("LANGUAGE".to_string(), std::string::ToString::to_string);
+
+    let add_version = move |_| {
+        let new_version = Version {
+            hand: None,
+            lang: default_language.clone(),
+            content: String::default(),
+        };
+        correction.write().versions.push(new_version.clone());
+        undo_stack.write().push_undo(UnReStep::new_data_change(
+            id,
+            Block::Correction(current_correction.get_untracked()),
+            Block::Correction(correction.get_untracked().into()),
+        ));
+        // also push the change to the checkpoint
+        current_correction.write().versions.push(new_version);
+    };
+
+    view! {
+        <For
+            each=move || correction.get().versions.into_iter().enumerate()
+            key=|dyn_v| dyn_v.0.clone()
+            children = {move |dyn_v| {
+                let memo_val = Memo::new(move |_| {
+                    correction.read().versions.get(dyn_v.0).map_or(Version {
+                        hand: None,
+                        lang: String::default(),
+                        content: String::default(),
+                    }, |v| v.clone())
+                });
+                let config_expanded = signal(false);
+                view!{
+                    <div class="flex justify-between">
+                    <span>
+                        "Version "{dyn_v.0}":"
+                    </span>
+                    <div>
+                        <textarea
+                        class="bg-orange-100 text-black font-mono"
+                        id={format!("block-input-{id}-v-{}", dyn_v.0)}
+                        node_ref=focus_element
+                        prop:value=move || memo_val.read().content.clone()
+                        autocomplete="false"
+                        spellcheck="false"
+                        rows=1
+                        cols=TEXTAREA_DEFAULT_COLS
+                        on:input:target=move |ev| {
+                            if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                version_in_correction.content = ev.target().value();
+                            };
+                        }
+                        on:change:target=move |ev| {
+                            let new_value = ev.target().value();
+                            // change the value in correction
+                            if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                version_in_correction.content = new_value.clone();
+                            };
+                            undo_stack.write().push_undo(
+                                UnReStep::new_data_change(id,
+                                    Block::Correction(current_correction.get_untracked()),
+                                    Block::Correction(correction.get_untracked().into()))
+                                );
+                            // now set the new savepoint
+                            if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
+                                version_in_correction.content = new_value;
+                            };
+                        }
+                    />
+                    </div>
+                    <Accordion
+                        expand={config_expanded}
+                        expanded={Box::new(|| view! { <CogSvg/> }.into_any())}
+                        collapsed={Box::new(|| view! { <CogSvg/> }.into_any())}
+                    >
+                        <List>
+                            <Item align={Align::Left}>
+                                <span class="font-light text-xs">"Language: "</span>
+                                <input
+                                prop:value=move || memo_val.read().lang.clone()
+                                class="text-sm"
+                                placeholder="language"
+                                autocomplete="false"
+                                spellcheck="false"
+                                id={format!("block-input-{id}-v-{}-lang", dyn_v.0)}
+                                on:input:target=move |ev| {
+                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.lang = ev.target().value();
+                                    };
+                                }
+                                on:change:target=move |ev| {
+                                    let new_lang = ev.target().value();
+                                    // change the value in correction
+                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.lang = new_lang.clone();
+                                    };
+                                    undo_stack.write().push_undo(
+                                        UnReStep::new_data_change(id,
+                                            Block::Correction(current_correction.get_untracked()),
+                                            Block::Correction(correction.get_untracked().into()))
+                                        );
+                                    // now set the new savepoint
+                                    if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.lang = new_lang;
+                                    };
+                                }/>
+                            </Item>
+                            <Item align={Align::Left}>
+                                <span class="font-light text-xs">"Hand: "</span>
+                                <input
+                                prop:value=move || memo_val.read().hand.clone()
+                                class="text-sm"
+                                placeholder="hand"
+                                autocomplete="false"
+                                spellcheck="false"
+                                id={format!("block-input-{id}-v-{}-hand", dyn_v.0)}
+                                on:input:target=move |ev| {
+                                    // here we can allow the value to be unparsable, but we want to prevent
+                                    // this if possible
+                                    let x = ev.target().value();
+                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.hand = if x.is_empty() {
+                                                None
+                                            } else {
+                                                Some(x)
+                                            };
+                                    };
+                                }
+                                on:change:target=move |ev| {
+                                    let x = ev.target().value();
+                                    let new_hand = if x.is_empty() {
+                                                None
+                                            } else {
+                                                Some(x)
+                                            };
+                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.hand = new_hand.clone();
+                                    };
+                                    undo_stack.write().push_undo(
+                                        UnReStep::new_data_change(id,
+                                            Block::Correction(current_correction.get_untracked()),
+                                            Block::Correction(correction.get_untracked().into()))
+                                        );
+                                    // now set the new savepoint
+                                    if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
+                                        version_in_correction.hand = new_hand;
+                                    };
+                                }/>
+                            </Item>
+                        </List>
+                    </Accordion>
+                    </div>
+                    <button on:click=move |_| {
+                        correction.write().versions.remove(dyn_v.0);
+                        undo_stack.write().push_undo(
+                            UnReStep::new_data_change(id,
+                                Block::Correction(current_correction.get_untracked()),
+                                Block::Correction(correction.get_untracked().into()))
+                            );
+                        // also push the change to the checkpoint
+                        current_correction.write().versions.remove(dyn_v.0);
+                    }>"remove this version"</button>
+                }}}
+            />
+            <br/>
+            <button on:click=add_version>"add a version"</button>
+    }
+}
 
 #[component]
 fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView {
@@ -673,6 +861,9 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
         }
         InnerBlock::Abbreviation(abbreviation) => {
             inner_abbreviation_view(undo_stack, abbreviation, focus_element, id).into_any()
+        }
+        InnerBlock::Correction(correction) => {
+            inner_correction_view(undo_stack, correction, focus_element, id).into_any()
         }
         _ => {
             // Add Correction, Abbreviation etc.
@@ -879,9 +1070,13 @@ impl InnerBlock {
             })),
             InnerBlock::Correction(correction) => {
                 InnerBlock::Correction(RwSignal::new(Correction {
-                    lang: correction.read_untracked().lang.clone(),
                     versions: vec![Version {
-                        lang: correction.read_untracked().lang.clone(),
+                        lang: correction
+                            .read_untracked()
+                            .lang()
+                            .clone()
+                            .unwrap_or("LANGUAGE")
+                            .to_string(),
                         hand: None,
                         content: new_content,
                     }],
@@ -931,7 +1126,11 @@ impl InnerBlock {
             InnerBlock::Lacuna(x) => None,
             InnerBlock::Anchor(_) => None,
             InnerBlock::Uncertain(x) => Some(x.read_untracked().lang.clone()),
-            InnerBlock::Correction(x) => Some(x.read_untracked().lang.clone()),
+            InnerBlock::Correction(x) => x
+                .read_untracked()
+                .lang()
+                .clone()
+                .map(std::string::ToString::to_string),
             InnerBlock::Abbreviation(x) => Some(x.read_untracked().expansion_lang.clone()),
         }
     }
