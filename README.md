@@ -5,11 +5,11 @@ This is a webapp to enable digital textual criticism.
 ## How do we display global errors?
 
 ## Blocks
-### Corrections
 ### Intentional white space
 
 ## Merge Blocks
 - up and down
+- das ist nicht immer erlaubt - ggf ist es besser, das einfach nicht zu erlauben und automatisch zu machen??
 
 ## automatically set lr/rl based on language
 

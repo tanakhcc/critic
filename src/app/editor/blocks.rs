@@ -683,6 +683,10 @@ fn inner_correction_view(
     };
 
     view! {
+        <span
+            class="font-light text-xs">
+                "Correction with these versions:"
+        </span>
         <For
             each=move || correction.get().versions.into_iter().enumerate()
             key=|dyn_v| dyn_v.0.clone()
@@ -697,7 +701,7 @@ fn inner_correction_view(
                 let config_expanded = signal(false);
                 view!{
                     <div class="flex justify-between">
-                    <span>
+                    <span class="font-light text-xs">
                         "Version "{dyn_v.0}":"
                     </span>
                     <div>
@@ -814,7 +818,6 @@ fn inner_correction_view(
                             </Item>
                         </List>
                     </Accordion>
-                    </div>
                     <button on:click=move |_| {
                         correction.write().versions.remove(dyn_v.0);
                         undo_stack.write().push_undo(
@@ -824,11 +827,13 @@ fn inner_correction_view(
                             );
                         // also push the change to the checkpoint
                         current_correction.write().versions.remove(dyn_v.0);
-                    }>"remove this version"</button>
+                    }><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" /></svg></button>
+                    </div>
                 }}}
             />
+
             <br/>
-            <button on:click=add_version>"add a version"</button>
+            <button on:click=add_version><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></button>
     }
 }
 
