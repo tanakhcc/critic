@@ -45,6 +45,8 @@ async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
 
 #[component]
 pub fn ManuscriptList() -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running ManuscriptList setup");
     let (query, set_query) = query_signal::<String>("msq");
 
     let manuscript_list = Resource::new(
@@ -65,18 +67,20 @@ pub fn ManuscriptList() -> impl IntoView {
     };
 
     view! {
-        <div class="flex justify-start">
-        <div class="flex flex-col justify-start w-48">
+        <div id="ManuscriptList-wrapper" class="flex justify-start">
+        // the left sidebar containing the different manuscripts
+        <div id="ms-sidebar-wrapper" class="flex flex-col justify-start">
             // the search bar, new-manuscript-button and actual list
-            <div id="new-manuscript-error">
+            <div id="new-manuscript-error" class="bg-red-200">
                 {new_manuscript_error}
             </div>
             <div
+                id="new-manuscript-button"
+                class="bg-blue-200"
                 class=("block", move || new_manuscript_open.get() == false)
                 class=("hidden", move || new_manuscript_open.get() == true)
                 >
                 <button
-                    id="new-manuscript-button"
                     on:click=move |_| {
                         // toggle visibility for this button and the new-manuscript-form
                         new_manuscript_open.update(|x| *x ^= true)
@@ -86,6 +90,7 @@ pub fn ManuscriptList() -> impl IntoView {
             </div>
             <div
                 id="new-manuscript-form"
+                class="bg-blue-200"
                 class=("block", move || new_manuscript_open.get() == true)
                 class=("hidden", move || new_manuscript_open.get() == false)
                 >
@@ -104,13 +109,14 @@ pub fn ManuscriptList() -> impl IntoView {
                 </ActionForm>
             </div>
             // container for the search line and button
-            <div class="flex justify-between">
+            <div id="search-wrapper" class="flex justify-between bg-sky-500">
                 <input node_ref=ms_search_ref type="search" id="manuscript-search" name="msq" value=move || query.get()/>
                 <button on:click=move |_| {
                     let current_value = ms_search_ref.get().expect("statically linked to the dom").value();
                     set_query.set(if current_value.is_empty() { None } else { Some(current_value) });
                 }>"Search"</button>
             </div>
+
             <ErrorBoundary fallback=|errors| view!{
                 <div>
                     "Error: failed to get manuscripts"
@@ -125,6 +131,7 @@ pub fn ManuscriptList() -> impl IntoView {
             }>
                 <Transition fallback=|| view!{ <p>"Loading manuscripts..."</p> }>
                     // list of manuscripts
+                    <div id="ms-list-wrapper" class="flex flex-col justify-start bg-emerald-500">
                     <ul>
                         {move ||
                             manuscript_list.get().map(|info_res|
@@ -151,9 +158,11 @@ pub fn ManuscriptList() -> impl IntoView {
                             }))
                         }
                     </ul>
+                    </div>
                 </Transition>
             </ErrorBoundary>
         </div>
+
         // the information on the selected manuscript
         <Outlet/>
         </div>
@@ -179,8 +188,11 @@ pub async fn get_manuscript_by_name(
     }
 }
 
+/// Show the content for an individual manuscript
 #[component]
 pub fn Manuscript() -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running manuscript setup");
     let params = use_params::<MsParams>();
     // get msname from url
     let msname = move || params.read().as_ref().ok().and_then(|x| x.msname.clone());
@@ -198,7 +210,6 @@ pub fn Manuscript() -> impl IntoView {
     });
 
     view! {
-        <div class="flex justify-start flex-col">
         // the meta-information for this manuscript
         <ErrorBoundary fallback=|errors| view!{
             <div>
@@ -213,54 +224,56 @@ pub fn Manuscript() -> impl IntoView {
             </div>
         }>
         <Transition fallback=|| view!{ "Loading manuscript information..." }>
-            {
+            {move ||
                 manuscript_info.get().map(|info_res|
                     info_res.map(|info|
                 view!{
+                    <div id="Manuscript-wrapper" class="flex flex-col justify-between">
                     <ManuscriptMeta meta=info.meta/>
                     // container for the lower half of the screen
-                    <div class="flex justify-start">
+                    <div id="manuscript-pageinfo-wrapper" class="flex justify-start bg-pink-300">
                         // container for the left half of the lower half
-                        <div class="flex flex-col justify-start w-36">
-                        // TODO: simple menu to upload n files, their filename without extension will be used
-                        // as page name
-                        <button>"Add Pages"</button>
-                        // list over all pages
-                        <ul>
-                            {
-                                info.pages.into_iter().map(|page| view!{
-                                    <li>
-                                        <A href={page.name}>page.name</A>
-                                        {
-                                            if let (Some(start), Some(end)) = (page.verse_start, page.verse_end) {
-                                                Some(view!{<p>{start} - {end}</p>})
-                                            } else {
-                                                None
+                        <div id="manuscript-pagelist-wrapper" class="flex flex-col justify-start w-36">
+                            // TODO: simple menu to upload n files, their filename without extension will be used
+                            // as page name
+                            <button>"Add Pages"</button>
+                            // list over all pages
+                            <ul>
+                                {
+                                    info.pages.into_iter().map(|page| view!{
+                                        <li>
+                                            <A href={page.name}>page.name</A>
+                                            {
+                                                if let (Some(start), Some(end)) = (page.verse_start, page.verse_end) {
+                                                    Some(view!{<p>{start} - {end}</p>})
+                                                } else {
+                                                    None
+                                                }
                                             }
-                                        }
-                                    </li>
-                                }).collect_view()
-                            }
-                            // scrollable
-                            // show name, contain <A> to open /admin/manuscripts/<msname>/<pagename>
-                        </ul>
+                                        </li>
+                                    }).collect_view()
+                                }
+                            </ul>
                         </div>
-                        // the buttons and preview for the selected page
+
+                        // the buttons and preview for the selected page if any
                         <Outlet/>
+                    </div>
                     </div>
                 }))
             }
         </Transition>
         </ErrorBoundary>
-        </div>
     }
 }
 
+/// Show meta-information for an individual manuscript
 #[component]
 pub fn ManuscriptMeta(meta: crate::shared::ManuscriptMeta) -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running ManuscriptMeta setup");
     view! {
-        // TODO: should probably be a <Form/>
-        <h2>"Manuscript Information for manuscript"{meta.title}</h2>
+        <h2 class="bg-amber-400">{format!("Manuscript Information for manuscript {}", meta.title)}</h2>
     }
 }
 
@@ -273,8 +286,11 @@ impl core::fmt::Display for EmptyError {
 }
 impl std::error::Error for EmptyError {}
 
+/// show information for a complete page
 #[component]
 pub fn Page() -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running Page setup");
     let ms_params = use_params::<MsParams>();
     let page_params = use_params::<PageParams>();
 
@@ -306,6 +322,8 @@ pub fn Page() -> impl IntoView {
 
 #[component]
 pub fn ManuscriptLanding() -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running ManuscriptLanding setup");
     view! {
         <p>
             "Select a manuscript from the left hand side to view or edit."
@@ -315,6 +333,8 @@ pub fn ManuscriptLanding() -> impl IntoView {
 
 #[component]
 pub fn PageLanding() -> impl IntoView {
+    #[cfg(feature="ssr")]
+    tracing::warn!("running PageLanding setup");
     view! {
         <p>
             "Select a page from the left hand side to view or edit."
