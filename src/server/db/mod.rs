@@ -1,9 +1,13 @@
 //! Communication with the postgres database
 
 use oauth2::TokenResponse;
-use sqlx::{query_as, Pool, Postgres, Row};
+use serde::{Deserialize, Serialize};
+use sqlx::{prelude::FromRow, query_as, Pool, Postgres, Row};
 
-use crate::shared::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
+use crate::shared::{
+    auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo},
+    PageMeta,
+};
 
 // include tests
 #[cfg(test)]
@@ -16,6 +20,9 @@ pub enum DBError {
     CannotRollbackTransaction(sqlx::Error),
     CannotInsertOrUpdateUsersession(sqlx::Error),
     CannotGetUsersession(sqlx::Error),
+    CannotGetManuscript(sqlx::Error),
+    /// The manuscript we looked for simply does not exist
+    ManuscriptDoesNotExist(String),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -34,6 +41,12 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetUsersession(e) => {
                 write!(f, "Unable to get usersession: {e}")
+            }
+            Self::CannotGetManuscript(e) => {
+                write!(f, "Unable to get manuscript: {e}")
+            }
+            Self::ManuscriptDoesNotExist(msname) => {
+                write!(f, "This manuscript does not exist: {msname}")
             }
         }
     }
@@ -76,3 +89,62 @@ pub async fn insert_or_update_user_session(
 
     Ok(authenticated_user)
 }
+
+async fn get_manuscript_meta(
+    pool: &Pool<Postgres>,
+    msname: String,
+) -> Result<crate::shared::ManuscriptMeta, DBError> {
+    sqlx::query_as!(
+        crate::shared::ManuscriptMeta,
+        "SELECT * FROM manuscript WHERE title = $1;",
+        msname
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(DBError::CannotGetManuscript)?
+    .ok_or(DBError::ManuscriptDoesNotExist(msname))
+}
+
+async fn get_manuscript_page_rows(
+    pool: &Pool<Postgres>,
+    msid: i64,
+) -> Result<Vec<PageMeta>, DBError> {
+    sqlx::query_as!(
+        PageMeta,
+        "SELECT page.id, page.name, page.verse_start, page.verse_end
+            FROM manuscript
+            INNER JOIN page on page.manuscript = manuscript.id
+            WHERE manuscript.id = $1
+            ;",
+        msid
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(DBError::CannotGetManuscript)
+}
+
+/// Get the metainformation for a manuscript from the db
+pub async fn get_manuscript(
+    pool: &Pool<Postgres>,
+    msname: String,
+) -> Result<crate::shared::Manuscript, DBError> {
+    let meta = get_manuscript_meta(pool, msname).await?;
+    let pages = get_manuscript_page_rows(pool, meta.id).await?;
+    Ok(crate::shared::Manuscript { meta, pages })
+}
+
+/// Get the metainformation for all manuscripts, excluding the page information
+pub async fn get_manuscripts_by_name(
+    pool: &Pool<Postgres>,
+    msname: String,
+) -> Result<Vec<crate::shared::ManuscriptMeta>, DBError> {
+    sqlx::query_as!(
+        crate::shared::ManuscriptMeta,
+        "SELECT * FROM manuscript WHERE title LIKE $1;",
+        format!("%{msname}%")
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(DBError::CannotGetManuscript)
+}
+

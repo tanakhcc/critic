@@ -1,6 +1,12 @@
 # critic
 This is a webapp to enable digital textual criticism.
 
+
+# TODOs - next
+## Admin page for adding manuscripts
+## Overview of required transcriptions
+## Saving transcriptions
+
 # TODOs - Editor
 ## automatically set lr/rl based on language
 
@@ -20,8 +26,8 @@ This is a webapp to enable digital textual criticism.
 ## setup docker for code deployment later
 
 ## create admin pages for
-### editing versification schemes
 ### adding manuscripts / folios
+### editing versification schemes
 
 ## Create user-facing pages for
 ### transcribing

@@ -1,7 +1,7 @@
 use leptos::{ev::keydown, prelude::*};
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
-    components::{Route, Router, Routes},
+    components::{Outlet, ParentRoute, Route, Router, Routes},
     path, StaticSegment,
 };
 
@@ -10,6 +10,7 @@ use editor::Editor;
 use leptos_use::{use_document, use_event_listener};
 
 mod accordion;
+mod admin;
 
 /// This provides context through the entire app. When ShowHelp(true) is present, some components
 /// show a help-text.
@@ -79,6 +80,7 @@ pub fn App() -> impl IntoView {
         <Router>
             <nav>
                 <a href="/get-started">"Get Started"</a>
+                <a href="/admin">"Project Administration"</a>
                 <a href="/transcribe">"Transcribe"</a>
                 <a href="/reconcile">"Reconcile"</a>
                 <span on:click=move |_| {
@@ -90,6 +92,10 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>
+                    <ParentRoute path=path!("admin") view=|| {view!{ <div><Outlet/></div>}}>
+                        <Route path=path!("") view=admin::AdminLanding/>
+                        <admin::AdminRouter/>
+                    </ParentRoute>
                     <Route path=path!("/editor") view=|| {
                         view! {
                             <Editor default_language="hbo-Hebr".to_string()/>

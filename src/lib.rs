@@ -3,7 +3,7 @@ pub mod app;
 // these imports are required so that server functions can call server code
 #[cfg(feature = "ssr")]
 mod server;
-#[cfg(feature = "ssr")]
+
 mod shared;
 
 #[cfg(feature = "hydrate")]
