@@ -1,6 +1,6 @@
 --- The table that holds versification schemes
 CREATE TABLE versification_scheme (
-	id INT NOT NULL GENERATED ALWAYS AS IDENTITY,
+	id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 	full_name TEXT UNIQUE NOT NULL,
 	shorthand TEXT UNIQUE NOT NULL
 );

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// The names of a versification scheme
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct VersificationScheme {
-    id: i32,
+    id: i64,
     /// The full name, e.g. "Present"
     pub full_name: String,
     /// The shorthand, e.g. "P"
@@ -18,7 +18,7 @@ pub struct VersificationScheme {
 /// used internally for talking to postgres
 #[derive(sqlx::FromRow)]
 struct __VersificationScheme {
-    id: i32,
+    id: i64,
     /// The full name, e.g. "Present"
     full_name: String,
     /// The shorthand, e.g. "P"
