@@ -4,9 +4,8 @@ This is a webapp to enable digital textual criticism.
 
 # TODOs - next
 ## Admin page for adding manuscripts
-### new manuscript
-### new page
 ### manuscript meta information
+### new page
 ### page edit
 ## Overview of required transcriptions
 ## Saving transcriptions

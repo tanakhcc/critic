@@ -20,8 +20,8 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Clone {
     view! {
         <ParentRoute path=path!("manuscripts") view=manuscripts::ManuscriptList>
             <ParentRoute path=path!(":msname") view=manuscripts::Manuscript>
-                <Route path=path!(":pagename") view=manuscripts::Page/>
-                <Route path=path!("") view=manuscripts::PageLanding/>
+            //     <Route path=path!(":pagename") view=manuscripts::Page/>
+                 <Route path=path!("") view=manuscripts::PageLanding/>
             </ParentRoute>
             <Route path=path!("") view=manuscripts::ManuscriptLanding/>
         </ParentRoute>

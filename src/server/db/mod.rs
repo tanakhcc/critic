@@ -153,13 +153,10 @@ pub async fn get_manuscripts_by_name(
         .await
         .map_err(DBError::CannotGetManuscript)
     } else {
-        sqlx::query_as!(
-            crate::shared::ManuscriptMeta,
-            "SELECT * FROM manuscript;",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(DBError::CannotGetManuscript)
+        sqlx::query_as!(crate::shared::ManuscriptMeta, "SELECT * FROM manuscript;",)
+            .fetch_all(pool)
+            .await
+            .map_err(DBError::CannotGetManuscript)
     }
 }
 
