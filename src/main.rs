@@ -1,12 +1,9 @@
 //! Critic README TODO
 
-use oauth2::TokenResponse;
-use serde::Deserialize;
-
-#[cfg(feature = "ssr")]
-mod shared;
 #[cfg(feature = "ssr")]
 mod server;
+#[cfg(feature = "ssr")]
+mod shared;
 
 #[cfg(feature = "ssr")]
 #[tokio::main]

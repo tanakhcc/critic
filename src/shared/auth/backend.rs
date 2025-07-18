@@ -7,7 +7,7 @@ const NEXT_URL_KEY: &str = "oauth.next";
 
 use axum::{extract::Query, response::IntoResponse, Router};
 use axum_login::tower_sessions::Session;
-use oauth2::{CsrfToken, PkceCodeVerifier};
+use oauth2::CsrfToken;
 use reqwest::StatusCode;
 use serde::Deserialize;
 use tracing::{error, warn};

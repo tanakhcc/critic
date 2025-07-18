@@ -3,15 +3,14 @@
 use axum::http::header::{AUTHORIZATION, USER_AGENT};
 use axum_login::{AuthUser, AuthnBackend, UserId};
 use oauth2::{
-    url::Url,
-    AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
-    Scope, TokenResponse,
+    url::Url, AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
+    TokenResponse,
 };
-use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use serde::Deserialize;
 
 use crate::{
-    server::config::Config, server::db::{self, DBError},
+    server::config::Config,
+    server::db::{self, DBError},
 };
 
 // some basic types used across the app
@@ -105,7 +104,6 @@ impl
         })
     }
 }
-
 
 /// has all the backend APIs for auth flows
 pub mod backend;

@@ -1,7 +1,7 @@
 //! Communication with the postgres database
 
-use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse, TokenResponse};
-use sqlx::{postgres::PgRow, query_as, PgConnection, PgPool, Pool, Postgres, Row};
+use oauth2::TokenResponse;
+use sqlx::{query_as, Pool, Postgres, Row};
 
 use crate::shared::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
 
