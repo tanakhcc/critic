@@ -9,7 +9,7 @@ use tracing::{error, level_filters::LevelFilter};
 use tracing_subscriber::filter::LevelParseError;
 
 #[derive(Debug)]
-pub(crate) enum ConfigError {
+pub enum ConfigError {
     TomlParse(toml::de::Error),
     ConfigFileRead(std::io::Error),
     PoolCreate(sqlx::Error),
@@ -149,6 +149,11 @@ struct ConfigData {
     oauth: OauthConfigData,
     /// used as server part for determining where to communicate to gitlab
     gitlab_addr: String,
+    /// The directory where xml and image files should live
+    ///
+    /// critic will create the required substructure there
+    /// This directory needs to be backed up together with the DB to restore from a backup
+    data_directory: String,
 }
 
 /// The main config object that will be available across the Serverside application
@@ -160,6 +165,7 @@ pub struct Config {
     pub oauth_client: OauthClient,
     /// used as server part for determining where to communicate to gitlab
     pub gitlab_addr: String,
+    pub data_directory: String,
 }
 impl Config {
     async fn try_from_config_data(value: ConfigData) -> Result<Self, ConfigError> {
@@ -204,6 +210,7 @@ impl Config {
             )?
             .into(),
             gitlab_addr: value.gitlab_addr,
+            data_directory: value.data_directory,
         })
     }
 

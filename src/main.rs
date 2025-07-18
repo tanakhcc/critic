@@ -1,11 +1,10 @@
 //! Critic README TODO
 
-use leptos_axum::handle_server_fns_with_context;
 use oauth2::TokenResponse;
 use serde::Deserialize;
 
 #[cfg(feature = "ssr")]
-pub mod auth;
+mod auth;
 
 #[cfg(feature = "ssr")]
 mod config;
@@ -162,12 +161,14 @@ async fn main() {
     // login layer
     // leptos_routes_with_exclusions (exclude protected and login layer) - this generates all other
     // leptos routes
-    let db_pool = config_arc.db.clone();
+    let config_capsule = config_arc.clone();
     let app_core = Router::new()
         .leptos_routes_with_context(
             &config_arc.leptos_options,
             routes,
-            move || provide_context(db_pool.clone()),
+            move || {
+                provide_context(config_capsule.clone());
+            },
             {
                 let leptos_options = config_arc.leptos_options.clone();
                 move || shell(leptos_options.clone())
