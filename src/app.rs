@@ -1,4 +1,4 @@
-use leptos::prelude::*;
+use leptos::{ev::keydown, prelude::*};
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
@@ -7,9 +7,28 @@ use leptos_router::{
 
 mod editor;
 use editor::Editor;
+use leptos_use::{use_document, use_event_listener};
 pub mod auth;
 
 mod accordion;
+
+/// This provides context through the entire app. When ShowHelp(true) is present, some components
+/// show a help-text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ShowHelp(bool);
+impl ShowHelp {
+    pub(crate) fn toggle(&mut self) {
+        self.0 ^= true
+    }
+    pub(crate) fn set_off(&mut self) {
+        self.0 = false
+    }
+}
+impl From<ShowHelp> for bool {
+    fn from(value: ShowHelp) -> Self {
+        value.0
+    }
+}
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -34,6 +53,21 @@ pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
 
+    let help_active = RwSignal::new(ShowHelp(false));
+    // event listener to intercept keycommands for the help menu
+    let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
+        // <ctrl>-<alt>-H - Help
+        if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 72 {
+            // toggle on/off help overlay
+            help_active.update(|a| a.toggle())
+        // <esc> - close Help if it is open
+        } else if evt.key_code() == 27 {
+            // turn off the overlay if it is currently on
+            help_active.update(|a| a.set_off())
+        }
+    });
+    provide_context(help_active);
+
     view! {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
@@ -48,6 +82,11 @@ pub fn App() -> impl IntoView {
                 <a href="/get-started">"Get Started"</a>
                 <a href="/transcribe">"Transcribe"</a>
                 <a href="/reconcile">"Reconcile"</a>
+                <span on:click=move |_| {
+                    help_active.update(|a| a.toggle())
+                }>
+                    "Press ctrl+alt+h anywhere to get help."
+                </span>
             </nav>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>

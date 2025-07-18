@@ -16,6 +16,8 @@ use web_sys::{wasm_bindgen::JsCast, HtmlTextAreaElement};
 mod blocks;
 use blocks::*;
 
+use crate::app::ShowHelp;
+
 mod undo;
 
 mod save;
@@ -140,6 +142,75 @@ fn new_node(
     };
 }
 
+const SHORTCUT_DESCRIPTIONS: &[(&str, &str, &str)] = &[
+    (
+        "s",
+        "Save",
+        "Save the current state of the editor to the server",
+    ),
+    ("z", "Undo", "Undo your last action"),
+    ("r", "Redo", "Redo the action you just undid"),
+    ("t", "Text", "Add a new block of text without markup"),
+    (
+        "a",
+        "Abbreviation",
+        "Turn the selection into an abbreviation",
+    ),
+    ("u", "Uncertain", "Mark the selection as uncertain"),
+    ("l", "Lacuna", "Mark the selection as lacunous"),
+    ("c", "Correction", "Mark the selection as corrected"),
+    (
+        "v",
+        "Verse",
+        "Delete the selection, putting a verse boundary in its place",
+    ),
+    (
+        "<space>",
+        "Space",
+        "Delete the selection, marking intended whitespace",
+    ),
+    (
+        "<enter>",
+        "Enter",
+        "Delete the selection, marking the end of a line or column",
+    ),
+];
+
+#[component]
+fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
+    view! {
+        <div
+            on:click=move |_| { active.update(|a| a.set_off())}
+            // my tailwind is not compiling backdrop-blur-xs and I don't know why..
+            class="absolute w-full inset-0 bg-stone-100/60 backdrop-blur-[8px]"
+            class=("block", move || active.read().0)
+            class=("hidden", move || !active.read().0)
+        >
+            <div class="absolute top-20 left-20 w-4/5 text-xl text-stone-800">
+                <p>
+                    "This is the transcription editor. Copy a base text from another edition, then edit it here, marking up differences you find in the manuscript image."
+                </p>
+                <p>
+                    "You can use these keyboard shortcuts: "<span class="text-3xl">ctrl + alt + </span>"..."
+                </p>
+                <table class="table-fixed flex justify-around">
+                <tbody>
+                    {
+                        SHORTCUT_DESCRIPTIONS.iter().map(|(key, name, descr)| view!{
+                            <tr>
+                                <td class="text-3xl w-28">{*key}</td>
+                                <td class="text-xl w-36">{*name}</td>
+                                <td>{*descr}</td>
+                            </tr>
+                        }).collect::<Vec<_>>()
+                    }
+                </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
 #[component]
 pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let undo_stack = RwSignal::new(UnReStack::new());
@@ -148,25 +219,6 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let next_id = RwSignal::new(1_usize);
     let init_blocks = Vec::<EditorBlock>::new();
     let (blocks, set_blocks) = signal(init_blocks);
-    let add_blocks_lang = default_language.clone();
-    let add_block = move |_| {
-        set_blocks.update(|bs| {
-            let logical_index = next_id.get();
-            let new_block = EditorBlock::new(
-                logical_index,
-                BlockType::Text,
-                add_blocks_lang.clone(),
-                "raw text".to_owned(),
-                true,
-            );
-            let physical_index = bs.len();
-            undo_stack
-                .write()
-                .push_undo(UnReStep::new_insertion(physical_index, new_block.clone()));
-            bs.push(new_block.into());
-            next_id.update(|idx| *idx += 1);
-        })
-    };
 
     let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
@@ -401,13 +453,16 @@ pub(crate) fn Editor(default_language: String) -> impl IntoView {
     let versification_schemes =
         OnceResource::new(versification_scheme::get_versification_schemes());
     provide_context(versification_schemes);
+    let help_active: RwSignal<ShowHelp> = use_context().expect("Root mounts ShowHelp context");
 
     view! {
-            <div>
-            <button on:click=add_block>"Add a new thingy"</button>
+            <div class="relative">
             <button on:click=move |_| {
-                save_state_action.dispatch(blocks.read().to_owned());
-            }>"Save state"</button>
+                // TODO call a server function that sets the published bit on this transcription
+            }>
+                "Publish this transcription"
+            </button>
+            <HelpOverlay active=help_active/>
             <p>{move || pending_save.get().then_some("Saving state...")}</p>
             <br/>
             <Suspense fallback=|| { view!{ <p>"Loading editor state from the server..."</p> } }>

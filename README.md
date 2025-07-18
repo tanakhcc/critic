@@ -2,22 +2,19 @@
 This is a webapp to enable digital textual criticism.
 
 # TODOs - Editor
-## Blocks
-### Intentional white space
+## automatically set lr/rl based on language
+
+## Ribbon which shows keyboard shortcuts for existing commands
+
+## Output styles
+### Render to some html that is easily digestible
+### allow copying the produced xml
 
 ## Merge Blocks
 - up and down
 - das ist nicht immer erlaubt - ggf ist es besser, das einfach nicht zu erlauben und automatisch zu machen??
 
-## automatically set lr/rl based on language
-
-## Ribbon which shows keyboard shortcuts for existing commands
-
 ## Styling
-
-## Output styles
-### Render to some html that is easily digestible
-### allow copying the produced xml
 
 # TODOs - General
 ## setup docker for code deployment later
@@ -25,6 +22,22 @@ This is a webapp to enable digital textual criticism.
 ## create admin pages for
 ### editing versification schemes
 ### adding manuscripts / folios
+
+## Create user-facing pages for
+### transcribing
+- plus a large editor
+- publish transcription
+### reconciliation
+- this will require the reconciliation editor
+- this in turn will require the reconciliation differ
+### overview of required transcriptions
+- search bar, links to transcribe/source
+### overview of required reconciliations
+- search bar, links to reconcile/source
+### landing page
+
+# TODOs - actual website
+High level landing page for tanakhcc.org
 
 # TODOs - diff
 We will need a good multi-diff algorithm

@@ -4,7 +4,8 @@
 //! elements is handled in [`editor`](crate::app::editor) itself.
 
 use critic_format::streamed::{
-    Abbreviation, Anchor, Block, BlockType, BreakType, Correction, FromTypeLangAndContent, Lacuna, Paragraph, Space, Uncertain, Version
+    Abbreviation, Anchor, Block, BlockType, BreakType, Correction, FromTypeLangAndContent, Lacuna,
+    Paragraph, Space, Uncertain, Version,
 };
 use leptos::{html::Textarea, prelude::*};
 use serde::{Deserialize, Serialize};
@@ -187,6 +188,7 @@ fn inner_lacuna_view(
                 <Item align={Align::Left}>
                     <span class="font-light text-xs">"Unit of Extent: "</span>
                     <select
+                    id={format!("block-input-{id}-unit")}
                     prop:value=move || lacuna.read().unit.name()
                     on:input:target=move |ev| {
                         lacuna.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
@@ -385,6 +387,7 @@ fn inner_space_view(
                     }/>
                     <span class="font-light text-xs">"Unit of Extent: "</span>
                     <select
+                    id={format!("block-input-{id}-unit")}
                     prop:value=move || space.read().unit.name()
                     on:input:target=move |ev| {
                         space.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
@@ -404,7 +407,6 @@ fn inner_space_view(
         </div>
     }
 }
-
 
 fn inner_break_view(
     undo_stack: RwSignal<UnReStack>,
@@ -922,18 +924,14 @@ fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView
             inner_uncertain_view(undo_stack, uncertain, focus_element, id).into_any()
         }
         InnerBlock::Break(break_block) => inner_break_view(undo_stack, break_block, id).into_any(),
-        InnerBlock::Anchor(anchor) => {
-            inner_anchor_view(undo_stack, anchor, id).into_any()
-        }
+        InnerBlock::Anchor(anchor) => inner_anchor_view(undo_stack, anchor, id).into_any(),
         InnerBlock::Abbreviation(abbreviation) => {
             inner_abbreviation_view(undo_stack, abbreviation, focus_element, id).into_any()
         }
         InnerBlock::Correction(correction) => {
             inner_correction_view(undo_stack, correction, focus_element, id).into_any()
         }
-        InnerBlock::Space(space) => {
-            inner_space_view(undo_stack, space, id).into_any()
-        }
+        InnerBlock::Space(space) => inner_space_view(undo_stack, space, id).into_any(),
     }
 }
 
@@ -1104,7 +1102,7 @@ impl InnerBlock {
                     *x.write() = new_space;
                 }
                 _ => {}
-            }
+            },
             Self::Uncertain(x) => match new_block {
                 Block::Uncertain(new_uncertain) => {
                     *x.write() = new_uncertain;
@@ -1134,12 +1132,10 @@ impl InnerBlock {
     fn clone_with_new_content(&self, new_content: String) -> InnerBlock {
         match self {
             InnerBlock::Break(_) => self.clone(),
-            InnerBlock::Space(space) => {
-                InnerBlock::Space(RwSignal::new(Space {
-                    quantity: space.read_untracked().quantity,
-                    unit: space.read_untracked().unit,
-                }))
-            }
+            InnerBlock::Space(space) => InnerBlock::Space(RwSignal::new(Space {
+                quantity: space.read_untracked().quantity,
+                unit: space.read_untracked().unit,
+            })),
             InnerBlock::Lacuna(lacuna) => InnerBlock::Lacuna(RwSignal::new(Lacuna {
                 cert: lacuna.read_untracked().cert.clone(),
                 n: lacuna.read_untracked().n,
