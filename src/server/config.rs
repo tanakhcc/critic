@@ -157,6 +157,7 @@ struct ConfigData {
 }
 
 /// The main config object that will be available across the Serverside application
+#[derive(Debug)]
 pub struct Config {
     // DB pool to use
     pub db: Pool<Postgres>,

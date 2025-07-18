@@ -1,16 +1,10 @@
 //! Critic README TODO
 
 #[cfg(feature = "ssr")]
-mod server;
-#[cfg(feature = "ssr")]
-mod shared;
-
-#[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
     use std::sync::Arc;
 
-    use crate::shared::auth::GitlabOauthBackend;
     use axum::Router;
     use axum_login::{
         login_required,
@@ -18,13 +12,14 @@ async fn main() {
         AuthManagerLayerBuilder,
     };
     use critic::app::*;
+    use critic::shared::auth::GitlabOauthBackend;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use time::Duration;
     use tracing::{debug, info};
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
-    let config = match server::config::Config::try_create().await {
+    let config = match critic::server::config::Config::try_create().await {
         Ok(x) => x,
         Err(e) => {
             panic!("Error reading config: {e}.");
@@ -68,7 +63,7 @@ async fn main() {
             &config_arc.leptos_options,
             routes,
             move || {
-                provide_context(config_capsule.clone());
+                provide_context::<Arc<critic::server::config::Config>>(config_capsule.clone());
             },
             {
                 let leptos_options = config_arc.leptos_options.clone();
@@ -89,7 +84,7 @@ async fn main() {
 
     let app = app_core
         .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
-        .merge(crate::shared::auth::backend::auth_router())
+        .merge(critic::shared::auth::backend::auth_router())
         .layer(auth_layer);
 
     // run our app with hyper

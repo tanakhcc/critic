@@ -1,10 +1,8 @@
 pub mod app;
 
-// these imports are required so that server functions can call server code
 #[cfg(feature = "ssr")]
-mod server;
-
-mod shared;
+pub mod server;
+pub mod shared;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

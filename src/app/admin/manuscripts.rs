@@ -24,25 +24,34 @@ struct PageParams {
 }
 
 #[server]
-async fn get_manuscripts_by_name(msname: String) -> Result<Vec<crate::shared::ManuscriptMeta>, ServerFnError> {
-    let config =
-        use_context::<std::sync::Arc<crate::server::config::Config>>().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    crate::server::db::get_manuscripts_by_name(&config.db, msname).await.map_err(|e| ServerFnError::new(e.to_string()))
+async fn get_manuscripts_by_name(
+    msname: String,
+) -> Result<Vec<crate::shared::ManuscriptMeta>, ServerFnError> {
+    let config = use_context::<std::sync::Arc<crate::server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    crate::server::db::get_manuscripts_by_name(&config.db, msname)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
 }
 
 #[component]
 pub fn ManuscriptList() -> impl IntoView {
     let (query, set_query) = query_signal::<String>("msq");
 
-    let manuscript_list = Resource::new(move || query.get(), async |new_query| {
-        if let Some(query_name) = new_query {
-        get_manuscripts_by_name(query_name)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Unable to get manuscript information: {e}")))
-        } else {
-            Err(ServerFnError::new("Failed to get query parameter from the url"))
-        }
-    });
+    let manuscript_list = Resource::new(
+        move || query.get(),
+        async |new_query| {
+            if let Some(query_name) = new_query {
+                get_manuscripts_by_name(query_name).await.map_err(|e| {
+                    ServerFnError::new(format!("Unable to get manuscript information: {e}"))
+                })
+            } else {
+                Err(ServerFnError::new(
+                    "Failed to get query parameter from the url",
+                ))
+            }
+        },
+    );
     let ms_search_ref = NodeRef::new();
 
     view! {
@@ -130,11 +139,13 @@ pub fn Manuscript() -> impl IntoView {
     // now get manuscript from the db
     let manuscript_info = Resource::new(msname, async |name_opt| {
         if let Some(name) = name_opt {
-            get_manuscript_by_name(name)
-                .await
-                .map_err(|e| ServerFnError::new(format!("Unable to get manuscript information: {e}")))
+            get_manuscript_by_name(name).await.map_err(|e| {
+                ServerFnError::new(format!("Unable to get manuscript information: {e}"))
+            })
         } else {
-            Err(ServerFnError::new("No manuscript passed in the URL".to_string()))
+            Err(ServerFnError::new(
+                "No manuscript passed in the URL".to_string(),
+            ))
         }
     });
 
@@ -206,7 +217,7 @@ pub fn ManuscriptMeta(meta: crate::shared::ManuscriptMeta) -> impl IntoView {
 }
 
 #[derive(Debug)]
-struct EmptyError{}
+struct EmptyError {}
 impl core::fmt::Display for EmptyError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "An unspecified error occured.")

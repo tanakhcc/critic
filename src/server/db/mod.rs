@@ -147,4 +147,3 @@ pub async fn get_manuscripts_by_name(
     .await
     .map_err(DBError::CannotGetManuscript)
 }
-
