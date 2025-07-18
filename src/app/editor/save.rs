@@ -1,11 +1,7 @@
 //! Functions for saving (and loading) the state from the server.
 
-use std::fs::read_to_string;
-
 use leptos::prelude::ServerFnError;
 use leptos::prelude::*;
-
-use super::EditorBlock;
 
 /// TODO do these properly with writing and getting functions in critic-format
 #[server]
