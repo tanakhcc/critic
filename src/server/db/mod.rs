@@ -23,6 +23,8 @@ pub enum DBError {
     CannotGetManuscript(sqlx::Error),
     /// The manuscript we looked for simply does not exist
     ManuscriptDoesNotExist(String),
+    /// Unable to add a manuscript
+    CannotAddManuscript(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -47,6 +49,9 @@ impl core::fmt::Display for DBError {
             }
             Self::ManuscriptDoesNotExist(msname) => {
                 write!(f, "This manuscript does not exist: {msname}")
+            }
+            Self::CannotAddManuscript(e) => {
+                write!(f, "Unable to add manuscript: {e}")
             }
         }
     }
@@ -136,14 +141,32 @@ pub async fn get_manuscript(
 /// Get the metainformation for all manuscripts, excluding the page information
 pub async fn get_manuscripts_by_name(
     pool: &Pool<Postgres>,
-    msname: String,
+    msname: Option<String>,
 ) -> Result<Vec<crate::shared::ManuscriptMeta>, DBError> {
-    sqlx::query_as!(
-        crate::shared::ManuscriptMeta,
-        "SELECT * FROM manuscript WHERE title LIKE $1;",
-        format!("%{msname}%")
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(DBError::CannotGetManuscript)
+    if let Some(name) = msname {
+        sqlx::query_as!(
+            crate::shared::ManuscriptMeta,
+            "SELECT * FROM manuscript WHERE title LIKE $1;",
+            format!("%{name}%")
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetManuscript)
+    } else {
+        sqlx::query_as!(
+            crate::shared::ManuscriptMeta,
+            "SELECT * FROM manuscript;",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetManuscript)
+    }
+}
+
+pub async fn add_manuscript(pool: &Pool<Postgres>, msname: String) -> Result<(), DBError> {
+    sqlx::query!("INSERT INTO manuscript (title) VALUES ($1);", msname)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(DBError::CannotAddManuscript)
 }

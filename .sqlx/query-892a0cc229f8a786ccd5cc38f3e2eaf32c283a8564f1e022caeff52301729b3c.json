@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO manuscript (title) VALUES ($1);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "892a0cc229f8a786ccd5cc38f3e2eaf32c283a8564f1e022caeff52301729b3c"
+}

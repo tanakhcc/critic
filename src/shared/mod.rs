@@ -16,8 +16,8 @@ pub struct ManuscriptMeta {
     pub title: String,
     pub institution: Option<String>,
     pub collection: Option<String>,
-    pub hand_desc: String,
-    pub script_desc: String,
+    pub hand_desc: Option<String>,
+    pub script_desc: Option<String>,
 }
 
 /// complete information for a manuscript, including its pages

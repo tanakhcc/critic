@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM manuscript;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "institution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "collection",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "hand_desc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "script_desc",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "86bedabaefa8f64195cb3c2a2bae6de3cd3a5ad74aafb2ac326fa17a2d9e943d"
+}

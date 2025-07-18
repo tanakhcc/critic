@@ -25,11 +25,20 @@ struct PageParams {
 
 #[server]
 async fn get_manuscripts_by_name(
-    msname: String,
+    msname: Option<String>,
 ) -> Result<Vec<crate::shared::ManuscriptMeta>, ServerFnError> {
     let config = use_context::<std::sync::Arc<crate::server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     crate::server::db::get_manuscripts_by_name(&config.db, msname)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
+}
+
+#[server]
+async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
+    let config = use_context::<std::sync::Arc<crate::server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    crate::server::db::add_manuscript(&config.db, msname)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }
@@ -41,24 +50,59 @@ pub fn ManuscriptList() -> impl IntoView {
     let manuscript_list = Resource::new(
         move || query.get(),
         async |new_query| {
-            if let Some(query_name) = new_query {
-                get_manuscripts_by_name(query_name).await.map_err(|e| {
-                    ServerFnError::new(format!("Unable to get manuscript information: {e}"))
-                })
-            } else {
-                Err(ServerFnError::new(
-                    "Failed to get query parameter from the url",
-                ))
-            }
+            get_manuscripts_by_name(new_query).await.map_err(|e| {
+                ServerFnError::new(format!("Unable to get manuscript information: {e}"))
+            })
         },
     );
     let ms_search_ref = NodeRef::new();
+
+    let new_manuscript_open = RwSignal::new(false);
+    let add_manuscript_srvact = ServerAction::<AddManuscript>::new();
+    let new_manuscript_error = move || match add_manuscript_srvact.value().get() {
+        Some(Err(e)) => Some(e.to_string()),
+        _ => None,
+    };
 
     view! {
         <div class="flex justify-start">
         <div class="flex flex-col justify-start w-48">
             // the search bar, new-manuscript-button and actual list
-            <button>"New Manuscript"</button>
+            <div id="new-manuscript-error">
+                {new_manuscript_error}
+            </div>
+            <div
+                class=("block", move || new_manuscript_open.get() == false)
+                class=("hidden", move || new_manuscript_open.get() == true)
+                >
+                <button
+                    id="new-manuscript-button"
+                    on:click=move |_| {
+                        // toggle visibility for this button and the new-manuscript-form
+                        new_manuscript_open.update(|x| *x ^= true)
+                }>
+                    "New Manuscript"
+                </button>
+            </div>
+            <div
+                id="new-manuscript-form"
+                class=("block", move || new_manuscript_open.get() == true)
+                class=("hidden", move || new_manuscript_open.get() == false)
+                >
+                <ActionForm
+                    action=add_manuscript_srvact
+                    >
+                    // `title` matches the `title` argument to `add_todo`
+                    <input type="text" name="msname"/>
+                    <input type="submit" value="Create Manuscript" on:submit=move |_| {
+                        // toggle visibility back to the button
+                        new_manuscript_open.update(|x| *x ^= true);
+                        // force a notify of the query string to reload manuscripts from the server
+                        // with the current search term
+                        set_query.set(query.get());
+                    }/>
+                </ActionForm>
+            </div>
             // container for the search line and button
             <div class="flex justify-between">
                 <input node_ref=ms_search_ref type="search" id="manuscript-search" name="msq" value=move || query.get()/>
@@ -90,13 +134,17 @@ pub fn ManuscriptList() -> impl IntoView {
                                     if let Some(query_name) = query.get() {
                                         Either::Left(
                                             view!{
-                                                <A href=format!("{}?msq={}", ms.title, query_name)>ms.title</A>
+                                                <li>
+                                                <A href=format!("{}?msq={}", ms.title, query_name)>{ms.title}</A>
+                                                </li>
                                             }
                                         )
                                     } else {
                                         Either::Right(
                                             view!{
-                                                <A href={ms.title}>ms.title</A>
+                                                <li>
+                                                <A href=format!("{}", ms.title)>{ms.title}</A>
+                                                </li>
                                             }
                                         )
                                     }).collect_view()

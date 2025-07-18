@@ -45,8 +45,8 @@ pub(super) async fn save_editor_state(
             title: "title".to_string(),
             institution: None,
             collection: None,
-            hand_desc: "handDesc".to_string(),
-            script_desc: "scriptDesc".to_string(),
+            hand_desc: None,
+            script_desc: None,
         },
         content: blocks,
     };
