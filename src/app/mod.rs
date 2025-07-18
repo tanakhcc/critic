@@ -8,7 +8,6 @@ use leptos_router::{
 mod editor;
 use editor::Editor;
 use leptos_use::{use_document, use_event_listener};
-pub mod auth;
 
 mod accordion;
 

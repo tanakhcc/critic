@@ -3,7 +3,7 @@
 use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse, TokenResponse};
 use sqlx::{postgres::PgRow, query_as, PgConnection, PgPool, Pool, Postgres, Row};
 
-use crate::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
+use crate::shared::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
 
 // include tests
 #[cfg(test)]

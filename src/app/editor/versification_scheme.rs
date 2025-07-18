@@ -39,7 +39,7 @@ impl From<__VersificationScheme> for VersificationScheme {
 pub async fn get_versification_schemes() -> Result<Vec<VersificationScheme>, ServerFnError> {
     use sqlx::query_as;
 
-    let config: std::sync::Arc<crate::config::Config> = use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
+    let config: std::sync::Arc<crate::server::config::Config> = use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     Ok(
         query_as!(__VersificationScheme, "SELECT * FROM versification_scheme;")

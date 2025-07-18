@@ -4,112 +4,16 @@ use oauth2::TokenResponse;
 use serde::Deserialize;
 
 #[cfg(feature = "ssr")]
-mod auth;
-
+mod shared;
 #[cfg(feature = "ssr")]
-mod config;
-
-#[cfg(feature = "ssr")]
-mod db;
-
-// some basic types used across the app
-/// The JSON object returned from gitlabs get-user endpoint
-#[derive(Debug, Deserialize)]
-struct UserInfo {
-    /// ID of the user in gitlab - we use the same ID in the internal DB here
-    id: i32,
-    /// username of the user in gitlab - we use the same here
-    username: String,
-}
-impl From<AuthenticatedUser> for UserInfo {
-    fn from(value: AuthenticatedUser) -> Self {
-        Self {
-            id: value.id,
-            username: value.username,
-        }
-    }
-}
-
-/// The full User with oauth2 credentials
-#[derive(Deserialize, Clone, sqlx::prelude::FromRow)]
-pub struct AuthenticatedUser {
-    id: i32,
-    username: String,
-    access_token: String,
-    refresh_token: String,
-    expires_at: time::OffsetDateTime,
-}
-impl std::fmt::Debug for AuthenticatedUser {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AuthenticatedUser")
-            .field("id", &self.id)
-            .field("username", &self.username)
-            .field("access_token", &"[redacted]")
-            .field("refresh_token", &"[redacted]")
-            .field("expires_at", &self.expires_at)
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-enum NormalizeTokenResponseError {
-    NoRefresh,
-    NoExpiresIn,
-}
-impl core::fmt::Display for NormalizeTokenResponseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        match self {
-            Self::NoRefresh => {
-                write!(f, "No refresh token was given")
-            }
-            Self::NoExpiresIn => {
-                write!(f, "No expires_in time was given")
-            }
-        }
-    }
-}
-impl std::error::Error for NormalizeTokenResponseError {}
-#[derive(Debug)]
-struct NormalizedTokenResponse {
-    access_token: String,
-    refresh_token: String,
-    expires_at: time::OffsetDateTime,
-}
-impl
-    TryFrom<
-        oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
-    > for NormalizedTokenResponse
-{
-    type Error = NormalizeTokenResponseError;
-
-    fn try_from(
-        value: oauth2::StandardTokenResponse<
-            oauth2::EmptyExtraTokenFields,
-            oauth2::basic::BasicTokenType,
-        >,
-    ) -> Result<Self, Self::Error> {
-        let expires_at = time::OffsetDateTime::now_utc()
-            + value
-                .expires_in()
-                .ok_or(NormalizeTokenResponseError::NoExpiresIn)?;
-        Ok(Self {
-            access_token: value.access_token().clone().into_secret(),
-            refresh_token: value
-                .refresh_token()
-                .ok_or(NormalizeTokenResponseError::NoRefresh)?
-                .clone()
-                .into_secret(),
-            expires_at,
-        })
-    }
-}
+mod server;
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
     use std::sync::Arc;
 
-    use crate::auth::GitlabOauthBackend;
+    use crate::shared::auth::GitlabOauthBackend;
     use axum::Router;
     use axum_login::{
         login_required,
@@ -123,7 +27,7 @@ async fn main() {
     use tracing::{debug, info};
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
-    let config = match config::Config::try_create().await {
+    let config = match server::config::Config::try_create().await {
         Ok(x) => x,
         Err(e) => {
             panic!("Error reading config: {e}.");
@@ -188,7 +92,7 @@ async fn main() {
 
     let app = app_core
         .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
-        .merge(crate::auth::backend::auth_router())
+        .merge(crate::shared::auth::backend::auth_router())
         .layer(auth_layer);
 
     // run our app with hyper
