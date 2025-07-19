@@ -263,10 +263,6 @@ pub fn Manuscript() -> impl IntoView {
                                 <div id="manuscript-pageinfo-wrapper" class="flex justify-start">
                                     // container for the left half of the lower half
                                     <div id="manuscript-pagelist-wrapper" class="flex flex-col justify-start w-36">
-                                        // TODO:
-                                        // - create api endpoint to accept the uploads and create
-                                        //   the pages
-                                        // - reload this site to view new pages
                                         <button on:click=move |_| {
                                             // show the page upload form
                                             show_page_upload.update(|x| *x ^= true);

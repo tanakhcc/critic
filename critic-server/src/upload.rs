@@ -61,6 +61,7 @@ pub async fn page_upload(Extension(config): Extension<Arc<Config>>, Path(msname)
                         };
                         match std::fs::write(format!("{directory_path}/original.{extension}"), data) {
                             Ok(()) => {
+                                // TODO
                                 // start minifcation in new thread
                                 // add database entry
                                 tracing::debug!("saved new page for {msname} to file: {base_name}.{extension}.");
