@@ -272,7 +272,7 @@ pub fn Manuscript() -> impl IntoView {
                                             {
                                                 info.pages.into_iter().map(|page| view!{
                                                     <li>
-                                                        <A href={page.name}>page.name</A>
+                                                        <A href={page.name.clone()}>{page.name}</A>
                                                         {
                                                             if let (Some(start), Some(end)) = (page.verse_start, page.verse_end) {
                                                                 Some(view!{<p>{start} - {end}</p>})
