@@ -79,10 +79,18 @@ async fn main() {
     let backend = GitlabOauthBackend::new(config_arc.clone());
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
+    let static_router =
+        match critic_server::static_files::image_dir_router(&config_arc.data_directory) {
+            Ok(x) => x,
+            Err(e) => {
+                panic!("Cannot recover when data directory layout is wrong: {e}.");
+            }
+        };
     let app = app_core
         .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
         .merge(critic_server::auth::backend::auth_router())
-        .layer(auth_layer);
+        .layer(auth_layer)
+        .nest("/static", static_router);
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

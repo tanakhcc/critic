@@ -22,3 +22,5 @@ reqwest = { version = "0.12.20", default-features = false, features = ["http2", 
 time = { version = "0.3.41" }
 async-trait = { version = "0.1.88" }
 leptos = { version = "0.8.3", features = ["ssr"] }
+tower-http = { version = "0.6.6", features = ["fs"] }
+
