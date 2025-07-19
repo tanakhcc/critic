@@ -3,8 +3,6 @@
 use serde::Deserialize;
 use web_sys::FormData;
 
-const API_URL: &str = "./api/v1/files";
-
 #[derive(Debug, Default, Clone)]
 pub struct FailureReply {
     pub message: String,
@@ -25,7 +23,8 @@ impl core::fmt::Display for BucketDetail {
     }
 }
 
-pub async fn transfer_file(files: &Vec<web_sys::File>) -> Result<BucketDetail, FailureReply> {
+/// Transfer files to the api endpoint on the server with a POST request
+pub async fn transfer_file(files: &Vec<web_sys::File>, msname: String) -> Result<BucketDetail, FailureReply> {
     let form_data = FormData::new().unwrap();
     for file in files.iter() {
         form_data
@@ -33,7 +32,7 @@ pub async fn transfer_file(files: &Vec<web_sys::File>) -> Result<BucketDetail, F
             .unwrap();
     }
 
-    match reqwasm::http::Request::post(&API_URL)
+    match reqwasm::http::Request::post(&format!("{}/{}", critic_shared::PAGE_UPLOAD_API_ENDPOINT, msname))
         .body(form_data)
         .send()
         .await

@@ -67,6 +67,7 @@ ssr = [
     "dep:time",
     "dep:async-trait",
     "critic-components/ssr",
+    "critic-shared/ssr",
 ]
 
 [package.metadata.leptos]

@@ -16,8 +16,10 @@ Cargo.lock
 # used for temporary files (e.g. sqlite state, ...)
 tmp/
 
-app/tailwindcss
-
+# tailwind files
+# the binary 4.1.11 for your system
+critic/tailwindcss
+# the output css, which should be generated with the tailwind binary
 critic/style/output.css
 
 .env

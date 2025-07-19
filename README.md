@@ -1,6 +1,20 @@
 # critic
 This is a webapp to enable digital textual criticism.
 
+# HOW TO BUILD
+## tailwind 4.1.11
+use in critic subdirectory (the main app code)
+```
+./tailwindcss -i style/input.css -o style/output.css --watch
+```
+
+## cargo leptos serve
+Use in the main directory (the workspace dir)
+```
+cargo leptos serve
+```
+Use the `--release` toggle for release.
+
 
 # TODOs - next
 ## Admin page for adding manuscripts

@@ -7,6 +7,7 @@
 // query params
 // @msq=search-term-to-find-ms
 
+use critic_components::filetransfer::TransferPage;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_router::components::{Outlet, A};
@@ -74,7 +75,7 @@ pub fn ManuscriptList() -> impl IntoView {
     view! {
         <div id="ManuscriptList-wrapper" class="flex justify-start">
         // the left sidebar containing the different manuscripts
-        <div id="ms-sidebar-wrapper" class="flex flex-col justify-start">
+        <div id="ms-sidebar-wrapper" class="flex flex-col justify-start w-1/4">
             // the search bar, new-manuscript-button and actual list
             <div id="new-manuscript-error" class="bg-red-200">
                 {new_manuscript_error}
@@ -227,17 +228,49 @@ pub fn Manuscript() -> impl IntoView {
                             })
                         }
                         Ok(info) => {
+                            let show_page_upload = RwSignal::new(false);
+                            let msname = info.meta.title.clone();
                             Either::Right(
                             view!{
-                                <div id="Manuscript-wrapper" class="flex flex-col justify-between">
+                                <div id="Manuscript-wrapper" class="h-full flex flex-col justify-between w-3/4">
                                 <ManuscriptMeta meta=info.meta/>
                                 // container for the lower half of the screen
-                                <div id="manuscript-pageinfo-wrapper" class="flex justify-start bg-pink-300">
+                                <div class="relative h-full bg-pink-300">
+                                    // wrapper around the page upload form - this is show over the
+                                    // entire page-list and page info part of the page
+                                    <Show when=move || show_page_upload.get() == true
+                                          fallback=|| view!{}>
+                                        <div class="absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
+                                            <div class="relative inset-1/12 w-10/12">
+                                            <div class="bg-violet-50">
+                                                <TransferPage msname=msname.clone() />
+                                            </div>
+                                            <div class="flex justify-around">
+                                            <button on:click=move |_| {
+                                                    // close the floating page upload form
+                                                    show_page_upload.update(|x| *x = false);
+                                                    // refresh the page view by reloading pages
+                                                    // from the server to reflect newly uploaded
+                                                    // pages
+                                                    manuscript_info.refetch();
+                                            }>
+                                                Done
+                                            </button>
+                                            </div>
+                                            </div>
+                                        </div>
+                                    </Show>
+                                <div id="manuscript-pageinfo-wrapper" class="flex justify-start">
                                     // container for the left half of the lower half
                                     <div id="manuscript-pagelist-wrapper" class="flex flex-col justify-start w-36">
-                                        // TODO: simple menu to upload n files, their filename without extension will be used
-                                        // as page name
-                                        <button>"Add Pages"</button>
+                                        // TODO:
+                                        // - create api endpoint to accept the uploads and create
+                                        //   the pages
+                                        // - reload this site to view new pages
+                                        <button on:click=move |_| {
+                                            // show the page upload form
+                                            show_page_upload.update(|x| *x ^= true);
+                                        }>"Add Pages"</button>
                                         // list over all pages
                                         <ul>
                                             {
@@ -261,6 +294,7 @@ pub fn Manuscript() -> impl IntoView {
                                     <Outlet/>
                                 </div>
                                 </div>
+                                </div>
                             })
                         }
                     }
@@ -274,7 +308,12 @@ pub fn Manuscript() -> impl IntoView {
 #[component]
 pub fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
     view! {
-        <h2 class="bg-amber-400">{format!("Manuscript Information for manuscript {}", meta.title)}</h2>
+        <div class="bg-amber-400">
+            <h2>{format!("Manuscript Information for manuscript {}", meta.title)}</h2>
+            <p>
+                Hier steht irgend nen content und so.
+            </p>
+        </div>
     }
 }
 

@@ -13,13 +13,16 @@ use components::{
 };
 
 #[component]
-pub fn TransferPage() -> impl IntoView {
+pub fn TransferPage(
+        msname: String,
+    ) -> impl IntoView {
     let files = RwSignal::new(Vec::<SendWrapper<File>>::new());
 
-    let transfer_action = Action::new_local(|files: &Vec<SendWrapper<File>>| {
+    let transfer_action = Action::new_local(move |files: &Vec<SendWrapper<File>>| {
         let selected_files = files.iter().map(|wrapped| wrapped.clone().take()).collect();
+        let name = msname.clone();
         async move {
-            let res = services::transfer_file(&selected_files).await;
+            let res = services::transfer_file(&selected_files, name).await;
             if let Err(ref e) = res {
                 leptos::logging::log!("{e}");
             };
