@@ -93,8 +93,7 @@ async fn main() {
         .merge(critic_server::auth::backend::auth_router())
         .layer(auth_layer)
         .nest(STATIC_BASE_URL, static_router)
-        .layer(Extension(config_arc.clone()))
-        ;
+        .layer(Extension(config_arc.clone()));
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

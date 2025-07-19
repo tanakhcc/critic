@@ -12,4 +12,3 @@ pub const UPLOAD_BASE_URL: &str = "/upload";
 /// The api endpoint where new manuscript pages should be uploaded to
 /// The manuscriptname these pages belong to will be appended after this string (and a /)
 pub const PAGE_UPLOAD_API_ENDPOINT: &str = "/v1/page";
-

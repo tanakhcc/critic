@@ -187,6 +187,7 @@ pub async fn get_versification_schemes(
             .fetch_all(pool)
             .await
             .map_err(DBError::CannotGetVersificationSchemes)?
-            .into_iter().collect(),
+            .into_iter()
+            .collect(),
     )
 }

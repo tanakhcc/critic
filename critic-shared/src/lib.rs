@@ -17,7 +17,6 @@ impl core::fmt::Display for FileTransferOkResponse {
     }
 }
 
-
 /// The names of a versification scheme
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(sqlx::FromRow))]

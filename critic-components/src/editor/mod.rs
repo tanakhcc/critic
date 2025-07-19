@@ -127,9 +127,7 @@ fn new_node(
                     String::default(),
                     true,
                 );
-                set_blocks
-                    .write()
-                    .insert(physical_index, new_block.clone());
+                set_blocks.write().insert(physical_index, new_block.clone());
                 // add the insertion to the undo stack
                 undo_stack
                     .write()
@@ -220,9 +218,8 @@ pub fn Editor(default_language: String) -> impl IntoView {
 
     let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
-    let index_if_not_first = move |id: usize| {
-        physical_index_maybe(id).filter(|&physical_index| physical_index != 0)
-    };
+    let index_if_not_first =
+        move |id: usize| physical_index_maybe(id).filter(|&physical_index| physical_index != 0);
 
     let move_up_button = move |id| {
         if let Some(physical_index) = index_if_not_first(id) {

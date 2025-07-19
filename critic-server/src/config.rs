@@ -107,10 +107,8 @@ impl OauthConfig {
                 .map_err(ConfigError::GitlabAddrParse)?,
             token_url: oauth2::TokenUrl::new(format!("https://{gitlab_addr}/oauth/token"))
                 .map_err(ConfigError::GitlabAddrParse)?,
-            redirect_url: oauth2::RedirectUrl::new(format!(
-                "https://{public_addr}/oauth/redirect"
-            ))
-            .map_err(ConfigError::PublicAddrParse)?,
+            redirect_url: oauth2::RedirectUrl::new(format!("https://{public_addr}/oauth/redirect"))
+                .map_err(ConfigError::PublicAddrParse)?,
         })
     }
 }

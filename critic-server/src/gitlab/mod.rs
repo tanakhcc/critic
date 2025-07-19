@@ -36,7 +36,10 @@ impl core::fmt::Display for GitlabApiError {
                 write!(f, "Returned user role does not exist: {role_code}")
             }
             Self::UserNotGroupMember(id) => {
-                write!(f, "The user with id {id} is not member of the main group in gitlab.")
+                write!(
+                    f,
+                    "The user with id {id} is not member of the main group in gitlab."
+                )
             }
             Self::BadStatusCode(code) => {
                 write!(f, "Got the following status code: {code} from gitlab API.")
@@ -45,7 +48,6 @@ impl core::fmt::Display for GitlabApiError {
     }
 }
 impl core::error::Error for GitlabApiError {}
-
 
 pub enum GitlabUserRole {
     NoAccess,
@@ -128,20 +130,14 @@ pub async fn get_user_role(
         .send()
         .await?;
     match response.status() {
-        StatusCode::NOT_FOUND => {
-            Err(GitlabApiError::UserNotGroupMember(user.id))
-        }
+        StatusCode::NOT_FOUND => Err(GitlabApiError::UserNotGroupMember(user.id)),
         StatusCode::OK => {
-            let response = response
-                .json::<GroupMember>()
-                .await?;
+            let response = response.json::<GroupMember>().await?;
             Ok(response
                 .access_level
                 .try_into()
                 .map_err(|_| GitlabApiError::UserRoleDoesNotExist(response.access_level))?)
         }
-        c => {
-            Err(GitlabApiError::BadStatusCode(c))
-        }
+        c => Err(GitlabApiError::BadStatusCode(c)),
     }
 }

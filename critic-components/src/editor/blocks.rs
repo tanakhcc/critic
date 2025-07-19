@@ -1076,39 +1076,41 @@ impl InnerBlock {
                 if let Block::Text(y) = new_block {
                     *x.write() = y;
                 }
-            },
+            }
             Self::Break(x) => {
                 if let Block::Break(y) = new_block {
                     *x.write() = y;
                 }
-            },
+            }
             Self::Lacuna(x) => {
                 if let Block::Lacuna(new_lacuna) = new_block {
                     *x.write() = new_lacuna;
                 }
-            },
+            }
             Self::Space(x) => {
                 if let Block::Space(new_space) = new_block {
                     *x.write() = new_space;
                 }
-            },
+            }
             Self::Uncertain(x) => {
                 if let Block::Uncertain(new_uncertain) = new_block {
                     *x.write() = new_uncertain;
                 }
-            },
+            }
             Self::Anchor(x) => {
-                if let Block::Anchor(new_anchor) = new_block  {
+                if let Block::Anchor(new_anchor) = new_block {
                     *x.write() = new_anchor;
                 }
-            },
+            }
             Self::Correction(x) => {
                 if let Block::Correction(new_correction) = new_block {
                     *x.write() = new_correction;
                 }
-            },
+            }
             Self::Abbreviation(x) => {
-                if let Block::Abbreviation(new_abbreviation) = new_block { *x.write() = new_abbreviation };
+                if let Block::Abbreviation(new_abbreviation) = new_block {
+                    *x.write() = new_abbreviation
+                };
             }
         }
     }
@@ -1227,19 +1229,19 @@ impl InnerBlock {
                 (None, &complete_value[0..end], Some(&complete_value[end..]))
             }
         } else if end == complete_value.len() {
-                // create a new node after
-                (
-                    Some(&complete_value[0..start]),
-                    &complete_value[start..],
-                    None,
-                )
+            // create a new node after
+            (
+                Some(&complete_value[0..start]),
+                &complete_value[start..],
+                None,
+            )
         } else {
-                // split in three
-                (
-                    Some(&complete_value[..start]),
-                    &complete_value[start..end],
-                    Some(&complete_value[end..]),
-                )
+            // split in three
+            (
+                Some(&complete_value[..start]),
+                &complete_value[start..end],
+                Some(&complete_value[end..]),
+            )
         };
         let mut res = vec![];
         // first and last block (if any) keeps the same type as this one
