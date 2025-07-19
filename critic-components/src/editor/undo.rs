@@ -141,18 +141,10 @@ impl Invert for UnReStep {
 }
 impl UnRe for UnReStep {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct UnReStack {
     undo_stack: Vec<UnReStep>,
     redo_stack: Vec<UnReStep>,
-}
-impl Default for UnReStack {
-    fn default() -> Self {
-        Self {
-            undo_stack: vec![],
-            redo_stack: vec![],
-        }
-    }
 }
 impl UnReStack {
     pub fn new() -> Self {
@@ -329,16 +321,16 @@ impl Replay for BlockChange {
         if self.physical_index_of_change + self.old_blocks.len() > blocks.len() {
             return Err(ReplayError::OldStateInconsistent);
         };
-        if &blocks
+        if blocks
             [self.physical_index_of_change..self.physical_index_of_change + self.old_blocks.len()]
-            != &self.old_blocks
+            != self.old_blocks
         {
             return Err(ReplayError::OldStateInconsistent);
         };
         // exchange the blocks
         blocks.splice(
             self.physical_index_of_change..self.physical_index_of_change + self.old_blocks.len(),
-            self.new_blocks.clone().into_iter().map(|b| b.into()),
+            self.new_blocks.clone(),
         );
         Ok(())
     }

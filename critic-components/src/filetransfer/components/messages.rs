@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[component]
-pub fn TransferComplete(on_continue: impl Fn(MouseEvent) -> () + 'static) -> impl IntoView {
+pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl IntoView {
     let (busy_reader, _) = signal(false);
 
     view! {
@@ -30,7 +30,7 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) -> () + 'static) -> imp
 }
 
 #[component]
-pub fn TransferFailed(on_try_again: impl Fn(MouseEvent) -> () + 'static) -> impl IntoView {
+pub fn TransferFailed(on_try_again: impl Fn(MouseEvent) + 'static) -> impl IntoView {
     let (busy_reader, _) = signal(false);
 
     view! {

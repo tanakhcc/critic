@@ -5,7 +5,7 @@ use web_sys::MouseEvent;
 #[component]
 pub fn ButtonIcon<F, IV>(
     #[prop(into)] busy_reader: Signal<bool>,
-    on_click: impl Fn(MouseEvent) -> () + 'static,
+    on_click: impl Fn(MouseEvent) + 'static,
     inner_icon: F,
 ) -> impl IntoView
 where
@@ -29,7 +29,7 @@ where
 #[component]
 pub fn Button(
     #[prop(into)] busy_reader: Signal<bool>,
-    on_click: impl Fn(MouseEvent) -> () + 'static,
+    on_click: impl Fn(MouseEvent) + 'static,
     #[prop(default = "")] label: &'static str,
     #[prop(default = "")] busy_label: &'static str,
 ) -> impl IntoView {

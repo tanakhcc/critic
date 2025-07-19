@@ -30,7 +30,7 @@ pub fn DropzoneBar() -> impl IntoView {
 pub fn DropzonePreview(
     files: RwSignal<Vec<SendWrapper<File>>>,
     transfer_pending: Memo<bool>,
-    on_transfer: impl Fn(MouseEvent) -> () + 'static + Send + Sync + Clone,
+    on_transfer: impl Fn(MouseEvent) + 'static + Send + Sync + Clone,
 ) -> impl IntoView {
     let (dropped, set_dropped) = signal(false);
 

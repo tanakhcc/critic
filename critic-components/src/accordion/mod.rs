@@ -24,7 +24,7 @@ impl Size {
             Size::XSmall => "width: 5rem;".to_string(),
             Size::XLarge => "width: 25rem;".to_string(),
             Size::XXLarge => "width: 30rem;".to_string(),
-            Size::Custom(custom_size) => format!("width: {}; ", custom_size),
+            Size::Custom(custom_size) => format!("width: {custom_size}; "),
         }
     }
 }
@@ -54,7 +54,7 @@ impl Align {
             Align::End => "text-align: end;".to_string(),
             Align::MatchParent => "text-align: match-parent;".to_string(),
             Align::Custom(custom_alignment) => {
-                format!("text-align: {}; ", custom_alignment)
+                format!("text-align: {custom_alignment}; ")
             }
         }
     }

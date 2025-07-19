@@ -66,7 +66,7 @@ fn inner_text_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Text(current_paragraph.get_untracked()),
-                        Block::Text(paragraph.get_untracked().into()))
+                        Block::Text(paragraph.get_untracked()))
                     );
                 // now set the new savepoint
                 current_paragraph.write().content = paragraph.read_untracked().content.clone();
@@ -96,7 +96,7 @@ fn inner_text_view(
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Text(current_paragraph.get_untracked()),
-                                Block::Text(paragraph.get_untracked().into()))
+                                Block::Text(paragraph.get_untracked()))
                             );
                         // now set the new savepoint
                         current_paragraph.write().lang = paragraph.read_untracked().lang.clone();
@@ -140,7 +140,7 @@ fn inner_lacuna_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Lacuna(current_lacuna.get_untracked()),
-                        Block::Lacuna(lacuna.get_untracked().into()))
+                        Block::Lacuna(lacuna.get_untracked()))
                     );
                 // now set the new savepoint
                 current_lacuna.write().reason = lacuna.read_untracked().reason.clone();
@@ -155,7 +155,7 @@ fn inner_lacuna_view(
                 <Item align={Align::Left}>
                     <span class="font-light text-xs">"Extent: "</span>
                     <input
-                    prop:value=move || lacuna.read().n.clone()
+                    prop:value=move || lacuna.read().n
                     class="text-sm"
                     placeholder="n"
                     autocomplete="false"
@@ -167,16 +167,16 @@ fn inner_lacuna_view(
                         let x = ev.target().value();
                         if x.is_empty() {
                         } else {
-                            lacuna.write().n = ev.target().value().parse().unwrap_or_else(|_| 1);
+                            lacuna.write().n = ev.target().value().parse().unwrap_or(1);
                         }
                     }
                     on:change:target=move |ev| {
                         // just throw away values that are not parsable
-                        lacuna.write().n = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        lacuna.write().n = ev.target().value().parse().unwrap_or(1);
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Lacuna(current_lacuna.get_untracked()),
-                                Block::Lacuna(lacuna.get_untracked().into()))
+                                Block::Lacuna(lacuna.get_untracked()))
                             );
                         // now set the new savepoint
                         current_lacuna.write().n = lacuna.get_untracked().n;
@@ -245,7 +245,7 @@ fn inner_uncertain_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Uncertain(current_uncertain.get_untracked()),
-                        Block::Uncertain(uncertain.get_untracked().into()))
+                        Block::Uncertain(uncertain.get_untracked()))
                     );
                 // now set the new savepoint
                 current_uncertain.write().agent = uncertain.get_untracked().agent;
@@ -273,7 +273,7 @@ fn inner_uncertain_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Uncertain(current_uncertain.get_untracked()),
-                        Block::Uncertain(uncertain.get_untracked().into()))
+                        Block::Uncertain(uncertain.get_untracked()))
                     );
                 // now set the new savepoint
                 current_uncertain.write().content = uncertain.get_untracked().content;
@@ -303,7 +303,7 @@ fn inner_uncertain_view(
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Uncertain(current_uncertain.get_untracked()),
-                                Block::Uncertain(uncertain.get_untracked().into()))
+                                Block::Uncertain(uncertain.get_untracked()))
                             );
                         // now set the new savepoint
                         current_uncertain.write().lang = uncertain.read_untracked().lang.clone();
@@ -314,7 +314,7 @@ fn inner_uncertain_view(
                     <input
                     // the unwrap_or_else is required, because cert can be None but we want to push
                     // "" to the user in that case
-                    prop:value=move || uncertain.read().cert.clone().unwrap_or_else(String::default)
+                    prop:value=move || uncertain.read().cert.clone().unwrap_or_default()
                     class="text-sm"
                     placeholder="certainty"
                     autocomplete="false"
@@ -322,15 +322,15 @@ fn inner_uncertain_view(
                     id={format!("block-input-{id}-certainty")}
                     on:input:target=move |ev| {
                         let x = ev.target().value();
-                        uncertain.write().cert = (!x.is_empty()).then(|| x);
+                        uncertain.write().cert = (!x.is_empty()).then_some(x);
                     }
                     on:change:target=move |ev| {
                         let x = ev.target().value();
-                        uncertain.write().cert = (!x.is_empty()).then(|| x);
+                        uncertain.write().cert = (!x.is_empty()).then_some(x);
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Uncertain(current_uncertain.get_untracked()),
-                                Block::Uncertain(uncertain.get_untracked().into()))
+                                Block::Uncertain(uncertain.get_untracked()))
                             );
                         // now set the new savepoint
                         current_uncertain.write().cert = uncertain.read_untracked().cert.clone();
@@ -356,7 +356,7 @@ fn inner_space_view(
         </span>
                     <span class="font-light text-xs">"Extent: "</span>
                     <input
-                    prop:value=move || space.read().quantity.clone()
+                    prop:value=move || space.read().quantity
                     class="text-sm"
                     placeholder="extent"
                     autocomplete="false"
@@ -368,16 +368,16 @@ fn inner_space_view(
                         let x = ev.target().value();
                         if x.is_empty() {
                         } else {
-                            space.write().quantity = ev.target().value().parse().unwrap_or_else(|_| 1);
+                            space.write().quantity = ev.target().value().parse().unwrap_or(1);
                         }
                     }
                     on:change:target=move |ev| {
                         // just throw away values that are not parsable
-                        space.write().quantity = ev.target().value().parse().unwrap_or_else(|_| 1);
+                        space.write().quantity = ev.target().value().parse().unwrap_or(1);
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Space(current_space.get_untracked()),
-                                Block::Space(space.get_untracked().into()))
+                                Block::Space(space.get_untracked()))
                             );
                         // now set the new savepoint
                         current_space.write().quantity = space.get_untracked().quantity;
@@ -509,7 +509,7 @@ fn inner_anchor_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Anchor(current_anchor.get_untracked()),
-                        Block::Anchor(anchor.get_untracked().into()))
+                        Block::Anchor(anchor.get_untracked()))
                     );
                 // now set the new savepoint
                 current_anchor.write().anchor_id = anchor.get_untracked().anchor_id;
@@ -608,7 +608,7 @@ fn inner_abbreviation_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Abbreviation(current_abbreviation.get_untracked()),
-                        Block::Abbreviation(abbreviation.get_untracked().into()))
+                        Block::Abbreviation(abbreviation.get_untracked()))
                     );
                 // now set the new savepoint
                 current_abbreviation.write().surface = abbreviation.get_untracked().surface;
@@ -638,7 +638,7 @@ fn inner_abbreviation_view(
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Abbreviation(current_abbreviation.get_untracked()),
-                                Block::Abbreviation(abbreviation.get_untracked().into()))
+                                Block::Abbreviation(abbreviation.get_untracked()))
                             );
                         // now set the new savepoint
                         current_abbreviation.write().surface_lang = abbreviation.read_untracked().surface_lang.clone();
@@ -671,7 +671,7 @@ fn inner_abbreviation_view(
                 undo_stack.write().push_undo(
                     UnReStep::new_data_change(id,
                         Block::Abbreviation(current_abbreviation.get_untracked()),
-                        Block::Abbreviation(abbreviation.get_untracked().into()))
+                        Block::Abbreviation(abbreviation.get_untracked()))
                     );
                 // now set the new savepoint
                 current_abbreviation.write().expansion = abbreviation.get_untracked().expansion;
@@ -701,7 +701,7 @@ fn inner_abbreviation_view(
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Abbreviation(current_abbreviation.get_untracked()),
-                                Block::Abbreviation(abbreviation.get_untracked().into()))
+                                Block::Abbreviation(abbreviation.get_untracked()))
                             );
                         // now set the new savepoint
                         current_abbreviation.write().expansion_lang = abbreviation.read_untracked().expansion_lang.clone();
@@ -736,7 +736,7 @@ fn inner_correction_view(
         undo_stack.write().push_undo(UnReStep::new_data_change(
             id,
             Block::Correction(current_correction.get_untracked()),
-            Block::Correction(correction.get_untracked().into()),
+            Block::Correction(correction.get_untracked()),
         ));
         // also push the change to the checkpoint
         current_correction.write().versions.push(new_version);
@@ -749,7 +749,7 @@ fn inner_correction_view(
         </span>
         <For
             each=move || correction.get().versions.into_iter().enumerate()
-            key=|dyn_v| dyn_v.0.clone()
+            key=|dyn_v| dyn_v.0
             children = {move |dyn_v| {
                 let memo_val = Memo::new(move |_| {
                     correction.read().versions.get(dyn_v.0).map_or(Version {
@@ -788,7 +788,7 @@ fn inner_correction_view(
                             undo_stack.write().push_undo(
                                 UnReStep::new_data_change(id,
                                     Block::Correction(current_correction.get_untracked()),
-                                    Block::Correction(correction.get_untracked().into()))
+                                    Block::Correction(correction.get_untracked()))
                                 );
                             // now set the new savepoint
                             if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
@@ -826,7 +826,7 @@ fn inner_correction_view(
                                     undo_stack.write().push_undo(
                                         UnReStep::new_data_change(id,
                                             Block::Correction(current_correction.get_untracked()),
-                                            Block::Correction(correction.get_untracked().into()))
+                                            Block::Correction(correction.get_untracked()))
                                         );
                                     // now set the new savepoint
                                     if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
@@ -868,7 +868,7 @@ fn inner_correction_view(
                                     undo_stack.write().push_undo(
                                         UnReStep::new_data_change(id,
                                             Block::Correction(current_correction.get_untracked()),
-                                            Block::Correction(correction.get_untracked().into()))
+                                            Block::Correction(correction.get_untracked()))
                                         );
                                     // now set the new savepoint
                                     if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
@@ -883,7 +883,7 @@ fn inner_correction_view(
                         undo_stack.write().push_undo(
                             UnReStep::new_data_change(id,
                                 Block::Correction(current_correction.get_untracked()),
-                                Block::Correction(correction.get_untracked().into()))
+                                Block::Correction(correction.get_untracked()))
                             );
                         // also push the change to the checkpoint
                         current_correction.write().versions.remove(dyn_v.0);
@@ -997,7 +997,7 @@ impl EditorBlock {
                     focus_on_load: iblck.1,
                 };
                 *new_index += 1;
-                return block;
+                block
             })
             .collect()
     }
@@ -1072,52 +1072,44 @@ impl InnerBlock {
     /// overwrite own data with that given from new_block, but only if the types are the same
     fn overwrite_with(&mut self, new_block: Block) {
         match self {
-            Self::Text(x) => match new_block {
-                Block::Text(y) => {
+            Self::Text(x) => {
+                if let Block::Text(y) = new_block {
                     *x.write() = y;
                 }
-                _ => {}
             },
-            Self::Break(x) => match new_block {
-                Block::Break(y) => {
+            Self::Break(x) => {
+                if let Block::Break(y) = new_block {
                     *x.write() = y;
                 }
-                _ => {}
             },
-            Self::Lacuna(x) => match new_block {
-                Block::Lacuna(new_lacuna) => {
+            Self::Lacuna(x) => {
+                if let Block::Lacuna(new_lacuna) = new_block {
                     *x.write() = new_lacuna;
                 }
-                _ => {}
             },
-            Self::Space(x) => match new_block {
-                Block::Space(new_space) => {
+            Self::Space(x) => {
+                if let Block::Space(new_space) = new_block {
                     *x.write() = new_space;
                 }
-                _ => {}
             },
-            Self::Uncertain(x) => match new_block {
-                Block::Uncertain(new_uncertain) => {
+            Self::Uncertain(x) => {
+                if let Block::Uncertain(new_uncertain) = new_block {
                     *x.write() = new_uncertain;
                 }
-                _ => {}
             },
-            Self::Anchor(x) => match new_block {
-                Block::Anchor(new_anchor) => {
+            Self::Anchor(x) => {
+                if let Block::Anchor(new_anchor) = new_block  {
                     *x.write() = new_anchor;
                 }
-                _ => {}
             },
-            Self::Correction(x) => match new_block {
-                Block::Correction(new_correction) => {
+            Self::Correction(x) => {
+                if let Block::Correction(new_correction) = new_block {
                     *x.write() = new_correction;
                 }
-                _ => {}
             },
-            Self::Abbreviation(x) => match new_block {
-                Block::Abbreviation(new_abbreviation) => *x.write() = new_abbreviation,
-                _ => {}
-            },
+            Self::Abbreviation(x) => {
+                if let Block::Abbreviation(new_abbreviation) = new_block { *x.write() = new_abbreviation };
+            }
         }
     }
 
@@ -1132,7 +1124,7 @@ impl InnerBlock {
             InnerBlock::Lacuna(lacuna) => InnerBlock::Lacuna(RwSignal::new(Lacuna {
                 cert: lacuna.read_untracked().cert.clone(),
                 n: lacuna.read_untracked().n,
-                unit: lacuna.read_untracked().unit.clone(),
+                unit: lacuna.read_untracked().unit,
                 reason: lacuna.read_untracked().reason.clone(),
             })),
             InnerBlock::Anchor(_) => self.clone(),
@@ -1146,7 +1138,6 @@ impl InnerBlock {
                         lang: correction
                             .read_untracked()
                             .lang()
-                            .clone()
                             .unwrap_or("LANGUAGE")
                             .to_string(),
                         hand: None,
@@ -1203,7 +1194,6 @@ impl InnerBlock {
             InnerBlock::Correction(x) => x
                 .read_untracked()
                 .lang()
-                .clone()
                 .map(std::string::ToString::to_string),
             InnerBlock::Abbreviation(x) => Some(x.read_untracked().expansion_lang.clone()),
         }
@@ -1236,22 +1226,20 @@ impl InnerBlock {
                 // create a new node before
                 (None, &complete_value[0..end], Some(&complete_value[end..]))
             }
-        } else {
-            if end == complete_value.len() {
+        } else if end == complete_value.len() {
                 // create a new node after
                 (
                     Some(&complete_value[0..start]),
                     &complete_value[start..],
                     None,
                 )
-            } else {
+        } else {
                 // split in three
                 (
                     Some(&complete_value[..start]),
                     &complete_value[start..end],
                     Some(&complete_value[end..]),
                 )
-            }
         };
         let mut res = vec![];
         // first and last block (if any) keeps the same type as this one
@@ -1261,7 +1249,7 @@ impl InnerBlock {
         res.push((
             InnerBlock::from_type_lang_and_content(
                 new_block_type,
-                self.lang().unwrap_or_else(|| "".to_string()),
+                self.lang().unwrap_or_default(),
                 new_part.to_owned(),
             ),
             // we do want to autofocus on the middle block
@@ -1270,7 +1258,7 @@ impl InnerBlock {
         if let Some(content) = after_part {
             res.push((self.clone_with_new_content(content.to_owned()), false));
         };
-        return res;
+        res
     }
 }
 impl FromTypeLangAndContent for InnerBlock {

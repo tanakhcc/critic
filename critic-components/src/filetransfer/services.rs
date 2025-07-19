@@ -15,7 +15,7 @@ impl core::fmt::Display for FailureReply {
 
 /// Transfer files to the api endpoint on the server with a POST request
 pub async fn transfer_file(
-    files: &Vec<web_sys::File>,
+    files: &[web_sys::File],
     msname: String,
 ) -> Result<FileTransferOkResponse, FailureReply> {
     let form_data = FormData::new().unwrap();

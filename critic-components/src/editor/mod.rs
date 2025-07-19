@@ -109,13 +109,12 @@ fn new_node(
                 let removed = set_blocks
                     .write()
                     .splice(physical_index..physical_index + 1, new_blocks.clone())
-                    .map(|b| b.into())
                     .collect();
                 // add the change to the undo stack
                 undo_stack.write().push_undo(UnReStep::new_block_change(
                     physical_index,
                     removed,
-                    new_blocks.into_iter().map(|x| x.into()).collect(),
+                    new_blocks.into_iter().collect(),
                 ));
             }
             _ => {
@@ -130,7 +129,7 @@ fn new_node(
                 );
                 set_blocks
                     .write()
-                    .insert(physical_index, new_block.clone().into());
+                    .insert(physical_index, new_block.clone());
                 // add the insertion to the undo stack
                 undo_stack
                     .write()
@@ -222,15 +221,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
     let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
     let index_if_not_first = move |id: usize| {
-        if let Some(physical_index) = physical_index_maybe(id) {
-            if physical_index != 0 {
-                Some(physical_index)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        physical_index_maybe(id).filter(|&physical_index| physical_index != 0)
     };
 
     let move_up_button = move |id| {
@@ -262,15 +253,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
     };
 
     let index_if_not_last = move |id: usize| {
-        if let Some(physical_index) = physical_index_maybe(id) {
-            if physical_index < blocks.read().len() - 1 {
-                Some(physical_index)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        physical_index_maybe(id).filter(|&physical_index| physical_index < blocks.read().len() - 1)
     };
 
     let move_down_button = move |id| {
@@ -494,7 +477,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
                             // remove this element
                             let removed_block = set_blocks.write().remove(physical_index);
                             // push this action to the undo stack
-                            undo_stack.write().push_undo(UnReStep::new_deletion(physical_index, removed_block.into()));
+                            undo_stack.write().push_undo(UnReStep::new_deletion(physical_index, removed_block));
                         }>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />

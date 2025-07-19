@@ -10,7 +10,7 @@ pub fn FileItem(
     name: String,
     size: f64,
     #[prop(into)] processing_reader: Signal<bool>,
-    on_remove: impl Fn(MouseEvent) -> () + 'static,
+    on_remove: impl Fn(MouseEvent) + 'static,
 ) -> impl IntoView {
     view! {
         <li class="border border-gray-200 rounded-lg mb-2 p-3">
@@ -58,7 +58,7 @@ pub fn FileList(
                         files.remove(index);
                     });
 
-                    if files.get().len() == 0 {
+                    if files.get().is_empty() {
                         dropped_setter.set(false);
                     }
                 }
