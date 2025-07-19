@@ -1,0 +1,14 @@
+# this is required so that debug builds actually work
+# otherwise the wasm is so huge that the server panics during hydration on some pages
+
+[target.wasm32-unknown-unknown]
+rustflags = [
+	"--cfg",
+	"erase_components",
+]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+	"--cfg",
+	"erase_components",
+]
