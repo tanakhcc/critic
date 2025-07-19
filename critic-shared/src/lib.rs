@@ -3,7 +3,7 @@
 // some statics shared
 /// The api endpoint where new manuscript pages should be uploaded to
 /// The manuscriptname these pages belong to will be appended after this string (and a /)
-pub const PAGE_UPLOAD_API_ENDPOINT: &str = "/api/v1/page_upload";
+pub const PAGE_UPLOAD_API_ENDPOINT: &str = "/upload/v1/page";
 
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
@@ -74,4 +74,3 @@ impl From<ShowHelp> for bool {
         value.0
     }
 }
-

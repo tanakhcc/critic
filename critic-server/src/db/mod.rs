@@ -179,7 +179,9 @@ pub async fn add_manuscript(pool: &Pool<Postgres>, msname: String) -> Result<(),
         .map_err(DBError::CannotAddManuscript)
 }
 
-pub async fn get_versification_schemes(pool: &Pool<Postgres>) -> Result<Vec<VersificationScheme>, DBError> {
+pub async fn get_versification_schemes(
+    pool: &Pool<Postgres>,
+) -> Result<Vec<VersificationScheme>, DBError> {
     Ok(
         query_as!(VersificationScheme, "SELECT * FROM versification_scheme;")
             .fetch_all(pool)
@@ -187,6 +189,6 @@ pub async fn get_versification_schemes(pool: &Pool<Postgres>) -> Result<Vec<Vers
             .map_err(DBError::CannotGetVersificationSchemes)?
             .into_iter()
             .map(Into::<VersificationScheme>::into)
-            .collect()
+            .collect(),
     )
 }

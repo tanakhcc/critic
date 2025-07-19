@@ -1,7 +1,10 @@
 use leptos::prelude::*;
 use web_sys::MouseEvent;
 
-use crate::{filetransfer::components::buttons::Button, icons::{CheckIcon, InfoIcon}};
+use crate::{
+    filetransfer::components::buttons::Button,
+    icons::{CheckIcon, InfoIcon},
+};
 
 #[component]
 pub fn TransferComplete(on_continue: impl Fn(MouseEvent) -> () + 'static) -> impl IntoView {

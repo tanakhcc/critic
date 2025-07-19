@@ -13,9 +13,7 @@ use components::{
 };
 
 #[component]
-pub fn TransferPage(
-        msname: String,
-    ) -> impl IntoView {
+pub fn TransferPage(msname: String) -> impl IntoView {
     let files = RwSignal::new(Vec::<SendWrapper<File>>::new());
 
     let transfer_action = Action::new_local(move |files: &Vec<SendWrapper<File>>| {

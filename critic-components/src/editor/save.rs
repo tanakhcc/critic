@@ -2,7 +2,6 @@
 
 use leptos::prelude::*;
 
-
 /// TODO do these properly with writing and getting functions in critic-format
 #[server]
 pub(super) async fn load_editor_state() -> Result<critic_format::streamed::Manuscript, ServerFnError>

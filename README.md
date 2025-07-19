@@ -19,6 +19,12 @@ Use the `--release` toggle for release.
 # TODOs - next
 ## Admin page for adding manuscripts
 ### new page
+#### api endpoint
+should take a number of files
+- minify them (to both preview and thumbnail size)
+- store the three versions (original / preview / thumbnail) on disk
+#### static file server
+serve the images-directory
 ### manuscript meta information
 ### page edit
 ## Overview of required transcriptions

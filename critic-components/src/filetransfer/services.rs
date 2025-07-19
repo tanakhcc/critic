@@ -24,7 +24,10 @@ impl core::fmt::Display for BucketDetail {
 }
 
 /// Transfer files to the api endpoint on the server with a POST request
-pub async fn transfer_file(files: &Vec<web_sys::File>, msname: String) -> Result<BucketDetail, FailureReply> {
+pub async fn transfer_file(
+    files: &Vec<web_sys::File>,
+    msname: String,
+) -> Result<BucketDetail, FailureReply> {
     let form_data = FormData::new().unwrap();
     for file in files.iter() {
         form_data
@@ -32,10 +35,14 @@ pub async fn transfer_file(files: &Vec<web_sys::File>, msname: String) -> Result
             .unwrap();
     }
 
-    match reqwasm::http::Request::post(&format!("{}/{}", critic_shared::PAGE_UPLOAD_API_ENDPOINT, msname))
-        .body(form_data)
-        .send()
-        .await
+    match reqwasm::http::Request::post(&format!(
+        "{}/{}",
+        critic_shared::PAGE_UPLOAD_API_ENDPOINT,
+        msname
+    ))
+    .body(form_data)
+    .send()
+    .await
     {
         Ok(res) => res
             .json::<BucketDetail>()

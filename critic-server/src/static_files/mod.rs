@@ -23,5 +23,8 @@ pub fn image_dir_router(data_directory: &str) -> Result<axum::Router, std::io::E
         return Err(e);
     };
     tracing::debug!("Data directory layout is correct.");
-    Ok(axum::Router::new().nest_service("/images", get_service(ServeDir::new(format!("{}/images", data_directory)))))
+    Ok(axum::Router::new().nest_service(
+        "/images",
+        get_service(ServeDir::new(format!("{}/images", data_directory))),
+    ))
 }
