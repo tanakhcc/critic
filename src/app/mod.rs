@@ -11,6 +11,8 @@ use leptos_use::{use_document, use_event_listener};
 
 mod accordion;
 mod admin;
+mod filetransfer;
+mod icons;
 
 /// This provides context through the entire app. When ShowHelp(true) is present, some components
 /// show a help-text.

@@ -34,6 +34,9 @@ time = { version = "0.3.41", optional = true }
 async-trait = { version = "0.1.88", optional = true }
 # todo remove this - critic format should handle serialization
 quick-xml = { git="https://github.com/curatorsigma/quick-xml.git", branch="serde_roundtrip_xml_attrs", features = ["serialize"] }
+reqwasm = { version = "0.5.0" }
+human_bytes = { version = "0.4.3" }
+send_wrapper = { version = "0.6.0" }
 
 [features]
 hydrate = [
