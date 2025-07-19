@@ -16,8 +16,9 @@ Cargo.lock
 # used for temporary files (e.g. sqlite state, ...)
 tmp/
 
-tailwindcss
+app/tailwindcss
 
-style/output.css
+app/style/output.css
 
 .env
+**/.env

@@ -1,0 +1,24 @@
+[package]
+name = "critic-server"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+axum = { version = "0.8" }
+axum-login = { version = "0.17.0" }
+critic-format = { path="../../critic-format/" }
+critic-shared = { path="../critic-shared/", features = ["ssr"] }
+serde = { version = "1.0.219", features = ["derive"] }
+sqlx = { version = "0.8.2", default-features = false, features = ["migrate", "time", "sqlite", "postgres", "runtime-tokio-rustls", "macros"] }
+tracing = { version = "0.1.40", features = ["attributes"] }
+tracing-appender = { version = "0.2.3" }
+tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"] }
+toml = { version = "0.8.23" }
+oauth2 = { version = "5.0.0" }
+reqwest = { version = "0.12.20", default-features = false, features = ["http2", "rustls-tls", "json"] }
+time = { version = "0.3.41" }
+async-trait = { version = "0.1.88" }
+leptos = { version = "0.8.3", features = ["ssr"] }
