@@ -83,8 +83,8 @@ pub fn ManuscriptList() -> impl IntoView {
             <div
                 id="new-manuscript-button"
                 class="bg-blue-200"
-                class=("block", move || new_manuscript_open.get() == false)
-                class=("hidden", move || new_manuscript_open.get() == true)
+                class=("block", move || new_manuscript_open.get())
+                class=("hidden", move || new_manuscript_open.get())
                 >
                 <button
                     on:click=move |_| {
@@ -97,8 +97,8 @@ pub fn ManuscriptList() -> impl IntoView {
             <div
                 id="new-manuscript-form"
                 class="bg-blue-200"
-                class=("block", move || new_manuscript_open.get() == true)
-                class=("hidden", move || new_manuscript_open.get() == false)
+                class=("block", move || new_manuscript_open.get())
+                class=("hidden", move || new_manuscript_open.get())
                 >
                 <form
                     on:submit=move |ev| {
@@ -215,7 +215,7 @@ pub fn Manuscript() -> impl IntoView {
         }
     });
 
-    return view! {
+    view! {
         <Transition fallback=|| view!{ "Loading manuscript information..." }>
             {move ||
                 manuscript_info.get().map(|info_res|
@@ -238,8 +238,8 @@ pub fn Manuscript() -> impl IntoView {
                                 <div class="relative h-full bg-pink-300">
                                     // wrapper around the page upload form - this is show over the
                                     // entire page-list and page info part of the page
-                                    <Show when=move || show_page_upload.get() == true
-                                          fallback=|| view!{}>
+                                    <Show when=move || show_page_upload.get()
+                                          fallback=|| {}>
                                         <div class="absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
                                             <div class="relative inset-1/12 w-10/12">
                                             <div class="bg-violet-50">
@@ -297,7 +297,7 @@ pub fn Manuscript() -> impl IntoView {
                 )
             }
         </Transition>
-    };
+    }
 }
 
 /// Show meta-information for an individual manuscript
