@@ -13,7 +13,7 @@ use tower_http::services::ServeDir;
 /// If any of the intermediate paths already exist as files, this fails
 fn create_data_directory_layout(data_directory: &str) -> Result<(), std::io::Error> {
     // the directory for manuscript images
-    std::fs::create_dir_all(format!("{}{}", data_directory, IMAGE_BASE_LOCATION))?;
+    std::fs::create_dir_all(format!("{data_directory}{IMAGE_BASE_LOCATION}"))?;
     Ok(())
 }
 
@@ -26,6 +26,6 @@ pub fn image_dir_router(data_directory: &str) -> Result<axum::Router, std::io::E
     tracing::debug!("Data directory layout is correct.");
     Ok(axum::Router::new().nest_service(
         IMAGE_BASE_LOCATION,
-        get_service(ServeDir::new(format!("{}{}", data_directory, IMAGE_BASE_LOCATION))),
+        get_service(ServeDir::new(format!("{data_directory}{IMAGE_BASE_LOCATION}"))),
     ))
 }

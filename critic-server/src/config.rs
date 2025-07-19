@@ -103,13 +103,12 @@ impl OauthConfig {
         Ok(Self {
             client_id: oauth2::ClientId::new(value.client_id),
             client_secret: oauth2::ClientSecret::new(value.client_secret),
-            auth_url: oauth2::AuthUrl::new(format!("https://{}/oauth/authorize", gitlab_addr))
+            auth_url: oauth2::AuthUrl::new(format!("https://{gitlab_addr}/oauth/authorize"))
                 .map_err(ConfigError::GitlabAddrParse)?,
-            token_url: oauth2::TokenUrl::new(format!("https://{}/oauth/token", gitlab_addr))
+            token_url: oauth2::TokenUrl::new(format!("https://{gitlab_addr}/oauth/token"))
                 .map_err(ConfigError::GitlabAddrParse)?,
             redirect_url: oauth2::RedirectUrl::new(format!(
-                "https://{}/oauth/redirect",
-                public_addr
+                "https://{public_addr}/oauth/redirect"
             ))
             .map_err(ConfigError::PublicAddrParse)?,
         })
