@@ -7,12 +7,13 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use critic_shared::{urls::IMAGE_BASE_LOCATION, FileTransferOkResponse};
+use critic_shared::{urls::IMAGE_BASE_LOCATION, FileTransferResponse};
 use reqwest::StatusCode;
 
 use crate::{
     auth::AuthSession,
     config::Config,
+    db::add_page,
     gitlab::{get_user_role, GitlabUserRole},
 };
 
@@ -101,26 +102,31 @@ pub async fn page_upload(
                             )
                                 .into_response();
                         };
-                        match std::fs::write(format!("{directory_path}/original.{extension}"), data)
+                        if let Err(e) =
+                            std::fs::write(format!("{directory_path}/original.{extension}"), data)
                         {
-                            Ok(()) => {
-                                // TODO
-                                // start minifcation in new thread
-                                // add database entry
-                                tracing::debug!(
-                                    "saved new page for {msname} to file: {base_name}.{extension}."
-                                );
-                                new_pages += 1;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Unable to write manuscript page to file: {e}");
-                                return (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    "Failed to write Page to file.",
-                                )
-                                    .into_response();
-                            }
+                            tracing::warn!("Unable to write manuscript page to file: {e}");
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Failed to write Page to file.",
+                            )
+                                .into_response();
                         }
+                        if let Err(e) = add_page(&config.db, &base_name, &msname).await {
+                            tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Failed to insert new page into the db: {e}."),
+                            )
+                                .into_response();
+                        }
+                        // TODO
+                        // start minifcation in new thread
+                        tracing::info!(
+                            "{} saved new page for {msname}: {base_name}.{extension}.",
+                            user.username
+                        );
+                        new_pages += 1;
                     }
                     Ok(None) => {
                         break;
@@ -131,7 +137,14 @@ pub async fn page_upload(
                     }
                 };
             }
-            (StatusCode::OK, Json(FileTransferOkResponse { new_pages })).into_response()
+            (
+                StatusCode::OK,
+                Json(FileTransferResponse {
+                    new_pages,
+                    err: None,
+                }),
+            )
+                .into_response()
         }
     } else {
         StatusCode::UNAUTHORIZED.into_response()

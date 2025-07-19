@@ -22,11 +22,11 @@ Use the `--release` toggle for release.
 #### api endpoint
 should take a number of files
 - minify them (to both preview and thumbnail size)
-- store the three versions (original / preview / thumbnail) on disk
-#### static file server
-serve the images-directory
+    - store the three versions (original / preview / thumbnail) on disk
 ### manuscript meta information
 ### page edit
+- change name
+- upload new image
 ## Overview of required transcriptions
 ## Saving transcriptions
 

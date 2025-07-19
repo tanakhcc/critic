@@ -183,7 +183,7 @@ pub async fn get_manuscript_by_name(
 ) -> Result<critic_shared::Manuscript, ServerFnError> {
     let config: std::sync::Arc<critic_server::config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_manuscript(&config.db, msname).await;
+    let res = critic_server::db::get_manuscript(&config.db, &msname).await;
     match res {
         Ok(x) => Ok(x),
         Err(e @ critic_server::db::DBError::ManuscriptDoesNotExist(_)) => {

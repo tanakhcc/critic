@@ -9,6 +9,8 @@ CREATE TABLE page (
 	verse_start BIGINT REFERENCES verse(id),
 	--- the last verse on this page
 	verse_end BIGINT REFERENCES verse(id),
+	--- is the minification for this image already done?
+	minified BOOL NOT NULL DEFAULT false,
 	--- the pages of an individual manuscript have to have different names
 	UNIQUE(manuscript, name)
 );

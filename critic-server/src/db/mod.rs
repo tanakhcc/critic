@@ -33,6 +33,8 @@ pub enum DBError {
     CannotAddManuscript(sqlx::Error),
     /// Unable to get versification schemes
     CannotGetVersificationSchemes(sqlx::Error),
+    /// failed to insert a page
+    CannotInsertPage(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -63,6 +65,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetVersificationSchemes(e) => {
                 write!(f, "Unable to get versification schemes: {e}")
+            }
+            Self::CannotInsertPage(e) => {
+                write!(f, "Unable to insert page: {e}")
             }
         }
     }
@@ -108,7 +113,7 @@ pub async fn insert_or_update_user_session(
 
 async fn get_manuscript_meta(
     pool: &Pool<Postgres>,
-    msname: String,
+    msname: &str,
 ) -> Result<critic_shared::ManuscriptMeta, DBError> {
     sqlx::query_as!(
         critic_shared::ManuscriptMeta,
@@ -118,7 +123,7 @@ async fn get_manuscript_meta(
     .fetch_optional(pool)
     .await
     .map_err(DBError::CannotGetManuscript)?
-    .ok_or(DBError::ManuscriptDoesNotExist(msname))
+    .ok_or(DBError::ManuscriptDoesNotExist(msname.to_string()))
 }
 
 async fn get_manuscript_page_rows(
@@ -127,7 +132,7 @@ async fn get_manuscript_page_rows(
 ) -> Result<Vec<PageMeta>, DBError> {
     sqlx::query_as!(
         PageMeta,
-        "SELECT page.id, page.name, page.verse_start, page.verse_end
+        "SELECT page.id, manuscript.id as manuscript_id, page.name, page.verse_start, page.verse_end
             FROM manuscript
             INNER JOIN page on page.manuscript = manuscript.id
             WHERE manuscript.id = $1
@@ -142,7 +147,7 @@ async fn get_manuscript_page_rows(
 /// Get the metainformation for a manuscript from the db
 pub async fn get_manuscript(
     pool: &Pool<Postgres>,
-    msname: String,
+    msname: &str,
 ) -> Result<critic_shared::Manuscript, DBError> {
     let meta = get_manuscript_meta(pool, msname).await?;
     let pages = get_manuscript_page_rows(pool, meta.id).await?;
@@ -190,4 +195,18 @@ pub async fn get_versification_schemes(
             .into_iter()
             .collect(),
     )
+}
+
+pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str) -> Result<(), DBError> {
+    // get manuscript id
+    let ms_meta = get_manuscript_meta(pool, msname).await?;
+    sqlx::query!(
+        "INSERT INTO page (manuscript, name) VALUES ($1, $2);",
+        ms_meta.id,
+        pagename,
+    )
+    .execute(pool)
+    .await
+    .map(|_| {})
+    .map_err(DBError::CannotInsertPage)
 }

@@ -1,6 +1,6 @@
 //! The service actually uploading files (by sending POST requests to the server)
 
-use critic_shared::FileTransferOkResponse;
+use critic_shared::FileTransferResponse;
 use web_sys::FormData;
 
 #[derive(Debug, Default, Clone)]
@@ -17,7 +17,7 @@ impl core::fmt::Display for FailureReply {
 pub async fn transfer_file(
     files: &[web_sys::File],
     msname: String,
-) -> Result<FileTransferOkResponse, FailureReply> {
+) -> Result<FileTransferResponse, FailureReply> {
     let form_data = FormData::new().unwrap();
     for file in files.iter() {
         form_data
@@ -35,13 +35,23 @@ pub async fn transfer_file(
     .send()
     .await
     {
-        // TODO: we can be smarter then this and actually get the error message the server gave us
-        Ok(res) => res
-            .json::<FileTransferOkResponse>()
-            .await
-            .map_err(|err| FailureReply {
-                message: err.to_string(),
-            }),
+        Ok(res) => {
+            match res
+                .json::<FileTransferResponse>()
+                .await
+                .map_err(|err| FailureReply {
+                    message: err.to_string(),
+                }) {
+                Ok(x) => {
+                    if let Some(message) = x.err {
+                        Err(FailureReply { message })
+                    } else {
+                        Ok(x)
+                    }
+                }
+                Err(e) => Err(e),
+            }
+        }
         Err(err) => Err(FailureReply {
             message: err.to_string(),
         })?,

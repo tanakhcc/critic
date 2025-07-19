@@ -8,10 +8,11 @@ use sqlx::FromRow;
 
 /// Response from the backend when a file transfer succeeded
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
-pub struct FileTransferOkResponse {
+pub struct FileTransferResponse {
     pub new_pages: i32,
+    pub err: Option<String>,
 }
-impl core::fmt::Display for FileTransferOkResponse {
+impl core::fmt::Display for FileTransferResponse {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.new_pages)
     }
@@ -54,6 +55,7 @@ pub struct Manuscript {
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct PageMeta {
     pub id: i64,
+    pub manuscript_id: i64,
     pub name: String,
     pub verse_start: Option<i64>,
     pub verse_end: Option<i64>,
