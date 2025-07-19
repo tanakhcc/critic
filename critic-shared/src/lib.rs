@@ -1,13 +1,22 @@
 //! Types and functions shared by App and Server
 
-// some statics shared
-/// The api endpoint where new manuscript pages should be uploaded to
-/// The manuscriptname these pages belong to will be appended after this string (and a /)
-pub const PAGE_UPLOAD_API_ENDPOINT: &str = "/upload/v1/page";
+pub mod urls;
 
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::FromRow;
+
+/// Response from the backend when a file transfer succeeded
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+pub struct FileTransferOkResponse {
+    pub new_pages: i32,
+}
+impl core::fmt::Display for FileTransferOkResponse {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", self.new_pages)
+    }
+}
+
 
 /// The names of a versification scheme
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

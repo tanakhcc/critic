@@ -140,6 +140,21 @@ impl From<OauthConfig> for OauthClient {
     }
 }
 
+/// Config partaining to the gitlab instance
+#[derive(Deserialize, Debug)]
+pub struct GitlabConfig {
+    /// the address where we can talk to gitlab
+    pub addr: String,
+    /// The name of the group, access to which configures access to the project (Dev / Maintainer)
+    ///
+    /// NOT url-encoded, e.g. `supergroup/subgroup`
+    pub group_name: String,
+    /// The url-encoded name of the main project to interact with
+    ///
+    /// This project MUST live in the namespace given by group_name
+    pub project_name: String,
+}
+
 /// The config data as it is present in (a well-formed) toml config file
 #[derive(Deserialize)]
 struct ConfigData {
@@ -148,7 +163,7 @@ struct ConfigData {
     log_level: Option<String>,
     oauth: OauthConfigData,
     /// used as server part for determining where to communicate to gitlab
-    gitlab_addr: String,
+    gitlab: GitlabConfig,
     /// The directory where xml and image files should live
     ///
     /// critic will create the required substructure there
@@ -165,7 +180,7 @@ pub struct Config {
     pub log_level: LevelFilter,
     pub oauth_client: OauthClient,
     /// used as server part for determining where to communicate to gitlab
-    pub gitlab_addr: String,
+    pub gitlab: GitlabConfig,
     pub data_directory: String,
 }
 impl Config {
@@ -206,11 +221,11 @@ impl Config {
             log_level,
             oauth_client: OauthConfig::try_from_config_data(
                 value.oauth,
-                &value.gitlab_addr,
+                &value.gitlab.addr,
                 &value.web.public_addr,
             )?
             .into(),
-            gitlab_addr: value.gitlab_addr,
+            gitlab: value.gitlab,
             data_directory: value.data_directory,
         })
     }

@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-axum = { version = "0.8" }
+axum = { version = "0.8", features = ["multipart"] }
 axum-login = { version = "0.17.0" }
 critic-format = { path="../../critic-format/" }
 critic-shared = { path="../critic-shared/", features = ["ssr"] }
@@ -23,4 +23,5 @@ time = { version = "0.3.41" }
 async-trait = { version = "0.1.88" }
 leptos = { version = "0.8.3", features = ["ssr"] }
 tower-http = { version = "0.6.6", features = ["fs"] }
+urlencoding = "2.1.3"
 

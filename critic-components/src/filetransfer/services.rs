@@ -1,6 +1,6 @@
 //! The service actually uploading files (by sending POST requests to the server)
 
-use serde::Deserialize;
+use critic_shared::FileTransferOkResponse;
 use web_sys::FormData;
 
 #[derive(Debug, Default, Clone)]
@@ -13,21 +13,11 @@ impl core::fmt::Display for FailureReply {
     }
 }
 
-#[derive(Debug, Deserialize, Default, Clone)]
-pub struct BucketDetail {
-    pub bucket_id: String,
-}
-impl core::fmt::Display for BucketDetail {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{}", self.bucket_id)
-    }
-}
-
 /// Transfer files to the api endpoint on the server with a POST request
 pub async fn transfer_file(
     files: &Vec<web_sys::File>,
     msname: String,
-) -> Result<BucketDetail, FailureReply> {
+) -> Result<FileTransferOkResponse, FailureReply> {
     let form_data = FormData::new().unwrap();
     for file in files.iter() {
         form_data
@@ -36,16 +26,18 @@ pub async fn transfer_file(
     }
 
     match reqwasm::http::Request::post(&format!(
-        "{}/{}",
-        critic_shared::PAGE_UPLOAD_API_ENDPOINT,
+        "{}{}/{}",
+        critic_shared::urls::UPLOAD_BASE_URL,
+        critic_shared::urls::PAGE_UPLOAD_API_ENDPOINT,
         msname
     ))
     .body(form_data)
     .send()
     .await
     {
+        // TODO: we can be smarter then this and actually get the error message the server gave us
         Ok(res) => res
-            .json::<BucketDetail>()
+            .json::<FileTransferOkResponse>()
             .await
             .map_err(|err| FailureReply {
                 message: err.to_string(),

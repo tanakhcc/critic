@@ -7,14 +7,15 @@
 async fn main() {
     use std::sync::Arc;
 
-    use axum::Router;
+    use axum::{Extension, Router};
     use axum_login::{
         login_required,
         tower_sessions::{Expiry, MemoryStore, SessionManagerLayer},
         AuthManagerLayerBuilder,
     };
     use critic::app::*;
-    use critic_server::auth::GitlabOauthBackend;
+    use critic_server::{auth::GitlabOauthBackend, upload::upload_router};
+    use critic_shared::urls::{STATIC_BASE_URL, UPLOAD_BASE_URL};
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use time::Duration;
@@ -87,10 +88,13 @@ async fn main() {
             }
         };
     let app = app_core
+        .nest(UPLOAD_BASE_URL, upload_router())
         .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
         .merge(critic_server::auth::backend::auth_router())
         .layer(auth_layer)
-        .nest("/static", static_router);
+        .nest(STATIC_BASE_URL, static_router)
+        .layer(Extension(config_arc.clone()))
+        ;
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
