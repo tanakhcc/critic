@@ -39,6 +39,8 @@ pub enum DBError {
     CannotGetMinificationCandidate(sqlx::Error),
     CannotMarkPageMinificationFailed(sqlx::Error),
     CannotMarkPageMinified(sqlx::Error),
+    CannotGetPage(sqlx::Error),
+    PageAlreadyExists,
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -81,6 +83,15 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotMarkPageMinified(e) => {
                 write!(f, "Unable to mark page as minified: {e}")
+            }
+            Self::CannotGetPage(e) => {
+                write!(f, "Unable to get page: {e}")
+            }
+            Self::PageAlreadyExists => {
+                write!(
+                    f,
+                    "A page with this name already exists for this manuscript."
+                )
             }
         }
     }
@@ -213,15 +224,35 @@ pub async fn get_versification_schemes(
 pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str) -> Result<(), DBError> {
     // get manuscript id
     let ms_meta = get_manuscript_meta(pool, msname).await?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+
+    if sqlx::query!(
+        "SELECT id FROM page WHERE manuscript = $1 AND name = $2;",
+        ms_meta.id,
+        pagename
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(DBError::CannotGetPage)?
+    .is_some()
+    {
+        return Err(DBError::PageAlreadyExists);
+    };
+
     sqlx::query!(
         "INSERT INTO page (manuscript, name) VALUES ($1, $2);",
         ms_meta.id,
         pagename,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map(|_| {})
-    .map_err(DBError::CannotInsertPage)
+    .map_err(DBError::CannotInsertPage)?;
+
+    tx.commit().await.map_err(DBError::CannotCommitTransaction)
 }
 
 /// page information plus the name of the MS it belongs to

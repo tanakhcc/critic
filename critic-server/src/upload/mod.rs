@@ -89,6 +89,14 @@ pub async fn page_upload(
 
                         let data = field.bytes().await.unwrap();
 
+                        // try insert into the DB first
+                        if let Err(e) = add_page(&config.db, &base_name, &msname).await {
+                            tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
+                            results
+                                .push_err(format!("Failed to insert new page into the db: {e}."));
+                            continue;
+                        }
+                        // that worked - now deal with the file system
                         let directory_path = format!(
                             "{}{}/{msname}/{base_name}",
                             config.data_directory, IMAGE_BASE_LOCATION
@@ -102,12 +110,6 @@ pub async fn page_upload(
                         if let Err(e) = std::fs::write(format!("{directory_path}/original"), data) {
                             tracing::warn!("Unable to write manuscript page to file: {e}");
                             results.push_err("Failed to write Page to file.".to_string());
-                            continue;
-                        }
-                        if let Err(e) = add_page(&config.db, &base_name, &msname).await {
-                            tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
-                            results
-                                .push_err(format!("Failed to insert new page into the db: {e}."));
                             continue;
                         }
                         tracing::info!(

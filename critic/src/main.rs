@@ -144,7 +144,10 @@ async fn main() {
     tracing::debug!("Tracing enabled.");
 
     // setup global rayon threadpool
-    rayon::ThreadPoolBuilder::new().num_threads(config_arc.worker_threads.into()).build_global().expect("First threadpool initialization.");
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(config_arc.worker_threads.into())
+        .build_global()
+        .expect("First threadpool initialization.");
 
     // cancellation channel
     let (tx, rx) = tokio::sync::watch::channel(InShutdown::No);
