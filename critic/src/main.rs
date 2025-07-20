@@ -2,7 +2,6 @@
 
 #![recursion_limit = "256"]
 
-
 #[cfg(feature = "ssr")]
 async fn shutdown_signal(
     handle: axum_server::Handle,
@@ -31,7 +30,9 @@ pub async fn run_web_server(
         AuthManagerLayerBuilder,
     };
     use critic::app::*;
-    use critic_server::{auth::GitlabOauthBackend, signal_handler::InShutdown, upload::upload_router};
+    use critic_server::{
+        auth::GitlabOauthBackend, signal_handler::InShutdown, upload::upload_router,
+    };
     use critic_shared::urls::{STATIC_BASE_URL, UPLOAD_BASE_URL};
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -49,7 +50,9 @@ pub async fn run_web_server(
             &config.leptos_options,
             routes,
             move || {
-                provide_context::<std::sync::Arc<critic_server::config::Config>>(config_capsule.clone());
+                provide_context::<std::sync::Arc<critic_server::config::Config>>(
+                    config_capsule.clone(),
+                );
             },
             {
                 let leptos_options = config.leptos_options.clone();
@@ -68,16 +71,16 @@ pub async fn run_web_server(
     let backend = GitlabOauthBackend::new(config.clone());
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
-    let static_router =
-        match critic_server::static_files::image_dir_router(&config.data_directory) {
-            Ok(x) => x,
-            Err(e) => {
-                tracing::error!("Cannot recover when data directory layout is wrong: {e}.");
-                tracing::error!("Shutting down NOW");
-                shutdown_tx.send_replace(InShutdown::Yes);
-                return;
-            }
-        };
+    let static_router = match critic_server::static_files::image_dir_router(&config.data_directory)
+    {
+        Ok(x) => x,
+        Err(e) => {
+            tracing::error!("Cannot recover when data directory layout is wrong: {e}.");
+            tracing::error!("Shutting down NOW");
+            shutdown_tx.send_replace(InShutdown::Yes);
+            return;
+        }
+    };
     let app = app_core
         .nest(UPLOAD_BASE_URL, upload_router())
         .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
@@ -86,8 +89,6 @@ pub async fn run_web_server(
         .nest(STATIC_BASE_URL, static_router)
         .layer(Extension(config.clone()));
 
-
-
     let shutdown_handle = axum_server::Handle::new();
     let shutdown_future = shutdown_signal(shutdown_handle.clone(), watcher.clone());
 
@@ -95,10 +96,7 @@ pub async fn run_web_server(
     let web_server_future = axum_server::bind(config.leptos_options.site_addr)
         .handle(shutdown_handle.clone())
         .serve(app.clone().into_make_service());
-    tracing::info!(
-        "listening on http://{}",
-        &config.leptos_options.site_addr
-    );
+    tracing::info!("listening on http://{}", &config.leptos_options.site_addr);
     // wait until either some other component shuts down or the webserver shuts down
     tokio::select! {
         r = web_server_future => {
@@ -117,7 +115,7 @@ pub async fn run_web_server(
 async fn main() {
     use std::sync::Arc;
 
-    use critic_server::signal_handler::InShutdown;
+    use critic_server::{minification::run_minification, signal_handler::InShutdown};
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
     let config = match critic_server::config::Config::try_create().await {
@@ -148,12 +146,20 @@ async fn main() {
     // cancellation channel
     let (tx, rx) = tokio::sync::watch::channel(InShutdown::No);
     // start the Signal handler
-    let signal_handle = tokio::spawn(critic_server::signal_handler::signal_handler(tx.subscribe(), tx.clone()));
-    let web_server = tokio::spawn(run_web_server(config_arc, tx.subscribe(), tx.clone()));
+    let signal_handle = tokio::spawn(critic_server::signal_handler::signal_handler(
+        rx,
+        tx.clone(),
+    ));
+    let web_server = tokio::spawn(run_web_server(
+        config_arc.clone(),
+        tx.subscribe(),
+        tx.clone(),
+    ));
+    let minification_service = tokio::spawn(run_minification(config_arc, tx.subscribe()));
 
-    // Join both tasks
-    let (signal_res, web_res) =
-        tokio::join!(signal_handle, web_server,);
+    // Join the different services
+    let (signal_res, web_res, minification_res) =
+        tokio::join!(signal_handle, web_server, minification_service);
     match signal_res {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
@@ -165,6 +171,9 @@ async fn main() {
     };
     if let Err(e) = web_res {
         tracing::error!("Error joining the web server task: {e}");
+    };
+    if let Err(e) = minification_res {
+        tracing::error!("Error joining the minificaiton service: {e}");
     };
 }
 

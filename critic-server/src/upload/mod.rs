@@ -7,7 +7,9 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use critic_shared::{urls::IMAGE_BASE_LOCATION, FileTransferResponse, ALLOWED_IMAGE_EXTENSIONS, MAX_BODY_SIZE};
+use critic_shared::{
+    urls::IMAGE_BASE_LOCATION, FileTransferResponse, ALLOWED_IMAGE_EXTENSIONS, MAX_BODY_SIZE,
+};
 use reqwest::StatusCode;
 
 use crate::{
@@ -54,40 +56,34 @@ pub async fn page_upload(
                 match mpart.next_field().await {
                     Ok(Some(field)) => {
                         let Some(file_name) = field.file_name() else {
-                            results.push_err(
-                                "The file name must be set for each file.".to_string(),
-                            );
+                            results
+                                .push_err("The file name must be set for each file.".to_string());
                             continue;
                         };
                         let mut dot_split = file_name.split('.');
                         let base_name = match dot_split.next() {
                             Some(x) => x.to_string(),
                             None => {
-                                results.push_err(
-                                    "Filename did not contain a basename.".to_string(),
-                                    );
+                                results
+                                    .push_err("Filename did not contain a basename.".to_string());
                                 continue;
                             }
                         };
                         let extension = match dot_split.next() {
                             Some(x) => x.to_string(),
                             None => {
-                                results.push_err(
-                                    "Filename did not contain an extension.".to_string(),
-                                    );
+                                results
+                                    .push_err("Filename did not contain an extension.".to_string());
                                 continue;
                             }
                         };
                         if !ALLOWED_IMAGE_EXTENSIONS.contains(&extension.as_str()) {
-                            results.push_err(
-                                "Extension is not allowed.".to_string()
-                                );
+                            results.push_err("Extension is not allowed.".to_string());
                             continue;
                         };
                         if dot_split.next().is_some() {
-                            results.push_err(
-                                "Filename did not contain exactly one dot.".to_string(),
-                                );
+                            results
+                                .push_err("Filename did not contain exactly one dot.".to_string());
                             continue;
                         };
 
@@ -98,25 +94,20 @@ pub async fn page_upload(
                             config.data_directory, IMAGE_BASE_LOCATION
                         );
                         if let Err(e) = std::fs::create_dir_all(&directory_path) {
-                            results.push_err(
-                                format!("Failed to crate directory to put new page into: {e}."),
-                                );
+                            results.push_err(format!(
+                                "Failed to crate directory to put new page into: {e}."
+                            ));
                             continue;
                         };
-                        if let Err(e) =
-                            std::fs::write(format!("{directory_path}/original.{extension}"), data)
-                        {
+                        if let Err(e) = std::fs::write(format!("{directory_path}/original"), data) {
                             tracing::warn!("Unable to write manuscript page to file: {e}");
-                            results.push_err(
-                                "Failed to write Page to file.".to_string(),
-                                );
+                            results.push_err("Failed to write Page to file.".to_string());
                             continue;
                         }
                         if let Err(e) = add_page(&config.db, &base_name, &msname).await {
                             tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
-                            results.push_err(
-                                format!("Failed to insert new page into the db: {e}."),
-                                );
+                            results
+                                .push_err(format!("Failed to insert new page into the db: {e}."));
                             continue;
                         }
                         tracing::info!(
@@ -135,10 +126,12 @@ pub async fn page_upload(
                 };
             }
             (
-                if results.err.iter().all(|e| e.is_none()) { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR },
-                Json(
-                    results
-                ),
+                if results.err.iter().all(|e| e.is_none()) {
+                    StatusCode::OK
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                },
+                Json(results),
             )
                 .into_response()
         }

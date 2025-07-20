@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE page\n         SET minified = true\n         WHERE id = $1;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c0e87e3e480365feaf5fdb6ab0f05a867852eb14f74e3df998dd824a58674c30"
+}

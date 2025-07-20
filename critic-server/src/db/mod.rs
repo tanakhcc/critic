@@ -1,6 +1,6 @@
 //! Communication with the postgres database
 
-use sqlx::{query_as, Pool, Postgres};
+use sqlx::{prelude::FromRow, query_as, Pool, Postgres};
 
 use critic_shared::{PageMeta, VersificationScheme};
 
@@ -14,7 +14,7 @@ pub async fn migrate(pool: &Pool<Postgres>) {
     match sqlx::migrate!().run(pool).await {
         Ok(_) => {}
         Err(e) => {
-            panic!("Eeror migrating database: {e}");
+            panic!("Error migrating database: {e}");
         }
     }
 }
@@ -35,6 +35,10 @@ pub enum DBError {
     CannotGetVersificationSchemes(sqlx::Error),
     /// failed to insert a page
     CannotInsertPage(sqlx::Error),
+    /// failed to get a page to minify
+    CannotGetMinificationCandidate(sqlx::Error),
+    CannotMarkPageMinificationFailed(sqlx::Error),
+    CannotMarkPageMinified(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -68,6 +72,15 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotInsertPage(e) => {
                 write!(f, "Unable to insert page: {e}")
+            }
+            Self::CannotGetMinificationCandidate(e) => {
+                write!(f, "Unable to get next page to minify: {e}")
+            }
+            Self::CannotMarkPageMinificationFailed(e) => {
+                write!(f, "Unable to mark page minification as failed: {e}")
+            }
+            Self::CannotMarkPageMinified(e) => {
+                write!(f, "Unable to mark page as minified: {e}")
             }
         }
     }
@@ -209,4 +222,79 @@ pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str) -> Re
     .await
     .map(|_| {})
     .map_err(DBError::CannotInsertPage)
+}
+
+/// page information plus the name of the MS it belongs to
+#[derive(FromRow, PartialEq, Clone)]
+struct _PageMetaWithMsName {
+    manuscript_name: String,
+    id: i64,
+    manuscript_id: i64,
+    name: String,
+    verse_start: Option<i64>,
+    verse_end: Option<i64>,
+}
+impl From<_PageMetaWithMsName> for (String, PageMeta) {
+    fn from(value: _PageMetaWithMsName) -> Self {
+        (
+            value.manuscript_name,
+            PageMeta {
+                id: value.id,
+                manuscript_id: value.manuscript_id,
+                name: value.name,
+                verse_start: value.verse_start,
+                verse_end: value.verse_end,
+            },
+        )
+    }
+}
+
+/// Get a single page that should be minified
+///
+/// These have minified = false and minification_failed = false
+pub async fn get_page_to_minify(
+    pool: &Pool<Postgres>,
+) -> Result<Option<(String, PageMeta)>, DBError> {
+    if let Some(page) = sqlx::query_as!(_PageMetaWithMsName,
+        "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end
+         FROM page
+         INNER JOIN manuscript on page.manuscript = manuscript.id
+         WHERE minified = false AND minification_failed = false
+         LIMIT 1;")
+        .fetch_optional(pool)
+        .await
+        .map_err(DBError::CannotGetMinificationCandidate)? {
+            Ok(Some(page.into()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn mark_page_minifcation_failed(
+    pool: &Pool<Postgres>,
+    page_id: i64,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE page
+         SET minification_failed = true
+         WHERE id = $1;",
+        page_id
+    )
+    .execute(pool)
+    .await
+    .map_err(DBError::CannotMarkPageMinificationFailed)
+    .map(|_| {})
+}
+
+pub async fn mark_page_minified(pool: &Pool<Postgres>, page_id: i64) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE page
+         SET minified = true
+         WHERE id = $1;",
+        page_id
+    )
+    .execute(pool)
+    .await
+    .map_err(DBError::CannotMarkPageMinified)
+    .map(|_| {})
 }

@@ -22,9 +22,7 @@ pub fn TransferPage(msname: String) -> impl IntoView {
             .map(|wrapped| wrapped.clone().take())
             .collect::<Vec<_>>();
         let name = msname.clone();
-        async move {
-            services::transfer_files(&selected_files, &name).await
-        }
+        async move { services::transfer_files(&selected_files, &name).await }
     });
     let transfer_pending = transfer_action.pending();
     let transfer_reply = transfer_action.value();

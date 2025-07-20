@@ -23,31 +23,29 @@ pub async fn transfer_batch(files: &[web_sys::File], msname: &str) -> FileTransf
     .send()
     .await
     {
-        Ok(res) => {
-            match res
-                .json::<FileTransferResponse>()
-                .await
-            {
-                Ok(x) => {
-                    this_batch_response = x;
-                }
-                Err(e) => {
-                    this_batch_response.push_err_batch(format!("There was a problem deserializing response: {e}."), files.len());
-                },
+        Ok(res) => match res.json::<FileTransferResponse>().await {
+            Ok(x) => {
+                this_batch_response = x;
             }
-        }
+            Err(e) => {
+                this_batch_response.push_err_batch(
+                    format!("There was a problem deserializing response: {e}."),
+                    files.len(),
+                );
+            }
+        },
         Err(e) => {
-            this_batch_response.push_err_batch(format!("There was a problem sending the POST request: {e}."), files.len());
+            this_batch_response.push_err_batch(
+                format!("There was a problem sending the POST request: {e}."),
+                files.len(),
+            );
         }
     };
     this_batch_response
 }
 
 /// Transfer files to the api endpoint on the server with a POST request
-pub async fn transfer_files(
-    files: &[web_sys::File],
-    msname: &str,
-) -> FileTransferResponse {
+pub async fn transfer_files(files: &[web_sys::File], msname: &str) -> FileTransferResponse {
     let mut response = FileTransferResponse::new();
     // loop; take as many files as possible until the upload limit is reached
     // send a batch, update the response with the results
@@ -62,7 +60,12 @@ pub async fn transfer_files(
         // `file` would make this batch to large. send the last one
         } else {
             // send this batch
-            response.extend(transfer_batch(&files[batch_start..batch_end], msname).await.err.into_iter());
+            response.extend(
+                transfer_batch(&files[batch_start..batch_end], msname)
+                    .await
+                    .err
+                    .into_iter(),
+            );
             // start a new batch - this starts with (and contains) the file we are currently on
             batch_start = batch_end;
             batch_end = batch_start + 1;
@@ -76,9 +79,14 @@ pub async fn transfer_files(
                 current_batch_size = 0_f64;
             };
         };
-    };
+    }
     // send the final batch
-    response.extend(transfer_batch(&files[batch_start..batch_end], msname).await.err.into_iter());
+    response.extend(
+        transfer_batch(&files[batch_start..batch_end], msname)
+            .await
+            .err
+            .into_iter(),
+    );
     // and return the responses
     response
 }

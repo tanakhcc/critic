@@ -30,7 +30,11 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl Into
 }
 
 #[component]
-pub fn TransferFailed(errs: Vec<Option<String>>, filenames: Vec<String>, on_try_again: impl Fn(MouseEvent) + 'static) -> impl IntoView {
+pub fn TransferFailed(
+    errs: Vec<Option<String>>,
+    filenames: Vec<String>,
+    on_try_again: impl Fn(MouseEvent) + 'static,
+) -> impl IntoView {
     let (busy_reader, _) = signal(false);
 
     view! {

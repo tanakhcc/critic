@@ -15,8 +15,7 @@ pub const MAX_BODY_SIZE: usize = 150 * 1024 * 1024;
 
 /// Response from the backend after file uploads
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
-pub struct FileTransferResponse
-{
+pub struct FileTransferResponse {
     pub err: Vec<Option<String>>,
 }
 impl FileTransferResponse {
@@ -38,11 +37,11 @@ impl FileTransferResponse {
     }
     /// There was the same problem uploading a bunch of files
     pub fn push_err_batch(&mut self, error: String, batch_size: usize) {
-        self.err.extend(std::iter::repeat(Some(error)).take(batch_size));
+        self.err
+            .extend(std::iter::repeat(Some(error)).take(batch_size));
     }
 }
-impl Extend<Option<String>> for FileTransferResponse
-{
+impl Extend<Option<String>> for FileTransferResponse {
     fn extend<T: IntoIterator<Item = Option<String>>>(&mut self, iter: T) {
         self.err.extend(iter);
     }

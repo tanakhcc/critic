@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end\n         FROM page\n         INNER JOIN manuscript on page.manuscript = manuscript.id\n         WHERE minified = false AND minification_failed = false\n         LIMIT 1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "manuscript_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "manuscript_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "verse_start",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "verse_end",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f29fefdfe66bb5f9075261ce4fe041c4f7fa753bfa597f1ebe9f83f232dd166e"
+}
