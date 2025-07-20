@@ -78,18 +78,18 @@ pub fn ManuscriptList() -> impl IntoView {
     view! {
         <div id="ManuscriptList-wrapper" class="h-full flex flex-row justify-start">
         // the left sidebar containing the different manuscripts
-        <div id="ms-sidebar-wrapper" class="flex flex-col justify-start w-1/4">
+        <div id="ms-sidebar-wrapper" class="flex flex-col justify-start w-1/4 overflow-auto bg-violet-100">
             // the search bar, new-manuscript-button and actual list
             <div id="new-manuscript-error" class="bg-red-200">
                 {new_manuscript_error}
             </div>
             <div
                 id="new-manuscript-button"
-                class="bg-blue-200"
-                class=("block", move || !new_manuscript_open.get())
+                class=(["flex", "flex-row", "justify-center"], move || !new_manuscript_open.get())
                 class=("hidden", move || new_manuscript_open.get())
                 >
                 <button
+                    class="bg-violet-300 hover:bg-violet-200 border rounded-md border-slate-500"
                     on:click=move |_| {
                         // toggle visibility for this button and the new-manuscript-form
                         new_manuscript_open.update(|x| *x ^= true)
@@ -99,11 +99,11 @@ pub fn ManuscriptList() -> impl IntoView {
             </div>
             <div
                 id="new-manuscript-form"
-                class="bg-blue-200"
                 class=("block", move || new_manuscript_open.get())
                 class=("hidden", move || !new_manuscript_open.get())
                 >
                 <form
+                    class="flex justify-start"
                     on:submit=move |ev| {
                         ev.prevent_default();
                         let new_msname = new_msname_ref.get().expect("input field exists");
@@ -115,17 +115,21 @@ pub fn ManuscriptList() -> impl IntoView {
                     }
                     >
                     // `title` matches the `title` argument to `add_todo`
-                    <input node_ref=new_msname_ref type="text" name="msname"/>
-                    <button type="submit">Create Manuscript</button>
+                    <input
+                        class="w-0 grow border border-slate-500 rounded-md"
+                        node_ref=new_msname_ref type="text" name="msname"/>
+                    <button
+                        class="min-w-20 bg-violet-300 hover:bg-violet-200 border border-slate-500 rounded-md"
+                        type="submit">Create</button>
                 </form>
             </div>
             // container for the search line and button
-            <div id="search-wrapper" class="flex justify-between bg-sky-500">
+            <div id="search-wrapper" class="flex justify-between">
                 <input
-                    class="w-0 grow"
+                    class="w-0 grow border border-slate-500 rounded-md"
                     node_ref=ms_search_ref type="search" id="manuscript-search" name="msq" value=move || query.get()/>
                 <button
-                    class="min-w-16 hover:bg-sky-300"
+                    class="min-w-16 bg-sky-300 hover:bg-sky-200 border rounded-md border-slate-500"
                     on:click=move |_| {
                     let current_value = ms_search_ref.get().expect("statically linked to the dom").value();
                     set_query.set(if current_value.is_empty() { None } else { Some(current_value) });
@@ -146,30 +150,31 @@ pub fn ManuscriptList() -> impl IntoView {
             }>
                 <Transition fallback=|| view!{ <p>"Loading manuscripts..."</p> }>
                     // list of manuscripts
-                    <div id="ms-list-wrapper" class="flex flex-col justify-start bg-emerald-500">
+                    <div id="ms-list-wrapper" class="flex flex-col justify-start h-0 grow">
                     <ul>
                         {move ||
                             manuscript_list.get().map(|info_res|
                                 info_res.map(|info| {
                                 info.into_iter().map(|ms|
-                                    // keep query parameter if one is set
-                                    if let Some(query_name) = query.get() {
-                                        Either::Left(
-                                            view!{
-                                                <li>
-                                                <A href=format!("{}?msq={}", ms.title, query_name)>{ms.title}</A>
+                                        view!{
+                                                <li class="border-t-2 border-violet-700 pt-2 pb-2">
+                                                {
+                                                // keep query parameter if one is set
+                                                if let Some(query_name) = query.get() {
+                                                    Either::Left(
+                                                        view!{
+                                                            <A href=format!("{}?msq={}", ms.title, query_name)>{ms.title}</A>
+                                                        })
+                                                } else {
+                                                    Either::Right(
+                                                        view!{
+                                                            <A href=format!("{}", ms.title)>{ms.title}</A>
+                                                        })
+                                                }
+                                                }
                                                 </li>
-                                            }
-                                        )
-                                    } else {
-                                        Either::Right(
-                                            view!{
-                                                <li>
-                                                <A href=format!("{}", ms.title)>{ms.title}</A>
-                                                </li>
-                                            }
-                                        )
-                                    }).collect_view()
+                                        }
+                                    ).collect_view()
                             }))
                         }
                     </ul>
@@ -194,11 +199,11 @@ pub async fn get_manuscript_by_name(
     match res {
         Ok(x) => Ok(x),
         Err(e @ critic_server::db::DBError::ManuscriptDoesNotExist(_)) => {
-            return Err(ServerFnError::new(e.to_string()));
+            Err(ServerFnError::new(e.to_string()))
         }
         Err(e) => {
             tracing::warn!("Failed loading manuscript meta: {e}");
-            return Err(ServerFnError::new(e.to_string()));
+            Err(ServerFnError::new(e.to_string()))
         }
     }
 }

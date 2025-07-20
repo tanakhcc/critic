@@ -34,6 +34,12 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## Overview of required transcriptions
 
 ## Saving transcriptions
+- new page for transcribing a manuscript
+
+## styling
+### navbar
+### get-started
+### admin landing page
 
 # TODOs - Editor
 ## automatically set lr/rl based on language
