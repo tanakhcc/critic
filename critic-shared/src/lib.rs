@@ -29,7 +29,7 @@ impl FileTransferResponse {
     }
     /// A bunch of files were uploaded ok
     pub fn push_ok_batch(&mut self, batch_size: usize) {
-        self.err.extend(std::iter::repeat(None).take(batch_size));
+        self.err.extend(std::iter::repeat_n(None, batch_size));
     }
     /// There was a problem uploading the next file
     pub fn push_err(&mut self, error: String) {
@@ -38,7 +38,7 @@ impl FileTransferResponse {
     /// There was the same problem uploading a bunch of files
     pub fn push_err_batch(&mut self, error: String, batch_size: usize) {
         self.err
-            .extend(std::iter::repeat(Some(error)).take(batch_size));
+            .extend(std::iter::repeat_n(Some(error), batch_size));
     }
 }
 impl Extend<Option<String>> for FileTransferResponse {

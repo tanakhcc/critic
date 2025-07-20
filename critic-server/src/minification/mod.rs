@@ -30,27 +30,27 @@ const PREVIEW_IMAGE_WIDTH: u32 = 720;
 #[derive(Debug)]
 enum MinificationError {
     /// The original file cannot be opened
-    CannotOpenOriginal(std::io::Error),
+    OpenOriginal(std::io::Error),
     /// The original file format cannot be guessed
-    CannotGuessFormat(std::io::Error),
+    GuessFormat(std::io::Error),
     /// Cannot decode the image
-    CannotDecode(image::ImageError),
+    Decode(image::ImageError),
     /// Cannot save the image
-    CannotSave(image::ImageError),
+    Save(image::ImageError),
 }
 impl core::fmt::Display for MinificationError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            Self::CannotOpenOriginal(e) => {
+            Self::OpenOriginal(e) => {
                 write!(f, "The original page image can not be opened: {e}.")
             }
-            Self::CannotGuessFormat(e) => {
+            Self::GuessFormat(e) => {
                 write!(f, "Cannot guess format of the original file: {e}.")
             }
-            Self::CannotDecode(e) => {
+            Self::Decode(e) => {
                 write!(f, "Cannot decode the image: {e}.")
             }
-            Self::CannotSave(e) => {
+            Self::Save(e) => {
                 write!(f, "Cannot save the image: {e}.")
             }
         }
@@ -73,11 +73,11 @@ fn minify_page(
         page.name
     );
     let img = ImageReader::open(format!("{base_path}/original"))
-        .map_err(MinificationError::CannotOpenOriginal)?
+        .map_err(MinificationError::OpenOriginal)?
         .with_guessed_format()
-        .map_err(MinificationError::CannotGuessFormat)?
+        .map_err(MinificationError::GuessFormat)?
         .decode()
-        .map_err(MinificationError::CannotDecode)?;
+        .map_err(MinificationError::Decode)?;
 
     // keep aspect ratio of the image
     let target_height = PREVIEW_IMAGE_WIDTH * img.dimensions().1 / img.dimensions().0;
@@ -91,13 +91,13 @@ fn minify_page(
     tracing::trace!("Saving Preview for page: {} of ms {msname}", page.name);
     resized
         .save(format!("{base_path}/preview.webp"))
-        .map_err(MinificationError::CannotSave)?;
+        .map_err(MinificationError::Save)?;
     tracing::trace!(
         "Saving page {} of ms {msname} as webp in original dimensions",
         page.name
     );
     img.save(format!("{base_path}/original.webp"))
-        .map_err(MinificationError::CannotSave)?;
+        .map_err(MinificationError::Save)?;
 
     // now delete the original, we only care about the webp version
     tracing::trace!(

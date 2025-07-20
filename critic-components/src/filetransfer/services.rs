@@ -51,9 +51,9 @@ pub async fn transfer_files(files: &[web_sys::File], msname: &str) -> FileTransf
     // send a batch, update the response with the results
     let mut batch_start = 0;
     let mut batch_end = 0;
-    let mut file_iter = files.iter();
+    let file_iter = files.iter();
     let mut current_batch_size = 0_f64;
-    while let Some(file) = file_iter.next() {
+    for file in file_iter {
         if file.size() + current_batch_size < MAX_BODY_SIZE as f64 {
             current_batch_size += file.size();
             batch_end += 1;
