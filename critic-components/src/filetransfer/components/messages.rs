@@ -46,7 +46,19 @@ pub fn TransferFailed(errs: Vec<Option<String>>, filenames: Vec<String>, on_try_
                             leptos::logging::log!("Errors and filenames are not the same length in TransferFailed.");
                             None
                         } else {
-                            Some(errs.into_iter().enumerate().map(|(idx, e)| e.map(|msg| format!("File {}: {msg}", filenames.get(idx).unwrap()))).collect_view())
+                            Some(
+                            view!{
+                                <ul>
+                                {errs.into_iter().enumerate().map(|(idx, e)| e.map(|msg|
+                                            view!{
+                                                <li>{format!("File {}: {}", filenames.get(idx).unwrap(), msg)}</li>
+                                            })).collect_view() }
+                                </ul>
+                                <p>
+                                    All other files uploaded Ok.
+                                </p>
+                            }
+                            )
                         }
                     }
                 </div>
