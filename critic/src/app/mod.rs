@@ -58,6 +58,7 @@ pub fn App() -> impl IntoView {
         // sets the document title
         <Title text="critic - textual criticism"/>
 
+        <div class="h-screen w-screen flex flex-col">
         // Router
         <Router>
             <nav>
@@ -71,10 +72,10 @@ pub fn App() -> impl IntoView {
                     "Press ctrl+alt+h anywhere to get help."
                 </span>
             </nav>
-            <main>
+            <main class="h-0 grow w-full">
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>
-                    <ParentRoute path=path!("admin") view=|| {view!{ <div><Outlet/></div>}}>
+                    <ParentRoute path=path!("admin") view=|| {view!{ <Outlet/> }}>
                         <Route path=path!("") view=admin::AdminLanding/>
                         <admin::AdminRouter/>
                     </ParentRoute>
@@ -86,6 +87,7 @@ pub fn App() -> impl IntoView {
                 </Routes>
             </main>
         </Router>
+        </div>
     }
 }
 

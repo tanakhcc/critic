@@ -9,6 +9,7 @@
 
 use critic_components::filetransfer::TransferPage;
 use critic_components::{TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS};
+use critic_shared::urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL};
 use critic_shared::ManuscriptMeta;
 use leptos::either::Either;
 use leptos::prelude::*;
@@ -75,7 +76,7 @@ pub fn ManuscriptList() -> impl IntoView {
 
     let new_msname_ref = NodeRef::new();
     view! {
-        <div id="ManuscriptList-wrapper" class="flex justify-start">
+        <div id="ManuscriptList-wrapper" class="h-full flex flex-row justify-start">
         // the left sidebar containing the different manuscripts
         <div id="ms-sidebar-wrapper" class="flex flex-col justify-start w-1/4">
             // the search bar, new-manuscript-button and actual list
@@ -120,8 +121,12 @@ pub fn ManuscriptList() -> impl IntoView {
             </div>
             // container for the search line and button
             <div id="search-wrapper" class="flex justify-between bg-sky-500">
-                <input node_ref=ms_search_ref type="search" id="manuscript-search" name="msq" value=move || query.get()/>
-                <button on:click=move |_| {
+                <input
+                    class="w-0 grow"
+                    node_ref=ms_search_ref type="search" id="manuscript-search" name="msq" value=move || query.get()/>
+                <button
+                    class="min-w-16 hover:bg-sky-300"
+                    on:click=move |_| {
                     let current_value = ms_search_ref.get().expect("statically linked to the dom").value();
                     set_query.set(if current_value.is_empty() { None } else { Some(current_value) });
                 }>"Search"</button>
@@ -234,10 +239,10 @@ pub fn Manuscript() -> impl IntoView {
                             let msname = info.meta.title.clone();
                             Either::Right(
                             view!{
-                                <div id="Manuscript-wrapper" class="h-full flex flex-col justify-between w-3/4">
+                                <div id="Manuscript-wrapper" class="h-full flex flex-col w-3/4 overflow-y-auto">
                                 <ManuscriptMeta meta=info.meta />
                                 // container for the lower half of the screen
-                                <div class="relative h-full bg-pink-300">
+                                <div class="flex flex-row w-full h-0 grow bg-pink-300">
                                     // wrapper around the page upload form - this is show over the
                                     // entire page-list and page info part of the page
                                     <Show when=move || show_page_upload.get()
@@ -264,7 +269,7 @@ pub fn Manuscript() -> impl IntoView {
                                     </Show>
                                 <div id="manuscript-pageinfo-wrapper" class="flex justify-start">
                                     // container for the left half of the lower half
-                                    <div id="manuscript-pagelist-wrapper" class="flex flex-col justify-start w-36">
+                                    <div id="manuscript-pagelist-wrapper" class="flex-col justify-start w-36 overflow-auto">
                                         <button on:click=move |_| {
                                             // show the page upload form
                                             show_page_upload.update(|x| *x ^= true);
@@ -288,9 +293,9 @@ pub fn Manuscript() -> impl IntoView {
                                         </ul>
                                     </div>
 
+                                    </div>
                                     // the buttons and preview for the selected page if any
                                     <Outlet/>
-                                </div>
                                 </div>
                                 </div>
                             })
@@ -402,6 +407,9 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
                 let old_path = format!("{base_path}/{old_title}");
                 let new_path = format!("{base_path}/{}", data.title);
                 if let Err(e) = std::fs::rename(&old_path, &new_path) {
+                    // TODO - this raises errors when renaming MSs without pages because then the
+                    // directory does not exist
+                    // get pages first, and only raise this error when no page exists
                     tracing::warn!(
                         "Failed to rename {old_path} to {new_path} while upating ms metadata: {e}."
                     );
@@ -438,7 +446,7 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
     view! {
       <div class="p-6 border-2 border-slate-500">
           // deliberately use the non-reactive old title here
-        <h1 class="text-2xl m-4 bg-slate-300 p-2 border border-slate-500 rounded-md">"Metadata for manuscript "<span class="font-bold">{meta.title.clone()}</span></h1>
+        <h1 class="text-2xl m-4 bg-slate-300 p-2 border border-slate-500 rounded-md">"Manuscript "<span class="font-bold">{meta.title.clone()}</span></h1>
         <ActionForm
             action=srvact
             >
@@ -510,19 +518,25 @@ pub fn Page() -> impl IntoView {
 
     view! {
         <ErrorBoundary fallback=|_errors| view!{"Failed to get manuscriptname and page name from the url."}>
-        {
+        {move ||
             if let (Some(msname), Some(pagename)) = (ms_params.get().map(|p| p.msname).unwrap_or(None), page_params.get().map(|p| p.pagename).unwrap_or(None)) {
+                let image_base = format!("{STATIC_BASE_URL}{IMAGE_BASE_LOCATION}/{msname}/{pagename}");
                 Ok(
                     view!{
-                        <div class="flex justify-start flex-row">
-                        // container for the top line of this page
-                        <div class="flex justify-start flex-row">
-                            <a href={format!("/index/{msname}/{pagename}")}>"Index"</a>
-                            // simple form to change the name or image for this page
-                            <button>"Edit image or name"</button>
-                        </div>
-                        // image preview for this page in the right hand side
-                        <img/>
+                        <div class="flex w-0 flex-col grow justify-start">
+                            <h2 class="text-xl m-2 bg-slate-300 p-1 border border-slate-500 rounded-md">"Page "<span class="font-bold">{pagename.clone()}</span></h2>
+                            // container for the top line of this page
+                            <div class="flex justify-start flex-row">
+                                <a class="w-2/8 p-1 rounded-xl border bg-slate-300 hover:bg-slate-200" href={format!("/index/{msname}/{pagename}")}>"Index this page"</a>
+                                <div class="flex flex-col w-2/8 p-1">
+                                    <a class="rounded-xl border bg-slate-300 hover:bg-slate-200" href={format!("{image_base}/original.webp")} target="_blank">"Original Image"</a>
+                                    <a class="rounded-xl border bg-slate-300 hover:bg-slate-200" href={format!("{image_base}/original.webp")} download=format!("{msname}_{pagename}.webp")>"Download Original Image"</a>
+                                </div>
+                                // simple form to change the name or image for this page
+                                <button class="w-2/8 p-1 rounded-xl border bg-slate-300 hover:bg-slate-200">"Edit - TODO"</button>
+                            </div>
+                            // image preview for this page in the right hand side
+                            <img alt={format!("Preview for {msname} - {pagename}")} src={format!("{image_base}/preview.webp")}/>
                         </div>
                     }
                 )
