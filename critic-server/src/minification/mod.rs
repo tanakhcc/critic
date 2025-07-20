@@ -14,6 +14,7 @@ use std::{fs::remove_file, sync::Arc};
 
 use critic_shared::{urls::IMAGE_BASE_LOCATION, PageMeta};
 use image::{imageops::resize, GenericImageView, ImageReader};
+use rayon::prelude::*;
 
 use crate::{
     config::Config,
@@ -116,35 +117,65 @@ pub async fn run_minification(
 ) {
     tracing::debug!("Starting the minification service");
     loop {
-        let wait_till_next_minification = match get_page_to_minify(&config.db).await {
-            Ok(Some((msname, page_to_minify))) => {
-                // minify, directly continue with the next one if that worked
-                match minify_page(&config.data_directory, &msname, &page_to_minify) {
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to minify page {} of ms {msname}: {e}",
-                            page_to_minify.name,
-                        );
-                        if let Err(e) =
-                            mark_page_minifcation_failed(&config.db, page_to_minify.id).await
-                        {
-                            tracing::warn!(
-                                "Failed to mark page {} of ms {msname} minification as failed: {e}",
-                                page_to_minify.name
-                            );
-                        };
+        let wait_till_next_minification = match get_page_to_minify(
+            &config.db,
+            config.worker_threads,
+        )
+        .await
+        {
+            Ok(pages) => {
+                if pages.is_empty() {
+                    // no page to minify or error getting one - try again later
+                    tokio::time::Duration::from_secs(1)
+                } else {
+                    let config_arc = config.clone();
+                    // attempt the minifications in parallel, without blocking this thread
+                    let minify_results: Vec<(Result<(), MinificationError>, String, PageMeta)> =
+                        tokio::task::spawn_blocking(move || {
+                            pages
+                                .into_par_iter()
+                                .map(|(msname, page_to_minify)| {
+                                    (
+                                        minify_page(
+                                            &config_arc.data_directory,
+                                            &msname,
+                                            &page_to_minify,
+                                        ),
+                                        msname,
+                                        page_to_minify,
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .await
+                        .unwrap();
+                    for (res, msname, page) in minify_results {
+                        match res {
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to minify page {} of ms {msname}: {e}",
+                                    page.name,
+                                );
+                                if let Err(e) =
+                                    mark_page_minifcation_failed(&config.db, page.id).await
+                                {
+                                    tracing::warn!(
+                                            "Failed to mark page {} of ms {msname} minification as failed: {e}",
+                                            page.name
+                                        );
+                                };
+                            }
+                            Ok(()) => {
+                                // finally, mark the page as minified
+                                if let Err(e) = mark_page_minified(&config.db, page.id).await {
+                                    tracing::warn!("Failed marking page {} of ms {msname} as minified, but minification is done: {e}", page.name)
+                                };
+                            }
+                        }
                     }
-                    Ok(()) => {
-                        // finally, mark the page as minified
-                        if let Err(e) = mark_page_minified(&config.db, page_to_minify.id).await {
-                            tracing::warn!("Failed marking page {} of ms {msname} as minified, but minification is done: {e}", page_to_minify.name)
-                        };
-                    }
-                };
-                tokio::time::Duration::from_millis(10)
+                    tokio::time::Duration::from_millis(10)
+                }
             }
-            // no page to minify or error getting one - try again later
-            Ok(None) => tokio::time::Duration::from_secs(1),
             Err(e) => {
                 tracing::warn!("Failed to get page to minify: {e}");
                 // this may be a general problem with the DB, so we do not want to bombard it with

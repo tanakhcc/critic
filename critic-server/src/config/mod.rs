@@ -166,6 +166,15 @@ struct ConfigData {
     /// critic will create the required substructure there
     /// This directory needs to be backed up together with the DB to restore from a backup
     data_directory: String,
+    /// how many worker threads should we use at most?
+    ///
+    /// Note that these will run CPU-heavy tasks and this number of threads will be fully utilised
+    /// from time to time
+    #[serde(default = "default_worker_threads")]
+    worker_threads: u8,
+}
+fn default_worker_threads() -> u8 {
+    4
 }
 
 /// The main config object that will be available across the Serverside application
@@ -179,6 +188,7 @@ pub struct Config {
     /// used as server part for determining where to communicate to gitlab
     pub gitlab: GitlabConfig,
     pub data_directory: String,
+    pub worker_threads: u8,
 }
 impl Config {
     async fn try_from_config_data(value: ConfigData) -> Result<Self, ConfigError> {
@@ -224,6 +234,7 @@ impl Config {
             .into(),
             gitlab: value.gitlab,
             data_directory: value.data_directory,
+            worker_threads: value.worker_threads,
         })
     }
 

@@ -254,20 +254,21 @@ impl From<_PageMetaWithMsName> for (String, PageMeta) {
 /// These have minified = false and minification_failed = false
 pub async fn get_page_to_minify(
     pool: &Pool<Postgres>,
-) -> Result<Option<(String, PageMeta)>, DBError> {
-    if let Some(page) = sqlx::query_as!(_PageMetaWithMsName,
+    how_many: u8,
+) -> Result<Vec<(String, PageMeta)>, DBError> {
+    Ok(sqlx::query_as!(_PageMetaWithMsName,
         "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end
          FROM page
          INNER JOIN manuscript on page.manuscript = manuscript.id
          WHERE minified = false AND minification_failed = false
-         LIMIT 1;")
-        .fetch_optional(pool)
+         LIMIT $1;",
+         how_many as i32)
+        .fetch_all(pool)
         .await
-        .map_err(DBError::CannotGetMinificationCandidate)? {
-            Ok(Some(page.into()))
-    } else {
-        Ok(None)
-    }
+        .map_err(DBError::CannotGetMinificationCandidate)?
+        .into_iter()
+        .map(|p_with_msname| p_with_msname.into()).collect()
+    )
 }
 
 pub async fn mark_page_minifcation_failed(

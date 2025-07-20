@@ -155,7 +155,7 @@ async fn main() {
         tx.subscribe(),
         tx.clone(),
     ));
-    let minification_service = tokio::spawn(run_minification(config_arc, tx.subscribe()));
+    let minification_service = tokio::task::spawn(run_minification(config_arc, tx.subscribe()));
 
     // Join the different services
     let (signal_res, web_res, minification_res) =
