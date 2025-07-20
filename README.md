@@ -22,14 +22,18 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # TODOs - next
 ## Admin page for adding manuscripts
 ### new page
-#### api endpoint
-should take a number of files
-- minify them (to both preview and thumbnail size)
-    - store the three versions (original / preview / thumbnail) on disk
+#### page image minification
+- go over db - find pages with minification set to false
+- minify them
+    - store preview size on disk alongside the original
 ### manuscript meta information
+- simple ActionForm in `<ManuscriptMeta/>`
 ### page edit
 - change name
 - upload new image
+    - this can probably wait a bit
+- link to fullsize image
+- show preview image
 ## Overview of required transcriptions
 ## Saving transcriptions
 

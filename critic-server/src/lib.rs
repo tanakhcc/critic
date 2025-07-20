@@ -8,3 +8,5 @@ pub mod db;
 pub mod gitlab;
 pub mod static_files;
 pub mod upload;
+pub mod minification;
+pub mod signal_handler;

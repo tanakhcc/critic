@@ -112,8 +112,8 @@ pub async fn page_upload(
                                 );
                             continue;
                         }
-                        if let Err(e) = add_page(&config.db, &base_name, &msname, &extension).await {
-                            tracing::warn!("Failed to insert new page {base_name}.{extension} for {msname} into the db: {e}");
+                        if let Err(e) = add_page(&config.db, &base_name, &msname).await {
+                            tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
                             results.push_err(
                                 format!("Failed to insert new page into the db: {e}."),
                                 );
