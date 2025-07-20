@@ -2,7 +2,7 @@
 
 use sqlx::{prelude::FromRow, query_as, Pool, Postgres};
 
-use critic_shared::{PageMeta, VersificationScheme};
+use critic_shared::{ManuscriptMeta, PageMeta, VersificationScheme};
 
 use crate::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
 
@@ -41,6 +41,7 @@ pub enum DBError {
     CannotMarkPageMinified(sqlx::Error),
     CannotGetPage(sqlx::Error),
     PageAlreadyExists,
+    CannotUpdateManuscript(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -92,6 +93,9 @@ impl core::fmt::Display for DBError {
                     f,
                     "A page with this name already exists for this manuscript."
                 )
+            }
+            Self::CannotUpdateManuscript(e) => {
+                write!(f, "Unable to update manuscript metadata: {e}")
             }
         }
     }
@@ -329,4 +333,20 @@ pub async fn mark_page_minified(pool: &Pool<Postgres>, page_id: i64) -> Result<(
     .await
     .map_err(DBError::CannotMarkPageMinified)
     .map(|_| {})
+}
+
+pub async fn update_ms_meta(pool: &Pool<Postgres>, data: &ManuscriptMeta) -> Result<(), DBError> {
+    sqlx::query!(
+            "UPDATE manuscript SET title = $1, institution = $2, collection = $3, hand_desc = $4, script_desc = $5 WHERE id = $6;",
+            data.title,
+            data.institution,
+            data.collection,
+            data.hand_desc,
+            data.script_desc,
+            data.id,
+        )
+        .execute(pool)
+        .await
+        .map(|_| {})
+        .map_err(DBError::CannotUpdateManuscript)
 }

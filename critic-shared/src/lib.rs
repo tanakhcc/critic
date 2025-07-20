@@ -60,7 +60,7 @@ pub struct VersificationScheme {
 
 /// Metainformation on manuscripts
 #[cfg_attr(feature = "ssr", derive(FromRow))]
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ManuscriptMeta {
     pub id: i64,
     /// Title of this manuscript

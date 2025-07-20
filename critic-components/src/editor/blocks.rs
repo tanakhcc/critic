@@ -16,10 +16,8 @@ use critic_shared::VersificationScheme;
 use crate::{
     accordion::{Accordion, Align, Item, List},
     icons::CogIcon,
+    TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS,
 };
-
-const TEXTAREA_DEFAULT_ROWS: i32 = 2;
-const TEXTAREA_DEFAULT_COLS: i32 = 30;
 
 /// A single block that we change in the editor
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

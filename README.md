@@ -19,27 +19,29 @@ Use the `--release` toggle for release.
 You need to set a relatively high `client_max_body_size` (for `nginx`).
 This is currently `150m` for endpoints under `/upload`. Other paths do not need large `client_max_body_size`.
 
+# Known Bugs
+- When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
+
 # TODOs - next
 ## Admin page for adding manuscripts
-### manuscript meta information
-- simple ActionForm in `<ManuscriptMeta/>`
 ### page edit
+    - this can probably wait a bit
 - change name
 - upload new image
-    - this can probably wait a bit
 - link to fullsize image
 - show preview image
+
 ## Overview of required transcriptions
+
 ## Saving transcriptions
 
 # TODOs - Editor
 ## automatically set lr/rl based on language
 
-## Ribbon which shows keyboard shortcuts for existing commands
-
 ## Output styles
 ### Render to some html that is easily digestible
 ### allow copying the produced xml
+    - both in a new component, that has three tabs - the editor is one of them
 
 ## Merge Blocks
 - up and down
