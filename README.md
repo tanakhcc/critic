@@ -21,11 +21,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - next
 ## Admin page for adding manuscripts
-### new page
-#### page image minification
-- go over db - find pages with minification set to false
-- minify them
-    - store preview size on disk alongside the original
 ### manuscript meta information
 - simple ActionForm in `<ManuscriptMeta/>`
 ### page edit
