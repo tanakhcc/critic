@@ -11,6 +11,8 @@ CREATE TABLE page (
 	verse_end BIGINT REFERENCES verse(id),
 	--- is the minification for this image already done?
 	minified BOOL NOT NULL DEFAULT false,
+	--- the file extension for the image file associated with this ms
+	extension TEXT NOT NULL,
 	--- the pages of an individual manuscript have to have different names
 	UNIQUE(manuscript, name)
 );

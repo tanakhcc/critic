@@ -197,13 +197,14 @@ pub async fn get_versification_schemes(
     )
 }
 
-pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str) -> Result<(), DBError> {
+pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str, extension: &str) -> Result<(), DBError> {
     // get manuscript id
     let ms_meta = get_manuscript_meta(pool, msname).await?;
     sqlx::query!(
-        "INSERT INTO page (manuscript, name) VALUES ($1, $2);",
+        "INSERT INTO page (manuscript, name, extension) VALUES ($1, $2, $3);",
         ms_meta.id,
         pagename,
+        extension,
     )
     .execute(pool)
     .await

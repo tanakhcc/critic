@@ -7,7 +7,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use critic_shared::{urls::IMAGE_BASE_LOCATION, FileTransferResponse};
+use critic_shared::{urls::IMAGE_BASE_LOCATION, FileTransferResponse, ALLOWED_IMAGE_EXTENSIONS, MAX_BODY_SIZE};
 use reqwest::StatusCode;
 
 use crate::{
@@ -27,7 +27,7 @@ pub fn upload_router() -> axum::Router {
             ),
             axum::routing::post(page_upload),
         )
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 100))
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
 }
 
 /// Upload several pages for a manuscript
@@ -49,44 +49,46 @@ pub async fn page_upload(
             StatusCode::UNAUTHORIZED.into_response()
         } else {
             // now iterate over the different files and save them
-            let mut new_pages = 0;
+            let mut results = FileTransferResponse::new();
             loop {
                 match mpart.next_field().await {
                     Ok(Some(field)) => {
                         let Some(file_name) = field.file_name() else {
-                            return (
-                                StatusCode::BAD_REQUEST,
-                                "The file name must be set for each file.",
-                            )
-                                .into_response();
+                            results.push_err(
+                                "The file name must be set for each file.".to_string(),
+                            );
+                            continue;
                         };
                         let mut dot_split = file_name.split('.');
                         let base_name = match dot_split.next() {
                             Some(x) => x.to_string(),
                             None => {
-                                return (
-                                    StatusCode::BAD_REQUEST,
-                                    "Filename did not contain a basename.",
-                                )
-                                    .into_response();
+                                results.push_err(
+                                    "Filename did not contain a basename.".to_string(),
+                                    );
+                                continue;
                             }
                         };
                         let extension = match dot_split.next() {
                             Some(x) => x.to_string(),
                             None => {
-                                return (
-                                    StatusCode::BAD_REQUEST,
-                                    "Filename did not contain an extension.",
-                                )
-                                    .into_response();
+                                results.push_err(
+                                    "Filename did not contain an extension.".to_string(),
+                                    );
+                                continue;
                             }
                         };
+                        if !ALLOWED_IMAGE_EXTENSIONS.contains(&extension.as_str()) {
+                            results.push_err(
+                                "Extension is not allowed.".to_string()
+                                );
+                            continue;
+                        };
                         if dot_split.next().is_some() {
-                            return (
-                                StatusCode::BAD_REQUEST,
-                                "Filename did not contain exactly one dot.",
-                            )
-                                .into_response();
+                            results.push_err(
+                                "Filename did not contain exactly one dot.".to_string(),
+                                );
+                            continue;
                         };
 
                         let data = field.bytes().await.unwrap();
@@ -96,37 +98,32 @@ pub async fn page_upload(
                             config.data_directory, IMAGE_BASE_LOCATION
                         );
                         if let Err(e) = std::fs::create_dir_all(&directory_path) {
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
+                            results.push_err(
                                 format!("Failed to crate directory to put new page into: {e}."),
-                            )
-                                .into_response();
+                                );
+                            continue;
                         };
                         if let Err(e) =
                             std::fs::write(format!("{directory_path}/original.{extension}"), data)
                         {
                             tracing::warn!("Unable to write manuscript page to file: {e}");
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                "Failed to write Page to file.",
-                            )
-                                .into_response();
+                            results.push_err(
+                                "Failed to write Page to file.".to_string(),
+                                );
+                            continue;
                         }
-                        if let Err(e) = add_page(&config.db, &base_name, &msname).await {
-                            tracing::warn!("Failed to insert new page {base_name} for {msname} into the db: {e}");
-                            return (
-                                StatusCode::INTERNAL_SERVER_ERROR,
+                        if let Err(e) = add_page(&config.db, &base_name, &msname, &extension).await {
+                            tracing::warn!("Failed to insert new page {base_name}.{extension} for {msname} into the db: {e}");
+                            results.push_err(
                                 format!("Failed to insert new page into the db: {e}."),
-                            )
-                                .into_response();
+                                );
+                            continue;
                         }
-                        // TODO
-                        // start minifcation in new thread
                         tracing::info!(
                             "{} saved new page for {msname}: {base_name}.{extension}.",
                             user.username
                         );
-                        new_pages += 1;
+                        results.push_ok();
                     }
                     Ok(None) => {
                         break;
@@ -138,11 +135,10 @@ pub async fn page_upload(
                 };
             }
             (
-                StatusCode::OK,
-                Json(FileTransferResponse {
-                    new_pages,
-                    err: None,
-                }),
+                if results.err.iter().all(|e| e.is_none()) { StatusCode::OK } else { StatusCode::INTERNAL_SERVER_ERROR },
+                Json(
+                    results
+                ),
             )
                 .into_response()
         }

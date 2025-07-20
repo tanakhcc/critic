@@ -15,6 +15,9 @@ cargo leptos serve
 ```
 Use the `--release` toggle for release.
 
+# Reverse Proxying critic
+You need to set a relatively high `client_max_body_size` (for `nginx`).
+This is currently `150m` for endpoints under `/upload`. Other paths do not need large `client_max_body_size`.
 
 # TODOs - next
 ## Admin page for adding manuscripts

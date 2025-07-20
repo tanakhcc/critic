@@ -23,11 +23,7 @@ pub fn TransferPage(msname: String) -> impl IntoView {
             .collect::<Vec<_>>();
         let name = msname.clone();
         async move {
-            let res = services::transfer_file(&selected_files, name).await;
-            if let Err(ref e) = res {
-                leptos::logging::log!("{e}");
-            };
-            res
+            services::transfer_files(&selected_files, &name).await
         }
     });
     let transfer_pending = transfer_action.pending();
@@ -47,17 +43,22 @@ pub fn TransferPage(msname: String) -> impl IntoView {
 
             <Show when=move || transfer_reply.get().is_some()>
 
-                <Show when=move || transfer_reply.get().unwrap().is_ok()>
+                <Show
+                    when=move || transfer_reply.get().unwrap().err.iter().all(|x| x.is_none())
+                    fallback=move || {
+                        view!{
+                            <TransferFailed
+                                errs=transfer_reply.get().unwrap().err
+                                filenames=files.read().iter().map(|f| f.name()).collect()
+                                on_try_again=move |ev: MouseEvent| {
+                                    ev.prevent_default();
+                                    transfer_reply.set(None);
+                                } />
+                        }
+                    }
+                >
                 <TransferComplete
                     on_continue=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        transfer_reply.set(None);
-                    } />
-                </Show>
-
-                <Show when=move || transfer_reply.get().unwrap().is_err()>
-                <TransferFailed
-                    on_try_again=move |ev: MouseEvent| {
                         ev.prevent_default();
                         transfer_reply.set(None);
                     } />

@@ -6,15 +6,45 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::FromRow;
 
-/// Response from the backend when a file transfer succeeded
+/// The extensions that we allow for page images
+pub const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
+/// Max body size for POST-requests in bytes
+///
+/// Please note changes to this value in the README under `Reverse Proxying critic`
+pub const MAX_BODY_SIZE: usize = 150 * 1024 * 1024;
+
+/// Response from the backend after file uploads
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
-pub struct FileTransferResponse {
-    pub new_pages: i32,
-    pub err: Option<String>,
+pub struct FileTransferResponse
+{
+    pub err: Vec<Option<String>>,
 }
-impl core::fmt::Display for FileTransferResponse {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{}", self.new_pages)
+impl FileTransferResponse {
+    pub fn new() -> Self {
+        Self { err: Vec::new() }
+    }
+
+    /// A single file was uploaded ok
+    pub fn push_ok(&mut self) {
+        self.err.push(None);
+    }
+    /// A bunch of files were uploaded ok
+    pub fn push_ok_batch(&mut self, batch_size: usize) {
+        self.err.extend(std::iter::repeat(None).take(batch_size));
+    }
+    /// There was a problem uploading the next file
+    pub fn push_err(&mut self, error: String) {
+        self.err.push(Some(error));
+    }
+    /// There was the same problem uploading a bunch of files
+    pub fn push_err_batch(&mut self, error: String, batch_size: usize) {
+        self.err.extend(std::iter::repeat(Some(error)).take(batch_size));
+    }
+}
+impl Extend<Option<String>> for FileTransferResponse
+{
+    fn extend<T: IntoIterator<Item = Option<String>>>(&mut self, iter: T) {
+        self.err.extend(iter);
     }
 }
 

@@ -1,3 +1,4 @@
+use critic_shared::MAX_BODY_SIZE;
 use leptos::html::Label;
 use leptos::prelude::*;
 use leptos_use::{use_drop_zone_with_options, UseDropZoneOptions, UseDropZoneReturn};
@@ -20,7 +21,7 @@ pub fn DropzoneBar() -> impl IntoView {
                 </span> or drag and drop
             </p>
             <p class="text-xs text-violet-500">
-                Up to 50GiB
+                Up to {human_bytes::human_bytes(MAX_BODY_SIZE as f64)} per File.
             </p>
         </div>
     }

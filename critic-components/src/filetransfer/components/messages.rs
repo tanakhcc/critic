@@ -30,7 +30,7 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl Into
 }
 
 #[component]
-pub fn TransferFailed(on_try_again: impl Fn(MouseEvent) + 'static) -> impl IntoView {
+pub fn TransferFailed(errs: Vec<Option<String>>, filenames: Vec<String>, on_try_again: impl Fn(MouseEvent) + 'static) -> impl IntoView {
     let (busy_reader, _) = signal(false);
 
     view! {
@@ -41,6 +41,14 @@ pub fn TransferFailed(on_try_again: impl Fn(MouseEvent) + 'static) -> impl IntoV
                 <div class="flex flex-col items-center">
                     <div>Upload failed</div>
                     <div>Sorry! Something went wrong.</div>
+                    {
+                        if errs.len() != filenames.len() {
+                            leptos::logging::log!("Errors and filenames are not the same length in TransferFailed.");
+                            None
+                        } else {
+                            Some(errs.into_iter().enumerate().map(|(idx, e)| e.map(|msg| format!("File {}: {msg}", filenames.get(idx).unwrap()))).collect_view())
+                        }
+                    }
                 </div>
 
                 <Button
