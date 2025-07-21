@@ -9,8 +9,10 @@ use leptos_router::{
 use leptos_use::{use_document, use_event_listener};
 
 use critic_components::editor::Editor;
+use transcribe::{editor::TranscribeEditor, todo::TranscribeTodoList};
 
 mod admin;
+mod transcribe;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -27,6 +29,28 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <App/>
             </body>
         </html>
+    }
+}
+
+
+#[component]
+fn NavBar() -> impl IntoView {
+    let navbar_button_classes = "p-2 pl-4 pr-4 text-slate-50 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md shadow-sky-600";
+    let navbar_help_button_classes = "p-2 pl-4 pr-4 text-slate-50 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md shadow-orange-400/70";
+
+    let help_active = use_context::<RwSignal<ShowHelp>>().expect("App provides show-help context");
+    view!{
+    <nav class="flex flex-row justify-around bg-black border-b-8 border-slate-600">
+      <a href="/"><img alt="logo" src="/logo"/></a>
+      <a class=navbar_button_classes href="/admin">Administer</a>
+      <a class=navbar_button_classes href="/transcribe">Transcribe</a>
+      <a class=navbar_button_classes href="/reconcile">Reconcile</a>
+      <span
+        on:click=move |_| {
+            help_active.update(|a| a.toggle())
+        }
+        class=navbar_help_button_classes>Help: <span class="text-orange-400">ctrl+alt+h</span></span>
+    </nav>
     }
 }
 
@@ -58,23 +82,15 @@ pub fn App() -> impl IntoView {
         // sets the document title
         <Title text="critic - textual criticism"/>
 
-        <div class="h-screen w-screen flex flex-col">
+        <div class="h-screen w-screen flex flex-col bg-slate-900 text-white">
         // Router
         <Router>
-            <nav>
-                <a href="/get-started">"Get Started"</a>
-                <a href="/admin">"Project Administration"</a>
-                <a href="/transcribe">"Transcribe"</a>
-                <a href="/reconcile">"Reconcile"</a>
-                <span on:click=move |_| {
-                    help_active.update(|a| a.toggle())
-                }>
-                    "Press ctrl+alt+h anywhere to get help."
-                </span>
-            </nav>
+            <NavBar/>
             <main class="h-0 grow w-full">
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>
+                    <Route path=path!("transcribe") view=TranscribeTodoList/>
+                    <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor/>
                     <ParentRoute path=path!("admin") view=|| {view!{ <Outlet/> }}>
                         <Route path=path!("") view=admin::AdminLanding/>
                         <admin::AdminRouter/>
