@@ -30,7 +30,7 @@ pub fn TranscribeTodoList() -> impl IntoView {
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-8 translate-x-1">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                   </svg>
-                  <span class="pr-2 pl-4 font-extrabold">2</span>" already done"
+                  <span class="pr-2 pl-4 font-extrabold">2</span>already done
                 </div>
               </div>
               <div class="table-cell border-r border-inherit p-2 font-bold">already started</div>
@@ -40,7 +40,7 @@ pub fn TranscribeTodoList() -> impl IntoView {
               <div class="table-cell border-r border-inherit p-2">ML115</div>
               <div class="table-cell border-r border-inherit p-2">Page 014</div>
               <div class="table-cell border-r border-inherit p-2">Ps 32:4 - Ps 34:7</div>
-              <div class="table-cell border-r border-inherit p-2"><span class="pl-12 font-extrabold">1</span> already done</div>
+              <div class="table-cell border-r border-inherit p-2"><span class="pl-12 font-extrabold mr-2">1</span>already done</div>
               <div class="table-cell border-r border-inherit p-2 font-bold">already started</div>
               <div class="table-cell border-r border-inherit p-2"></div>
             </div>
@@ -48,7 +48,7 @@ pub fn TranscribeTodoList() -> impl IntoView {
               <div class="table-cell border-r border-inherit p-2">ML115</div>
               <div class="table-cell border-r border-inherit p-2">Page 014</div>
               <div class="table-cell border-r border-inherit p-2">Ps 32:4 - Ps 34:7</div>
-              <div class="table-cell border-r border-inherit p-2"><span class="pl-12 font-bold">0</span> done</div>
+              <div class="table-cell border-r border-inherit p-2"><span class="pl-12 mr-2 font-bold">0</span>done</div>
               <div class="table-cell border-r border-inherit p-2 font-bold">already started</div>
               <div class="table-cell border-r border-inherit p-2 font-bold">already published</div>
             </div>
