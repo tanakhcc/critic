@@ -1,4 +1,7 @@
 //! A component used to transfer files to the server
+//!
+//! Code taken in large parts from https://github.com/edinsonjim/file-uploader-example
+//! The Code in this Module is NOT covered by this projects main license.
 
 use leptos::prelude::*;
 use send_wrapper::SendWrapper;
