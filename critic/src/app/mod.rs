@@ -40,7 +40,7 @@ fn NavBar() -> impl IntoView {
 
     let help_active = use_context::<RwSignal<ShowHelp>>().expect("App provides show-help context");
     view!{
-    <nav class="flex flex-row justify-around bg-black border-b-8 border-slate-600">
+    <nav class="flex flex-row justify-around bg-black border-b-4 border-slate-600">
       <a href="/logo"><img alt="logo" src="/logo.webp"/></a>
       <a class=navbar_button_classes href="/transcribe">Transcribe</a>
       <a class=navbar_button_classes href="/reconcile">Reconcile</a>
@@ -49,7 +49,7 @@ fn NavBar() -> impl IntoView {
         on:click=move |_| {
             help_active.update(|a| a.toggle())
         }
-        class=navbar_help_button_classes>Help: <span class="text-orange-400">ctrl+alt+h</span></span>
+        class=navbar_help_button_classes>Help:<span class="ml-2 text-orange-400">ctrl+alt+h</span></span>
     </nav>
     }
 }
