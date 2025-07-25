@@ -23,6 +23,12 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
+## Styling
+- Navbar should know which main site we are on and set `text-sky-300` for the active site
+    - make an enum in a context-signal, have the child change that on load
+## admin/manuscripts - download all on load, filter on the client on input change
+## change styling for the selected MS / the selected Page
+
 ## Admin page for adding manuscripts
 ### page edit
     - this can probably wait a bit
@@ -59,7 +65,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## setup docker for code deployment later
 
 ## create admin pages for
-### adding manuscripts / folios
 ### editing versification schemes
 
 ## Create user-facing pages for
@@ -85,6 +90,31 @@ take the idea from multidiff:
 - create a mapping "content"-"present-in-inputs" like in multidiff
 
 This multi-diff will be used in collation, but also during reconciliation
+
+# TODOs - auto-indexing
+We need a way to call into kraken to use their already trained models
+- crate `pyo3` can do this
+
+# TODOs - versification
+## Layer 1 - Human-Readable to Order
+convert a String (1Kg 2:14) into the verse number in the scheme
+- this takes as config a list of books, with list of chapters, with nr of verses
+- maybe we can auto-derive this???
+    - it will be difficult to write out these lists beforehand
+    - humans only operate before layer1 (with hr-values)
+    - so if new verses are found later, they can simply be added at the next layer
+    - this does mean that human-readable <-> order is not trivial
+    - instead, it assumes BHS as a start, then maps individual inputs (e.g. PS 150:1) to individual new verse ids (i.e. a verse id that is larger then the largest verse ID in BHS)
+## Layer 2 - Order to universal verse id
+A bimap between the schemes order and BHSs order
+- `bimap` crate exists for this
+- take the identity by default
+- wir speichern dann das in der DB (lassen es den user angeben):
+    - "The content that BHS calls a-b is in this MS RIGHT AFTER what this MS calls verse c, which contains the same content as the verse also called c in BHS"
+
+# TODOs - import
+## WLC data
+- just parse, transform to our XML schema, dump as a single file
 
 # TODOs - Branches
 ## master

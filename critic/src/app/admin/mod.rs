@@ -4,10 +4,15 @@ use leptos::prelude::*;
 use leptos_router::components::{ParentRoute, Route};
 use leptos_router::path;
 
+use crate::app::TopLevelPosition;
+
 mod manuscripts;
 
 #[component]
 pub fn AdminLanding() -> impl IntoView {
+    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    *set_top_level_pos.write() = TopLevelPosition::Admin;
+
     view! {
         <div class="flex h-full flex-col">
       <div class="flex flex-row justify-center">
@@ -44,6 +49,9 @@ pub fn AdminLanding() -> impl IntoView {
 
 #[component(transparent)]
 pub fn AdminRouter() -> impl MatchNestedRoutes + Clone {
+    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    *set_top_level_pos.write() = TopLevelPosition::Admin;
+
     view! {
         <ParentRoute path=path!("manuscripts") view=manuscripts::ManuscriptList>
             <ParentRoute path=path!(":msname") view=manuscripts::Manuscript>

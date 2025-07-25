@@ -12,7 +12,7 @@
 
 use std::{fs::remove_file, sync::Arc};
 
-use critic_shared::{urls::IMAGE_BASE_LOCATION, PageMeta};
+use critic_shared::{urls::IMAGE_BASE_LOCATION, PageMeta, PREVIEW_IMAGE_WIDTH};
 use image::{imageops::resize, GenericImageView, ImageReader};
 use rayon::prelude::*;
 
@@ -21,10 +21,6 @@ use crate::{
     db::{get_page_to_minify, mark_page_minifcation_failed, mark_page_minified},
     signal_handler::InShutdown,
 };
-
-/// width of the preview downcales for manuscript pages
-/// the height will be calculated to keep the same aspect ratio
-const PREVIEW_IMAGE_WIDTH: u32 = 720;
 
 /// Problems that can occur during minification
 #[derive(Debug)]

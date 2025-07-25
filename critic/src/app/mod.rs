@@ -14,6 +14,8 @@ use transcribe::{editor::TranscribeEditor, todo::TranscribeTodoList};
 mod admin;
 mod transcribe;
 
+const DEFAULT_BUTTON_CLASSES: &str = "text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 shadow-sm shadow-sky-600 hover:bg-slate-500";
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
@@ -32,19 +34,38 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+enum TopLevelPosition {
+    Admin,
+    Transcribe,
+    Reconcile,
+    None,
+}
+
+const NAVBAR_BUTTON_CLASSES: &str = "p-2 pl-4 pr-4 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md";
+#[component]
+fn NavBarButton(to: &'static str, top_level_pos: ReadSignal<TopLevelPosition>, children: Children, active_state: &'static TopLevelPosition) -> impl IntoView {
+    view!{
+      <a
+        class=NAVBAR_BUTTON_CLASSES
+        class=(["text-sky-300", "shadow-slate-300"], move || top_level_pos.read() == *active_state)
+        class=(["text-slate-50", "shadow-sky-600"], move || top_level_pos.read() != *active_state)
+        href={to}
+      >{children()}</a>
+    }
+}
 
 #[component]
-fn NavBar() -> impl IntoView {
-    let navbar_button_classes = "p-2 pl-4 pr-4 text-slate-50 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md shadow-sky-600";
+fn NavBar(top_level_pos: ReadSignal<TopLevelPosition>) -> impl IntoView {
     let navbar_help_button_classes = "p-2 pl-4 pr-4 text-slate-50 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md shadow-orange-400/70";
 
     let help_active = use_context::<RwSignal<ShowHelp>>().expect("App provides show-help context");
     view!{
     <nav class="flex flex-row justify-around bg-black border-b-4 border-slate-600">
       <a href="/logo"><img alt="logo" src="/logo.webp"/></a>
-      <a class=navbar_button_classes href="/transcribe">Transcribe</a>
-      <a class=navbar_button_classes href="/reconcile">Reconcile</a>
-      <a class=navbar_button_classes href="/admin">Administer</a>
+      <NavBarButton to="/transcribe" top_level_pos=top_level_pos active_state=&TopLevelPosition::Transcribe>Transcribe</NavBarButton>
+      <NavBarButton to="/reconcile" top_level_pos=top_level_pos active_state=&TopLevelPosition::Reconcile>Reconcile</NavBarButton>
+      <NavBarButton to="/admin" top_level_pos=top_level_pos active_state=&TopLevelPosition::Admin>Administer</NavBarButton>
       <span
         on:click=move |_| {
             help_active.update(|a| a.toggle())
@@ -74,6 +95,10 @@ pub fn App() -> impl IntoView {
     });
     provide_context(help_active);
 
+    // will be set on page load by the top level routes
+    let (top_level_pos, set_top_level_pos) = signal(TopLevelPosition::None);
+    provide_context(set_top_level_pos);
+
     view! {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
@@ -85,7 +110,7 @@ pub fn App() -> impl IntoView {
         <div class="h-screen w-screen flex flex-col bg-slate-900 text-white">
         // Router
         <Router>
-            <NavBar/>
+            <NavBar top_level_pos=top_level_pos/>
             <main class="h-0 grow w-full">
                 <Routes fallback=|| "Page not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage/>

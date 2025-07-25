@@ -13,6 +13,10 @@ pub const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
 /// Please note changes to this value in the README under `Reverse Proxying critic`
 pub const MAX_BODY_SIZE: usize = 150 * 1024 * 1024;
 
+/// width of the preview downscales for manuscript pages
+/// the height will be calculated to keep the same aspect ratio
+pub const PREVIEW_IMAGE_WIDTH: u32 = 720;
+
 /// Response from the backend after file uploads
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct FileTransferResponse {

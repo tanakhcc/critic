@@ -2,8 +2,13 @@
 
 use leptos::prelude::*;
 
+use crate::app::TopLevelPosition;
+
 #[component]
 pub fn TranscribeTodoList() -> impl IntoView {
+    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    *set_top_level_pos.write() = TopLevelPosition::Transcribe;
+
     view!{
     <div class="flex h-full flex-col">
       <div class="flex flex-row justify-center">
@@ -12,13 +17,13 @@ pub fn TranscribeTodoList() -> impl IntoView {
       <div class="flex flex-row justify-center mb-2">
         <div class="flex w-2/5 flex-row justify-start rounded-4xl border-2 border-slate-600 bg-slate-800 p-4 text-xl shadow-sky-600 shadow-md">
           <label for="page-search">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 text-slate-300">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg
           ></label>
           <input id="page-search" class="w-0 grow border-0 font-mono text-slate-400" type="search" />
         </div>
       </div>
-      <div class="mt-8 flex min-h-24 grow flex-row justify-center overflow-y-auto mb-10">
+      <div class="mt-8 flex min-h-24 grow flex-row justify-center overflow-y-auto mb-10 no-scrollbar">
         <div id="page-listing" class="text-md table w-4/5">
           <div class="table-row-group">
             <a href="/transcribe/:msname/:pagename" class="table-row border-b border-slate-600 py-3 text-xl shadow-sky-600 last:border-b-0 odd:bg-slate-800 even:bg-slate-600 hover:bg-sky-900 hover:shadow-2xl">
