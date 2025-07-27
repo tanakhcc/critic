@@ -40,68 +40,77 @@ fn inner_text_view(
     let config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-        <div>
-            <p
-                class="font-light text-xs">
-                "Raw Text: "
-            </p>
-            <textarea
-            class="bg-yellow-100 text-black font-mono"
-            id={format!("block-input-{id}")}
-            node_ref=focus_element
-            autocomplete="false"
-            spellcheck="false"
-            rows=TEXTAREA_DEFAULT_ROWS
-            cols=TEXTAREA_DEFAULT_COLS
-            // reactive, so undo/redo actions can change the view
-            prop:value=move || paragraph.read().content.clone()
-            on:input:target=move |ev| {
-                //change the current content when updated
-                paragraph.write().content=ev.target().value();
-            }
-            on:change:target=move |ev| {
-                paragraph.write().content = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Text(current_paragraph.get_untracked()),
-                        Block::Text(paragraph.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_paragraph.write().content = paragraph.read_untracked().content.clone();
-            }
-        />
-        </div>
-        <Accordion
-            expand={config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Language: "</span>
-                    <input
-                    prop:value=move || paragraph.read().lang.clone()
-                    class="text-sm"
-                    placeholder="language"
+            <div>
+                <p class="font-light text-xs">"Raw Text: "</p>
+                <textarea
+                    class="bg-yellow-100 text-black font-mono"
+                    id=format!("block-input-{id}")
+                    node_ref=focus_element
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-language")}
+                    rows=TEXTAREA_DEFAULT_ROWS
+                    cols=TEXTAREA_DEFAULT_COLS
+                    // reactive, so undo/redo actions can change the view
+                    prop:value=move || paragraph.read().content.clone()
                     on:input:target=move |ev| {
-                        paragraph.write().lang = ev.target().value();
+                        paragraph.write().content = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        paragraph.write().lang = ev.target().value();
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Text(current_paragraph.get_untracked()),
-                                Block::Text(paragraph.get_untracked()))
+                        paragraph.write().content = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Text(current_paragraph.get_untracked()),
+                                    Block::Text(paragraph.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_paragraph.write().lang = paragraph.read_untracked().lang.clone();
-                    }/>
-                </Item>
-            </List>
-        </Accordion>
+                        current_paragraph.write().content = paragraph
+                            .read_untracked()
+                            .content
+                            .clone();
+                    }
+                />
+            </div>
+            <Accordion
+                expand=config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Language: "</span>
+                        <input
+                            prop:value=move || paragraph.read().lang.clone()
+                            class="text-sm"
+                            placeholder="language"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-language")
+                            on:input:target=move |ev| {
+                                paragraph.write().lang = ev.target().value();
+                            }
+                            on:change:target=move |ev| {
+                                paragraph.write().lang = ev.target().value();
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Text(current_paragraph.get_untracked()),
+                                            Block::Text(paragraph.get_untracked()),
+                                        ),
+                                    );
+                                current_paragraph.write().lang = paragraph
+                                    .read_untracked()
+                                    .lang
+                                    .clone();
+                            }
+                        />
+                    </Item>
+                </List>
+            </Accordion>
         </div>
     }
 }
@@ -118,91 +127,110 @@ fn inner_lacuna_view(
     let config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-        <div>
-            <span
-                class="font-light text-xs">
-                    "Lacuna because of "
-            </span>
-            <input
-            prop:value=move || lacuna.read().reason.clone()
-            class="text-sm"
-            placeholder="reason"
-            autocomplete="false"
-            spellcheck="false"
-            id={format!("block-input-{id}-reason")}
-            on:input:target=move |ev| {
-                lacuna.write().reason = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                lacuna.write().reason = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Lacuna(current_lacuna.get_untracked()),
-                        Block::Lacuna(lacuna.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_lacuna.write().reason = lacuna.read_untracked().reason.clone();
-            }/>
-        </div>
-        <Accordion
-            expand={config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Extent: "</span>
-                    <input
-                    prop:value=move || lacuna.read().n
+            <div>
+                <span class="font-light text-xs">"Lacuna because of "</span>
+                <input
+                    prop:value=move || lacuna.read().reason.clone()
                     class="text-sm"
-                    placeholder="n"
+                    placeholder="reason"
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-extent")}
+                    id=format!("block-input-{id}-reason")
                     on:input:target=move |ev| {
-                        // here we can allow the value to be unparsable, but we want to prevent
-                        // this if possible
-                        let x = ev.target().value();
-                        if x.is_empty() {
-                        } else {
-                            lacuna.write().n = ev.target().value().parse().unwrap_or(1);
-                        }
+                        lacuna.write().reason = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        // just throw away values that are not parsable
-                        lacuna.write().n = ev.target().value().parse().unwrap_or(1);
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Lacuna(current_lacuna.get_untracked()),
-                                Block::Lacuna(lacuna.get_untracked()))
+                        lacuna.write().reason = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Lacuna(current_lacuna.get_untracked()),
+                                    Block::Lacuna(lacuna.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_lacuna.write().n = lacuna.get_untracked().n;
-                    }/>
-                </Item>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Unit of Extent: "</span>
-                    <select
-                    id={format!("block-input-{id}-unit")}
-                    prop:value=move || lacuna.read().unit.name()
-                    on:input:target=move |ev| {
-                        lacuna.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                        current_lacuna.write().reason = lacuna.read_untracked().reason.clone();
                     }
-                    on:change:target=move |ev| {
-                        lacuna.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Lacuna(current_lacuna.get_untracked()),
-                                Block::Lacuna(lacuna.get_untracked())));
-                        current_lacuna.write().unit = lacuna.get_untracked().unit;
-                    }
-                >
-                    <option value="Character">Character</option>
-                    <option value="Line">Line</option>
-                    <option value="Column">Column</option>
-                </select>
-                </Item>
-            </List>
-        </Accordion>
+                />
+            </div>
+            <Accordion
+                expand=config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Extent: "</span>
+                        <input
+                            prop:value=move || lacuna.read().n
+                            class="text-sm"
+                            placeholder="n"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-extent")
+                            on:input:target=move |ev| {
+                                let x = ev.target().value();
+                                if x.is_empty() {} else {
+                                    lacuna.write().n = ev.target().value().parse().unwrap_or(1);
+                                }
+                            }
+                            on:change:target=move |ev| {
+                                lacuna.write().n = ev.target().value().parse().unwrap_or(1);
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Lacuna(current_lacuna.get_untracked()),
+                                            Block::Lacuna(lacuna.get_untracked()),
+                                        ),
+                                    );
+                                current_lacuna.write().n = lacuna.get_untracked().n;
+                            }
+                        />
+                    </Item>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Unit of Extent: "</span>
+                        <select
+                            id=format!("block-input-{id}-unit")
+                            prop:value=move || lacuna.read().unit.name()
+                            on:input:target=move |ev| {
+                                lacuna.write().unit = ev
+                                    .target()
+                                    .value()
+                                    .parse()
+                                    .expect(
+                                        "Only correct Names in the options for this select field.",
+                                    );
+                            }
+                            on:change:target=move |ev| {
+                                lacuna.write().unit = ev
+                                    .target()
+                                    .value()
+                                    .parse()
+                                    .expect(
+                                        "Only correct Names in the options for this select field.",
+                                    );
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Lacuna(current_lacuna.get_untracked()),
+                                            Block::Lacuna(lacuna.get_untracked()),
+                                        ),
+                                    );
+                                current_lacuna.write().unit = lacuna.get_untracked().unit;
+                            }
+                        >
+                            <option value="Character">Character</option>
+                            <option value="Line">Line</option>
+                            <option value="Column">Column</option>
+                        </select>
+                    </Item>
+                </List>
+            </Accordion>
         </div>
     }
 }
@@ -221,121 +249,136 @@ fn inner_uncertain_view(
     let config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-        <div>
-            // header line
-            <span
-                class="font-light text-xs">
-                    "Uncertain because of "
-            </span>
-            // reason for the uncertainty
-            <input
-            prop:value=move || uncertain.read().agent.clone()
-            class="text-sm"
-            placeholder="reason"
-            autocomplete="false"
-            spellcheck="false"
-            id={format!("block-input-{id}-agent")}
-            on:input:target=move |ev| {
-                uncertain.write().agent = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                uncertain.write().agent = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Uncertain(current_uncertain.get_untracked()),
-                        Block::Uncertain(uncertain.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_uncertain.write().agent = uncertain.get_untracked().agent;
-            }/>
-            <span
-                class="font-light text-xs">
-                :
-            </span>
-            <br/>
-            // proposed (reconstructed) content
-            <textarea
-            class="bg-orange-100 text-black font-mono"
-            id={format!("block-input-{id}")}
-            node_ref=focus_element
-            prop:value=move || uncertain.read().content.clone()
-            autocomplete="false"
-            spellcheck="false"
-            rows=TEXTAREA_DEFAULT_ROWS
-            cols=TEXTAREA_DEFAULT_COLS
-            on:input:target=move |ev| {
-                uncertain.write().content = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                uncertain.write().content = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Uncertain(current_uncertain.get_untracked()),
-                        Block::Uncertain(uncertain.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_uncertain.write().content = uncertain.get_untracked().content;
-            }
-        />
-        </div>
-        <Accordion
-            expand={config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Language: "</span>
-                    <input
-                    prop:value=move || uncertain.read().lang.clone()
+            <div>
+                // header line
+                <span class="font-light text-xs">"Uncertain because of "</span>
+                // reason for the uncertainty
+                <input
+                    prop:value=move || uncertain.read().agent.clone()
                     class="text-sm"
-                    placeholder="language"
+                    placeholder="reason"
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-language")}
+                    id=format!("block-input-{id}-agent")
                     on:input:target=move |ev| {
-                        uncertain.write().lang = ev.target().value();
+                        uncertain.write().agent = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        uncertain.write().lang = ev.target().value();
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Uncertain(current_uncertain.get_untracked()),
-                                Block::Uncertain(uncertain.get_untracked()))
+                        uncertain.write().agent = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Uncertain(current_uncertain.get_untracked()),
+                                    Block::Uncertain(uncertain.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_uncertain.write().lang = uncertain.read_untracked().lang.clone();
-                    }/>
-                </Item>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Certainty: "</span>
-                    <input
-                    // the unwrap_or_else is required, because cert can be None but we want to push
-                    // "" to the user in that case
-                    prop:value=move || uncertain.read().cert.clone().unwrap_or_default()
-                    class="text-sm"
-                    placeholder="certainty"
+                        current_uncertain.write().agent = uncertain.get_untracked().agent;
+                    }
+                />
+                <span class="font-light text-xs">:</span>
+                <br />
+                // proposed (reconstructed) content
+                <textarea
+                    class="bg-orange-100 text-black font-mono"
+                    id=format!("block-input-{id}")
+                    node_ref=focus_element
+                    prop:value=move || uncertain.read().content.clone()
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-certainty")}
+                    rows=TEXTAREA_DEFAULT_ROWS
+                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
-                        let x = ev.target().value();
-                        uncertain.write().cert = (!x.is_empty()).then_some(x);
+                        uncertain.write().content = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        let x = ev.target().value();
-                        uncertain.write().cert = (!x.is_empty()).then_some(x);
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Uncertain(current_uncertain.get_untracked()),
-                                Block::Uncertain(uncertain.get_untracked()))
+                        uncertain.write().content = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Uncertain(current_uncertain.get_untracked()),
+                                    Block::Uncertain(uncertain.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_uncertain.write().cert = uncertain.read_untracked().cert.clone();
-                    }/>
-                </Item>
-            </List>
-        </Accordion>
+                        current_uncertain.write().content = uncertain.get_untracked().content;
+                    }
+                />
+            </div>
+            <Accordion
+                expand=config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Language: "</span>
+                        <input
+                            prop:value=move || uncertain.read().lang.clone()
+                            class="text-sm"
+                            placeholder="language"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-language")
+                            on:input:target=move |ev| {
+                                uncertain.write().lang = ev.target().value();
+                            }
+                            on:change:target=move |ev| {
+                                uncertain.write().lang = ev.target().value();
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Uncertain(current_uncertain.get_untracked()),
+                                            Block::Uncertain(uncertain.get_untracked()),
+                                        ),
+                                    );
+                                current_uncertain.write().lang = uncertain
+                                    .read_untracked()
+                                    .lang
+                                    .clone();
+                            }
+                        />
+                    </Item>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Certainty: "</span>
+                        <input
+                            // the unwrap_or_else is required, because cert can be None but we want to push
+                            // "" to the user in that case
+                            prop:value=move || uncertain.read().cert.clone().unwrap_or_default()
+                            class="text-sm"
+                            placeholder="certainty"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-certainty")
+                            on:input:target=move |ev| {
+                                let x = ev.target().value();
+                                uncertain.write().cert = (!x.is_empty()).then_some(x);
+                            }
+                            on:change:target=move |ev| {
+                                let x = ev.target().value();
+                                uncertain.write().cert = (!x.is_empty()).then_some(x);
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Uncertain(current_uncertain.get_untracked()),
+                                            Block::Uncertain(uncertain.get_untracked()),
+                                        ),
+                                    );
+                                current_uncertain.write().cert = uncertain
+                                    .read_untracked()
+                                    .cert
+                                    .clone();
+                            }
+                        />
+                    </Item>
+                </List>
+            </Accordion>
         </div>
     }
 }
@@ -348,57 +391,68 @@ fn inner_space_view(
     let current_space = RwSignal::new(space.get_untracked());
     view! {
         <div class="flex justify-between">
-        <span
-            class="font-light text-xs">
-                "Space: "
-        </span>
-                    <span class="font-light text-xs">"Extent: "</span>
-                    <input
-                    prop:value=move || space.read().quantity
-                    class="text-sm"
-                    placeholder="extent"
-                    autocomplete="false"
-                    spellcheck="false"
-                    id={format!("block-input-{id}-extent")}
-                    on:input:target=move |ev| {
-                        // here we can allow the value to be unparsable, but we want to prevent
-                        // this if possible
-                        let x = ev.target().value();
-                        if x.is_empty() {
-                        } else {
-                            space.write().quantity = ev.target().value().parse().unwrap_or(1);
-                        }
-                    }
-                    on:change:target=move |ev| {
-                        // just throw away values that are not parsable
+            <span class="font-light text-xs">"Space: "</span>
+            <span class="font-light text-xs">"Extent: "</span>
+            <input
+                prop:value=move || space.read().quantity
+                class="text-sm"
+                placeholder="extent"
+                autocomplete="false"
+                spellcheck="false"
+                id=format!("block-input-{id}-extent")
+                on:input:target=move |ev| {
+                    let x = ev.target().value();
+                    if x.is_empty() {} else {
                         space.write().quantity = ev.target().value().parse().unwrap_or(1);
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Space(current_space.get_untracked()),
-                                Block::Space(space.get_untracked()))
-                            );
-                        // now set the new savepoint
-                        current_space.write().quantity = space.get_untracked().quantity;
-                    }/>
-                    <span class="font-light text-xs">"Unit of Extent: "</span>
-                    <select
-                    id={format!("block-input-{id}-unit")}
-                    prop:value=move || space.read().unit.name()
-                    on:input:target=move |ev| {
-                        space.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
                     }
-                    on:change:target=move |ev| {
-                        space.write().unit = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
+                }
+                on:change:target=move |ev| {
+                    space.write().quantity = ev.target().value().parse().unwrap_or(1);
+                    undo_stack
+                        .write()
+                        .push_undo(
+                            UnReStep::new_data_change(
+                                id,
                                 Block::Space(current_space.get_untracked()),
-                                Block::Space(space.get_untracked())));
-                        current_space.write().unit = space.get_untracked().unit;
-                    }
-                >
-                    <option value="Character">Character</option>
-                    <option value="Line">Line</option>
-                    <option value="Column">Column</option>
-                </select>
+                                Block::Space(space.get_untracked()),
+                            ),
+                        );
+                    current_space.write().quantity = space.get_untracked().quantity;
+                }
+            />
+            <span class="font-light text-xs">"Unit of Extent: "</span>
+            <select
+                id=format!("block-input-{id}-unit")
+                prop:value=move || space.read().unit.name()
+                on:input:target=move |ev| {
+                    space.write().unit = ev
+                        .target()
+                        .value()
+                        .parse()
+                        .expect("Only correct Names in the options for this select field.");
+                }
+                on:change:target=move |ev| {
+                    space.write().unit = ev
+                        .target()
+                        .value()
+                        .parse()
+                        .expect("Only correct Names in the options for this select field.");
+                    undo_stack
+                        .write()
+                        .push_undo(
+                            UnReStep::new_data_change(
+                                id,
+                                Block::Space(current_space.get_untracked()),
+                                Block::Space(space.get_untracked()),
+                            ),
+                        );
+                    current_space.write().unit = space.get_untracked().unit;
+                }
+            >
+                <option value="Character">Character</option>
+                <option value="Line">Line</option>
+                <option value="Column">Column</option>
+            </select>
         </div>
     }
 }
@@ -410,28 +464,39 @@ fn inner_break_view(
 ) -> impl IntoView {
     let current_break_block = RwSignal::new(break_block.get_untracked());
     view! {
-            <div>
-                <p
-                    class="font-light text-xs">
-                    "Break: "
-                </p>
-                <select
+        <div>
+            <p class="font-light text-xs">"Break: "</p>
+            <select
                 prop:value=break_block.get_untracked().name()
                 on:input:target=move |ev| {
-                    *break_block.write() = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
+                    *break_block.write() = ev
+                        .target()
+                        .value()
+                        .parse()
+                        .expect("Only correct Names in the options for this select field.");
                 }
                 on:change:target=move |ev| {
-                    *break_block.write() = ev.target().value().parse().expect("Only correct Names in the options for this select field.");
-                    undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                            Block::Break(current_break_block.get_untracked()),
-                            Block::Break(break_block.get_untracked())));
+                    *break_block.write() = ev
+                        .target()
+                        .value()
+                        .parse()
+                        .expect("Only correct Names in the options for this select field.");
+                    undo_stack
+                        .write()
+                        .push_undo(
+                            UnReStep::new_data_change(
+                                id,
+                                Block::Break(current_break_block.get_untracked()),
+                                Block::Break(break_block.get_untracked()),
+                            ),
+                        );
                     *current_break_block.write() = break_block.get_untracked();
                 }
             >
                 <option value="Line">Line</option>
                 <option value="Column">Column</option>
             </select>
-            </div>
+        </div>
     }
 }
 
@@ -451,7 +516,9 @@ fn inner_anchor_view(
             "Did not get a provided context for versification schemes. Please open a bug report."
         );
         return leptos::either::Either::Left(view! {
-            <p>"No versification schemes present. Anchor cannot be represented! Please open a bug report."</p>
+            <p>
+                "No versification schemes present. Anchor cannot be represented! Please open a bug report."
+            </p>
         });
     };
 
@@ -486,87 +553,115 @@ fn inner_anchor_view(
 
     leptos::either::Either::Right(view! {
         <div class="flex justify-between">
-        <div>
-            // Anchor 'content', i.e. the actual id not containing the versification scheme
-            <input
-            prop:value=move || raw_id.get()
-            class="text-sm"
-            placeholder="id"
-            autocomplete="false"
-            spellcheck="false"
-            id={format!("block-input-{id}-anchor_id")}
-            on:input:target=move |ev| {
-                // just set the raw input value
-                *raw_id.write() = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                *raw_id.write() = ev.target().value();
-
-                let full_anchor_id = format!("A_V_{}_{}", scheme_shorthand.get(), raw_id.read());
-                anchor.write().anchor_id = full_anchor_id;
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Anchor(current_anchor.get_untracked()),
-                        Block::Anchor(anchor.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_anchor.write().anchor_id = anchor.get_untracked().anchor_id;
-            }/>
-        </div>
-        <Accordion
-            expand={config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Versification Scheme: "</span>
-                    <select
-                    prop:value=move || anchor.read().anchor_type.clone()
+            <div>
+                // Anchor 'content', i.e. the actual id not containing the versification scheme
+                <input
+                    prop:value=move || raw_id.get()
+                    class="text-sm"
+                    placeholder="id"
+                    autocomplete="false"
+                    spellcheck="false"
+                    id=format!("block-input-{id}-anchor_id")
                     on:input:target=move |ev| {
-                        anchor.write().anchor_type = ev.target().value();
+                        *raw_id.write() = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        anchor.write().anchor_type = ev.target().value();
-
-                        // we also need to update the anchor id with the new shorthand for the
-                        // scheme when the anchor type is changed
-                        let full_anchor_id = format!("A_V_{}_{}", scheme_shorthand.get(), raw_id.read());
+                        *raw_id.write() = ev.target().value();
+                        let full_anchor_id = format!(
+                            "A_V_{}_{}",
+                            scheme_shorthand.get(),
+                            raw_id.read(),
+                        );
                         anchor.write().anchor_id = full_anchor_id;
-
-                        undo_stack.write().push_undo(UnReStep::new_data_change(id,
-                                Block::Anchor(current_anchor.get_untracked()),
-                                Block::Anchor(anchor.get_untracked())));
-                        current_anchor.write().anchor_type = anchor.get_untracked().anchor_type;
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Anchor(current_anchor.get_untracked()),
+                                    Block::Anchor(anchor.get_untracked()),
+                                ),
+                            );
+                        current_anchor.write().anchor_id = anchor.get_untracked().anchor_id;
                     }
-                >
-                    // these two schemes are static and can always be show.
-                    // please change if you change the static schemes in
-                    // `202507071848_versification_scheme.up.sql`
-                    <Suspense fallback = move || view!{ <option value="Present">Present</option><option value="Common">Common</option>}>
-                    {
-                        versification_schemes_res.get_untracked().map(|scheme_res|
-                            match scheme_res {
-                                Ok(schemes) => {
-                                    leptos::either::Either::Left(
-                                        schemes.into_iter().map(|scheme|
-                                            view! {
-                                                <option value=scheme.full_name>{scheme.full_name.clone()}</option>
-                                            }).collect::<Vec<_>>())
+                />
+            </div>
+            <Accordion
+                expand=config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Versification Scheme: "</span>
+                        <select
+                            prop:value=move || anchor.read().anchor_type.clone()
+                            on:input:target=move |ev| {
+                                anchor.write().anchor_type = ev.target().value();
+                            }
+                            on:change:target=move |ev| {
+                                anchor.write().anchor_type = ev.target().value();
+                                let full_anchor_id = format!(
+                                    "A_V_{}_{}",
+                                    scheme_shorthand.get(),
+                                    raw_id.read(),
+                                );
+                                anchor.write().anchor_id = full_anchor_id;
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Anchor(current_anchor.get_untracked()),
+                                            Block::Anchor(anchor.get_untracked()),
+                                        ),
+                                    );
+                                current_anchor.write().anchor_type = anchor
+                                    .get_untracked()
+                                    .anchor_type;
+                            }
+                        >
+                            // these two schemes are static and can always be show.
+                            // please change if you change the static schemes in
+                            // `202507071848_versification_scheme.up.sql`
+                            <Suspense fallback=move || {
+                                view! {
+                                    <option value="Present">Present</option>
+                                    <option value="Common">Common</option>
                                 }
-                                Err(e) => {
-                                    leptos::either::Either::Right(
-                                    view!{
-                                        <p>"Unable to get versification schemes from the server: "{e.to_string()}". Please open a bug report."</p>
-                                    })
-                                }
-                            })
-                    }
-                    </Suspense>
-                </select>
-                </Item>
-            </List>
-        </Accordion>
+                            }>
+                                {versification_schemes_res
+                                    .get_untracked()
+                                    .map(|scheme_res| match scheme_res {
+                                        Ok(schemes) => {
+                                            leptos::either::Either::Left(
+                                                schemes
+                                                    .into_iter()
+                                                    .map(|scheme| {
+                                                        view! {
+                                                            <option value=scheme
+                                                                .full_name>{scheme.full_name.clone()}</option>
+                                                        }
+                                                    })
+                                                    .collect::<Vec<_>>(),
+                                            )
+                                        }
+                                        Err(e) => {
+                                            leptos::either::Either::Right(
+                                                view! {
+                                                    <p>
+                                                        "Unable to get versification schemes from the server: "
+                                                        {e.to_string()}". Please open a bug report."
+                                                    </p>
+                                                },
+                                            )
+                                        }
+                                    })}
+                            </Suspense>
+                        </select>
+                    </Item>
+                </List>
+            </Accordion>
         </div>
     })
 }
@@ -584,129 +679,147 @@ fn inner_abbreviation_view(
     let surface_config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-        <span>
-            "Surface form:"
-        </span>
-        <div>
-            // surface form
-            <textarea
-            class="bg-orange-100 text-black font-mono"
-            node_ref=focus_element
-            prop:value=move || abbreviation.read().surface.clone()
-            autocomplete="false"
-            spellcheck="false"
-            id={format!("block-input-{id}-surface")}
-            rows=1
-            cols=TEXTAREA_DEFAULT_COLS
-            on:input:target=move |ev| {
-                abbreviation.write().surface = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                abbreviation.write().surface = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Abbreviation(current_abbreviation.get_untracked()),
-                        Block::Abbreviation(abbreviation.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_abbreviation.write().surface = abbreviation.get_untracked().surface;
-            }
-        />
-        </div>
-        <Accordion
-            expand={surface_config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Surface Language: "</span>
-                    <input
-                    prop:value=move || abbreviation.read().surface_lang.clone()
-                    class="text-sm"
-                    placeholder="surface-language"
+            <span>"Surface form:"</span>
+            <div>
+                // surface form
+                <textarea
+                    class="bg-orange-100 text-black font-mono"
+                    node_ref=focus_element
+                    prop:value=move || abbreviation.read().surface.clone()
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-surface_lang")}
+                    id=format!("block-input-{id}-surface")
+                    rows=1
+                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
-                        abbreviation.write().surface_lang = ev.target().value();
+                        abbreviation.write().surface = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        abbreviation.write().surface_lang= ev.target().value();
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Abbreviation(current_abbreviation.get_untracked()),
-                                Block::Abbreviation(abbreviation.get_untracked()))
+                        abbreviation.write().surface = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Abbreviation(current_abbreviation.get_untracked()),
+                                    Block::Abbreviation(abbreviation.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_abbreviation.write().surface_lang = abbreviation.read_untracked().surface_lang.clone();
-                    }/>
-                </Item>
-            </List>
-        </Accordion>
+                        current_abbreviation.write().surface = abbreviation.get_untracked().surface;
+                    }
+                />
+            </div>
+            <Accordion
+                expand=surface_config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Surface Language: "</span>
+                        <input
+                            prop:value=move || abbreviation.read().surface_lang.clone()
+                            class="text-sm"
+                            placeholder="surface-language"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-surface_lang")
+                            on:input:target=move |ev| {
+                                abbreviation.write().surface_lang = ev.target().value();
+                            }
+                            on:change:target=move |ev| {
+                                abbreviation.write().surface_lang = ev.target().value();
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Abbreviation(current_abbreviation.get_untracked()),
+                                            Block::Abbreviation(abbreviation.get_untracked()),
+                                        ),
+                                    );
+                                current_abbreviation.write().surface_lang = abbreviation
+                                    .read_untracked()
+                                    .surface_lang
+                                    .clone();
+                            }
+                        />
+                    </Item>
+                </List>
+            </Accordion>
         </div>
 
         <div class="flex justify-between">
-        <span>
-            "Expanded form:"
-        </span>
-        <div>
-            // expanded form
-            <textarea
-            class="bg-orange-100 text-black font-mono"
-            id={format!("block-input-{id}")}
-            node_ref=focus_element
-            prop:value=move || abbreviation.read().expansion.clone()
-            autocomplete="false"
-            spellcheck="false"
-            rows=1
-            cols=TEXTAREA_DEFAULT_COLS
-            on:input:target=move |ev| {
-                abbreviation.write().expansion = ev.target().value();
-            }
-            on:change:target=move |ev| {
-                abbreviation.write().expansion = ev.target().value();
-                undo_stack.write().push_undo(
-                    UnReStep::new_data_change(id,
-                        Block::Abbreviation(current_abbreviation.get_untracked()),
-                        Block::Abbreviation(abbreviation.get_untracked()))
-                    );
-                // now set the new savepoint
-                current_abbreviation.write().expansion = abbreviation.get_untracked().expansion;
-            }
-        />
-        </div>
-        <Accordion
-            expand={expansion_config_expanded}
-            expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-            collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-        >
-            <List>
-                <Item align={Align::Left}>
-                    <span class="font-light text-xs">"Expansion Language: "</span>
-                    <input
-                    prop:value=move || abbreviation.read().expansion_lang.clone()
-                    class="text-sm"
-                    placeholder="expansion-language"
+            <span>"Expanded form:"</span>
+            <div>
+                // expanded form
+                <textarea
+                    class="bg-orange-100 text-black font-mono"
+                    id=format!("block-input-{id}")
+                    node_ref=focus_element
+                    prop:value=move || abbreviation.read().expansion.clone()
                     autocomplete="false"
                     spellcheck="false"
-                    id={format!("block-input-{id}-expansion_lang")}
+                    rows=1
+                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
-                        abbreviation.write().expansion_lang = ev.target().value();
+                        abbreviation.write().expansion = ev.target().value();
                     }
                     on:change:target=move |ev| {
-                        abbreviation.write().expansion_lang = ev.target().value();
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Abbreviation(current_abbreviation.get_untracked()),
-                                Block::Abbreviation(abbreviation.get_untracked()))
+                        abbreviation.write().expansion = ev.target().value();
+                        undo_stack
+                            .write()
+                            .push_undo(
+                                UnReStep::new_data_change(
+                                    id,
+                                    Block::Abbreviation(current_abbreviation.get_untracked()),
+                                    Block::Abbreviation(abbreviation.get_untracked()),
+                                ),
                             );
-                        // now set the new savepoint
-                        current_abbreviation.write().expansion_lang = abbreviation.read_untracked().expansion_lang.clone();
-                    }/>
-                </Item>
-            </List>
-        </Accordion>
+                        current_abbreviation.write().expansion = abbreviation
+                            .get_untracked()
+                            .expansion;
+                    }
+                />
+            </div>
+            <Accordion
+                expand=expansion_config_expanded
+                expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+            >
+                <List>
+                    <Item align=Align::Left>
+                        <span class="font-light text-xs">"Expansion Language: "</span>
+                        <input
+                            prop:value=move || abbreviation.read().expansion_lang.clone()
+                            class="text-sm"
+                            placeholder="expansion-language"
+                            autocomplete="false"
+                            spellcheck="false"
+                            id=format!("block-input-{id}-expansion_lang")
+                            on:input:target=move |ev| {
+                                abbreviation.write().expansion_lang = ev.target().value();
+                            }
+                            on:change:target=move |ev| {
+                                abbreviation.write().expansion_lang = ev.target().value();
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_data_change(
+                                            id,
+                                            Block::Abbreviation(current_abbreviation.get_untracked()),
+                                            Block::Abbreviation(abbreviation.get_untracked()),
+                                        ),
+                                    );
+                                current_abbreviation.write().expansion_lang = abbreviation
+                                    .read_untracked()
+                                    .expansion_lang
+                                    .clone();
+                            }
+                        />
+                    </Item>
+                </List>
+            </Accordion>
         </div>
     }
 }
@@ -741,157 +854,232 @@ fn inner_correction_view(
     };
 
     view! {
-        <span
-            class="font-light text-xs">
-                "Correction with these versions:"
-        </span>
+        <span class="font-light text-xs">"Correction with these versions:"</span>
         <For
             each=move || correction.get().versions.into_iter().enumerate()
             key=|dyn_v| dyn_v.0
-            children = {move |dyn_v| {
+            children=move |dyn_v| {
                 let memo_val = Memo::new(move |_| {
-                    correction.read().versions.get(dyn_v.0).map_or(Version {
-                        hand: None,
-                        lang: String::default(),
-                        content: String::default(),
-                    }, |v| v.clone())
+                    correction
+                        .read()
+                        .versions
+                        .get(dyn_v.0)
+                        .map_or(
+                            Version {
+                                hand: None,
+                                lang: String::default(),
+                                content: String::default(),
+                            },
+                            |v| v.clone(),
+                        )
                 });
                 let config_expanded = signal(false);
-                view!{
+                view! {
                     <div class="flex justify-between">
-                    <span class="font-light text-xs">
-                        "Version "{dyn_v.0}":"
-                    </span>
-                    <div>
-                        <textarea
-                        class="bg-orange-100 text-black font-mono"
-                        id={format!("block-input-{id}-v-{}", dyn_v.0)}
-                        node_ref=focus_element
-                        prop:value=move || memo_val.read().content.clone()
-                        autocomplete="false"
-                        spellcheck="false"
-                        rows=1
-                        cols=TEXTAREA_DEFAULT_COLS
-                        on:input:target=move |ev| {
-                            if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                version_in_correction.content = ev.target().value();
-                            };
-                        }
-                        on:change:target=move |ev| {
-                            let new_value = ev.target().value();
-                            // change the value in correction
-                            if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                version_in_correction.content = new_value.clone();
-                            };
-                            undo_stack.write().push_undo(
-                                UnReStep::new_data_change(id,
-                                    Block::Correction(current_correction.get_untracked()),
-                                    Block::Correction(correction.get_untracked()))
+                        <span class="font-light text-xs">"Version "{dyn_v.0}":"</span>
+                        <div>
+                            <textarea
+                                class="bg-orange-100 text-black font-mono"
+                                id=format!("block-input-{id}-v-{}", dyn_v.0)
+                                node_ref=focus_element
+                                prop:value=move || memo_val.read().content.clone()
+                                autocomplete="false"
+                                spellcheck="false"
+                                rows=1
+                                cols=TEXTAREA_DEFAULT_COLS
+                                on:input:target=move |ev| {
+                                    if let Some(version_in_correction) = correction
+                                        .write()
+                                        .versions
+                                        .get_mut(dyn_v.0)
+                                    {
+                                        version_in_correction.content = ev.target().value();
+                                    }
+                                }
+                                on:change:target=move |ev| {
+                                    let new_value = ev.target().value();
+                                    if let Some(version_in_correction) = correction
+                                        .write()
+                                        .versions
+                                        .get_mut(dyn_v.0)
+                                    {
+                                        version_in_correction.content = new_value.clone();
+                                    }
+                                    undo_stack
+                                        .write()
+                                        .push_undo(
+                                            UnReStep::new_data_change(
+                                                id,
+                                                Block::Correction(current_correction.get_untracked()),
+                                                Block::Correction(correction.get_untracked()),
+                                            ),
+                                        );
+                                    if let Some(version_in_correction) = current_correction
+                                        .write()
+                                        .versions
+                                        .get_mut(dyn_v.0)
+                                    {
+                                        version_in_correction.content = new_value;
+                                    }
+                                }
+                            />
+                        </div>
+                        <Accordion
+                            expand=config_expanded
+                            expanded=Box::new(|| view! { <CogIcon /> }.into_any())
+                            collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
+                        >
+                            <List>
+                                <Item align=Align::Left>
+                                    <span class="font-light text-xs">"Language: "</span>
+                                    <input
+                                        prop:value=move || memo_val.read().lang.clone()
+                                        class="text-sm"
+                                        placeholder="language"
+                                        autocomplete="false"
+                                        spellcheck="false"
+                                        id=format!("block-input-{id}-v-{}-lang", dyn_v.0)
+                                        on:input:target=move |ev| {
+                                            if let Some(version_in_correction) = correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.lang = ev.target().value();
+                                            }
+                                        }
+                                        on:change:target=move |ev| {
+                                            let new_lang = ev.target().value();
+                                            if let Some(version_in_correction) = correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.lang = new_lang.clone();
+                                            }
+                                            undo_stack
+                                                .write()
+                                                .push_undo(
+                                                    UnReStep::new_data_change(
+                                                        id,
+                                                        Block::Correction(current_correction.get_untracked()),
+                                                        Block::Correction(correction.get_untracked()),
+                                                    ),
+                                                );
+                                            if let Some(version_in_correction) = current_correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.lang = new_lang;
+                                            }
+                                        }
+                                    />
+                                </Item>
+                                <Item align=Align::Left>
+                                    <span class="font-light text-xs">"Hand: "</span>
+                                    <input
+                                        prop:value=move || memo_val.read().hand.clone()
+                                        class="text-sm"
+                                        placeholder="hand"
+                                        autocomplete="false"
+                                        spellcheck="false"
+                                        id=format!("block-input-{id}-v-{}-hand", dyn_v.0)
+                                        on:input:target=move |ev| {
+                                            let x = ev.target().value();
+                                            if let Some(version_in_correction) = correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.hand = if x.is_empty() {
+                                                    None
+                                                } else {
+                                                    Some(x)
+                                                };
+                                            }
+                                        }
+                                        on:change:target=move |ev| {
+                                            let x = ev.target().value();
+                                            let new_hand = if x.is_empty() { None } else { Some(x) };
+                                            if let Some(version_in_correction) = correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.hand = new_hand.clone();
+                                            }
+                                            undo_stack
+                                                .write()
+                                                .push_undo(
+                                                    UnReStep::new_data_change(
+                                                        id,
+                                                        Block::Correction(current_correction.get_untracked()),
+                                                        Block::Correction(correction.get_untracked()),
+                                                    ),
+                                                );
+                                            if let Some(version_in_correction) = current_correction
+                                                .write()
+                                                .versions
+                                                .get_mut(dyn_v.0)
+                                            {
+                                                version_in_correction.hand = new_hand;
+                                            }
+                                        }
+                                    />
+                                </Item>
+                            </List>
+                        </Accordion>
+                        <button on:click=move |_| {
+                            correction.write().versions.remove(dyn_v.0);
+                            undo_stack
+                                .write()
+                                .push_undo(
+                                    UnReStep::new_data_change(
+                                        id,
+                                        Block::Correction(current_correction.get_untracked()),
+                                        Block::Correction(correction.get_untracked()),
+                                    ),
                                 );
-                            // now set the new savepoint
-                            if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
-                                version_in_correction.content = new_value;
-                            };
-                        }
-                    />
+                            current_correction.write().versions.remove(dyn_v.0);
+                        }>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke-width="1.5"
+                                stroke="currentColor"
+                                class="size-4"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
+                                />
+                            </svg>
+                        </button>
                     </div>
-                    <Accordion
-                        expand={config_expanded}
-                        expanded={Box::new(|| view! { <CogIcon/> }.into_any())}
-                        collapsed={Box::new(|| view! { <CogIcon/> }.into_any())}
-                    >
-                        <List>
-                            <Item align={Align::Left}>
-                                <span class="font-light text-xs">"Language: "</span>
-                                <input
-                                prop:value=move || memo_val.read().lang.clone()
-                                class="text-sm"
-                                placeholder="language"
-                                autocomplete="false"
-                                spellcheck="false"
-                                id={format!("block-input-{id}-v-{}-lang", dyn_v.0)}
-                                on:input:target=move |ev| {
-                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.lang = ev.target().value();
-                                    };
-                                }
-                                on:change:target=move |ev| {
-                                    let new_lang = ev.target().value();
-                                    // change the value in correction
-                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.lang = new_lang.clone();
-                                    };
-                                    undo_stack.write().push_undo(
-                                        UnReStep::new_data_change(id,
-                                            Block::Correction(current_correction.get_untracked()),
-                                            Block::Correction(correction.get_untracked()))
-                                        );
-                                    // now set the new savepoint
-                                    if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.lang = new_lang;
-                                    };
-                                }/>
-                            </Item>
-                            <Item align={Align::Left}>
-                                <span class="font-light text-xs">"Hand: "</span>
-                                <input
-                                prop:value=move || memo_val.read().hand.clone()
-                                class="text-sm"
-                                placeholder="hand"
-                                autocomplete="false"
-                                spellcheck="false"
-                                id={format!("block-input-{id}-v-{}-hand", dyn_v.0)}
-                                on:input:target=move |ev| {
-                                    // here we can allow the value to be unparsable, but we want to prevent
-                                    // this if possible
-                                    let x = ev.target().value();
-                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.hand = if x.is_empty() {
-                                                None
-                                            } else {
-                                                Some(x)
-                                            };
-                                    };
-                                }
-                                on:change:target=move |ev| {
-                                    let x = ev.target().value();
-                                    let new_hand = if x.is_empty() {
-                                                None
-                                            } else {
-                                                Some(x)
-                                            };
-                                    if let Some(version_in_correction) = correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.hand = new_hand.clone();
-                                    };
-                                    undo_stack.write().push_undo(
-                                        UnReStep::new_data_change(id,
-                                            Block::Correction(current_correction.get_untracked()),
-                                            Block::Correction(correction.get_untracked()))
-                                        );
-                                    // now set the new savepoint
-                                    if let Some(version_in_correction) = current_correction.write().versions.get_mut(dyn_v.0) {
-                                        version_in_correction.hand = new_hand;
-                                    };
-                                }/>
-                            </Item>
-                        </List>
-                    </Accordion>
-                    <button on:click=move |_| {
-                        correction.write().versions.remove(dyn_v.0);
-                        undo_stack.write().push_undo(
-                            UnReStep::new_data_change(id,
-                                Block::Correction(current_correction.get_untracked()),
-                                Block::Correction(correction.get_untracked()))
-                            );
-                        // also push the change to the checkpoint
-                        current_correction.write().versions.remove(dyn_v.0);
-                    }><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" /></svg></button>
-                    </div>
-                }}}
-            />
+                }
+            }
+        />
 
-            <br/>
-            <button on:click=add_version><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></button>
+        <br />
+        <button on:click=add_version>
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="size-6"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                />
+            </svg>
+        </button>
     }
 }
 
@@ -958,7 +1146,8 @@ impl EditorBlock {
                 // we probably do not want to show the blocks ID to the user
                 // {self.id}
                 // ":"
-                <InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView></span>
+                <InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView>
+            </span>
         }
     }
 

@@ -176,7 +176,7 @@ const SHORTCUT_DESCRIPTIONS: &[(&str, &str, &str)] = &[
 fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
     view! {
         <div
-            on:click=move |_| { active.update(|a| a.set_off())}
+            on:click=move |_| { active.update(|a| a.set_off()) }
             // my tailwind is not compiling backdrop-blur-xs and I don't know why..
             class="absolute w-full inset-0 bg-stone-100/60 backdrop-blur-[8px]"
             class=("block", move || active.read().get())
@@ -187,20 +187,24 @@ fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
                     "This is the transcription editor. Copy a base text from another edition, then edit it here, marking up differences you find in the manuscript image."
                 </p>
                 <p>
-                    "You can use these keyboard shortcuts: "<span class="text-3xl">ctrl + alt + </span>"..."
+                    "You can use these keyboard shortcuts: "
+                    <span class="text-3xl">ctrl + alt +</span>"..."
                 </p>
                 <table class="table-fixed flex justify-around">
-                <tbody>
-                    {
-                        SHORTCUT_DESCRIPTIONS.iter().map(|(key, name, descr)| view!{
-                            <tr>
-                                <td class="text-3xl w-28">{*key}</td>
-                                <td class="text-xl w-36">{*name}</td>
-                                <td>{*descr}</td>
-                            </tr>
-                        }).collect::<Vec<_>>()
-                    }
-                </tbody>
+                    <tbody>
+                        {SHORTCUT_DESCRIPTIONS
+                            .iter()
+                            .map(|(key, name, descr)| {
+                                view! {
+                                    <tr>
+                                        <td class="text-3xl w-28">{*key}</td>
+                                        <td class="text-xl w-36">{*name}</td>
+                                        <td>{*descr}</td>
+                                    </tr>
+                                }
+                            })
+                            .collect::<Vec<_>>()}
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -224,26 +228,47 @@ pub fn Editor(default_language: String) -> impl IntoView {
     let move_up_button = move |id| {
         if let Some(physical_index) = index_if_not_first(id) {
             view! {
-                <button
-                    on:click=move |_| {
+                <button on:click=move |_| {
                     set_blocks.write().swap(physical_index, physical_index - 1);
-                    // push the swap to the undo stack
-                    undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index - 1));
+                    undo_stack
+                        .write()
+                        .push_undo(UnReStep::new_swap(physical_index, physical_index - 1));
                 }>
-                // move up
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-</svg>
+                    // move up
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="size-6"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"
+                        />
+                    </svg>
                 </button>
             }.into_any()
         } else {
             view! {
-                <button
-                    on:click=move |_| {} disabled=true>
-                // move up
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-300 size-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-</svg>
+                <button on:click=move |_| {} disabled=true>
+                    // move up
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="text-gray-300 size-6"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"
+                        />
+                    </svg>
                 </button>
             }.into_any()
         }
@@ -256,26 +281,47 @@ pub fn Editor(default_language: String) -> impl IntoView {
     let move_down_button = move |id| {
         if let Some(physical_index) = index_if_not_last(id) {
             view! {
-                <button
-                    on:click=move |_| {
-                    // swap them
+                <button on:click=move |_| {
                     set_blocks.write().swap(physical_index, physical_index + 1);
-                    // push the swap to the undo stack
-                    undo_stack.write().push_undo(UnReStep::new_swap(physical_index, physical_index + 1));
+                    undo_stack
+                        .write()
+                        .push_undo(UnReStep::new_swap(physical_index, physical_index + 1));
                 }>
-                // move down
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
-</svg>
+                    // move down
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="size-6"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"
+                        />
+                    </svg>
                 </button>
             }.into_any()
         } else {
             view! {
                 <button on:click=move |_| {} disabled=true>
-                // move down
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="text-gray-300 size-6">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
-</svg>
+                    // move down
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="text-gray-300 size-6"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"
+                        />
+                    </svg>
                 </button>
             }.into_any()
         }
@@ -435,59 +481,76 @@ pub fn Editor(default_language: String) -> impl IntoView {
     let help_active: RwSignal<ShowHelp> = use_context().expect("Root mounts ShowHelp context");
 
     view! {
-            <div class="relative">
-            <button on:click=move |_| {
-                // TODO call a server function that sets the published bit on this transcription
-            }>
-                "Publish this transcription"
-            </button>
-            <HelpOverlay active=help_active/>
+        <div class="relative">
+            <button on:click=move |_| {}>"Publish this transcription"</button>
+            <HelpOverlay active=help_active />
             <p>{move || pending_save.get().then_some("Saving state...")}</p>
-            <br/>
-            <Suspense fallback=|| { view!{ <p>"Loading editor state from the server..."</p> } }>
-            {move || Suspend::new(async move {
-                let init_blocks = load_state_resource.await;
-                *next_id.write() = init_blocks.len() + 1;
-                set_blocks.set(init_blocks);
-            view!{
-            <For each=move || blocks.get()
-                key=|block| block.id()
-                children={move |outer_block|
-                    {
-                    let outer_id = outer_block.id();
-                    view!{
-                        <br/>
-                        <div class="flex justify-between">
-                        <span>
-                        {move || move_up_button(outer_id)}
-                        {move || move_down_button(outer_id)}
-                        </span>
+            <br />
+            <Suspense fallback=|| {
+                view! { <p>"Loading editor state from the server..."</p> }
+            }>
+                {move || Suspend::new(async move {
+                    let init_blocks = load_state_resource.await;
+                    *next_id.write() = init_blocks.len() + 1;
+                    set_blocks.set(init_blocks);
+                    view! {
+                        <For
+                            each=move || blocks.get()
+                            key=|block| block.id()
+                            children=move |outer_block| {
+                                let outer_id = outer_block.id();
+                                view! {
+                                    <br />
+                                    <div class="flex justify-between">
+                                        <span>
+                                            {move || move_up_button(outer_id)}
+                                            {move || move_down_button(outer_id)}
+                                        </span>
 
-                        {move || { outer_block.clone().view() }}
+                                        {move || { outer_block.clone().view() }}
 
-                        <button on:click=move |_| {
-                            let physical_index = match blocks.read().iter().position(|blck| blck.id() == outer_id) {
-                                Some(x) => x,
-                                // the given element does not exist - this should be impossible
-                                None => { return; }
-                            };
-                            // remove this element
-                            let removed_block = set_blocks.write().remove(physical_index);
-                            // push this action to the undo stack
-                            undo_stack.write().push_undo(UnReStep::new_deletion(physical_index, removed_block));
-                        }>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
-    </svg>
-                        </button>
-                        </div>
+                                        <button on:click=move |_| {
+                                            let physical_index = match blocks
+                                                .read()
+                                                .iter()
+                                                .position(|blck| blck.id() == outer_id)
+                                            {
+                                                Some(x) => x,
+                                                None => {
+                                                    return;
+                                                }
+                                            };
+                                            let removed_block = set_blocks
+                                                .write()
+                                                .remove(physical_index);
+                                            undo_stack
+                                                .write()
+                                                .push_undo(
+                                                    UnReStep::new_deletion(physical_index, removed_block),
+                                                );
+                                        }>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke-width="1.5"
+                                                stroke="currentColor"
+                                                class="size-6"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                }
+                            }
+                        ></For>
                     }
-                    }
-                }
-            >
-            </For>
-            }})}
+                })}
             </Suspense>
-            </div>
-        }
+        </div>
+    }
 }

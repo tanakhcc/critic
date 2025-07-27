@@ -33,13 +33,14 @@ pub fn TransferPage(msname: String) -> impl IntoView {
     view! {
         <div class="flex items-center justify-center w-full p-2 md:p-8">
             <Show when=move || transfer_reply.get().is_none()>
-            <DropzonePreview
-                files=files
-                transfer_pending=transfer_pending
-                on_transfer=move |ev: MouseEvent| {
-                    ev.prevent_default();
-                    transfer_action.dispatch_local(files.get());
-                } />
+                <DropzonePreview
+                    files=files
+                    transfer_pending=transfer_pending
+                    on_transfer=move |ev: MouseEvent| {
+                        ev.prevent_default();
+                        transfer_action.dispatch_local(files.get());
+                    }
+                />
             </Show>
 
             <Show when=move || transfer_reply.get().is_some()>
@@ -47,19 +48,19 @@ pub fn TransferPage(msname: String) -> impl IntoView {
                 <Show
                     when=move || transfer_reply.get().unwrap().err.iter().all(|x| x.is_none())
                     fallback=move || {
-                        view!{
+                        view! {
                             <TransferFailed
                                 errs=transfer_reply.get().unwrap().err
                                 filenames=files.read().iter().map(|f| f.name()).collect()
                                 on_try_again=move |ev: MouseEvent| {
                                     ev.prevent_default();
                                     transfer_reply.set(None);
-                                } />
+                                }
+                            />
                         }
                     }
                 >
-                <TransferComplete
-                    on_continue=move |ev: MouseEvent| {
+                    <TransferComplete on_continue=move |ev: MouseEvent| {
                         ev.prevent_default();
                         transfer_reply.set(None);
                     } />

@@ -21,14 +21,14 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <!DOCTYPE html>
         <html lang="en">
             <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
+                <HydrationScripts options />
+                <MetaTags />
             </head>
             <body>
-                <App/>
+                <App />
             </body>
         </html>
     }
@@ -51,12 +51,20 @@ fn NavBarButton(
     active_state: &'static TopLevelPosition,
 ) -> impl IntoView {
     view! {
-      <a
-        class=NAVBAR_BUTTON_CLASSES
-        class=(["text-sky-300", "shadow-slate-300"], move || top_level_pos.read() == *active_state)
-        class=(["text-slate-50", "shadow-sky-600"], move || top_level_pos.read() != *active_state)
-        href={to}
-      >{children()}</a>
+        <a
+            class=NAVBAR_BUTTON_CLASSES
+            class=(
+                ["text-sky-300", "shadow-slate-300"],
+                move || top_level_pos.read() == *active_state,
+            )
+            class=(
+                ["text-slate-50", "shadow-sky-600"],
+                move || top_level_pos.read() != *active_state,
+            )
+            href=to
+        >
+            {children()}
+        </a>
     }
 }
 
@@ -66,17 +74,39 @@ fn NavBar(top_level_pos: ReadSignal<TopLevelPosition>) -> impl IntoView {
 
     let help_active = use_context::<RwSignal<ShowHelp>>().expect("App provides show-help context");
     view! {
-    <nav class="flex flex-row justify-around bg-black border-b-4 border-slate-600">
-      <a href="/logo"><img alt="logo" src="/logo.webp"/></a>
-      <NavBarButton to="/transcribe" top_level_pos=top_level_pos active_state=&TopLevelPosition::Transcribe>Transcribe</NavBarButton>
-      <NavBarButton to="/reconcile" top_level_pos=top_level_pos active_state=&TopLevelPosition::Reconcile>Reconcile</NavBarButton>
-      <NavBarButton to="/admin" top_level_pos=top_level_pos active_state=&TopLevelPosition::Admin>Administer</NavBarButton>
-      <span
-        on:click=move |_| {
-            help_active.update(|a| a.toggle())
-        }
-        class=navbar_help_button_classes>Help:<span class="ml-2 text-orange-400">ctrl+alt+h</span></span>
-    </nav>
+        <nav class="flex flex-row justify-around bg-black border-b-4 border-slate-600">
+            <a href="/logo">
+                <img alt="logo" src="/logo.webp" />
+            </a>
+            <NavBarButton
+                to="/transcribe"
+                top_level_pos=top_level_pos
+                active_state=&TopLevelPosition::Transcribe
+            >
+                Transcribe
+            </NavBarButton>
+            <NavBarButton
+                to="/reconcile"
+                top_level_pos=top_level_pos
+                active_state=&TopLevelPosition::Reconcile
+            >
+                Reconcile
+            </NavBarButton>
+            <NavBarButton
+                to="/admin"
+                top_level_pos=top_level_pos
+                active_state=&TopLevelPosition::Admin
+            >
+                Administer
+            </NavBarButton>
+            <span
+                on:click=move |_| { help_active.update(|a| a.toggle()) }
+                class=navbar_help_button_classes
+            >
+                Help:
+                <span class="ml-2 text-orange-400">ctrl+alt+h</span>
+            </span>
+        </nav>
     }
 }
 
@@ -107,32 +137,39 @@ pub fn App() -> impl IntoView {
     view! {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
-        <Stylesheet id="leptos" href="/pkg/critic.css"/>
+        <Stylesheet id="leptos" href="/pkg/critic.css" />
 
         // sets the document title
-        <Title text="critic - textual criticism"/>
+        <Title text="critic - textual criticism" />
 
         <div class="h-screen w-screen flex flex-col bg-slate-900 text-white">
-        // Router
-        <Router>
-            <NavBar top_level_pos=top_level_pos/>
-            <main class="h-0 grow w-full">
-                <Routes fallback=|| "Page not found.".into_view()>
-                    <Route path=StaticSegment("") view=HomePage/>
-                    <Route path=path!("transcribe") view=TranscribeTodoList/>
-                    <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor/>
-                    <ParentRoute path=path!("admin") view=|| {view!{ <Outlet/> }}>
-                        <Route path=path!("") view=admin::AdminLanding/>
-                        <admin::AdminRouter/>
-                    </ParentRoute>
-                    <Route path=path!("/editor") view=|| {
-                        view! {
-                            <Editor default_language="hbo-Hebr".to_string()/>
-                        }.into_view()
-                    }/>
-                </Routes>
-            </main>
-        </Router>
+            // Router
+            <Router>
+                <NavBar top_level_pos=top_level_pos />
+                <main class="h-0 grow w-full">
+                    <Routes fallback=|| "Page not found.".into_view()>
+                        <Route path=StaticSegment("") view=HomePage />
+                        <Route path=path!("transcribe") view=TranscribeTodoList />
+                        <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor />
+                        <ParentRoute
+                            path=path!("admin")
+                            view=|| {
+                                view! { <Outlet /> }
+                            }
+                        >
+                            <Route path=path!("") view=admin::AdminLanding />
+                            <admin::AdminRouter />
+                        </ParentRoute>
+                        <Route
+                            path=path!("/editor")
+                            view=|| {
+                                view! { <Editor default_language="hbo-Hebr".to_string() /> }
+                                    .into_view()
+                            }
+                        />
+                    </Routes>
+                </main>
+            </Router>
         </div>
     }
 }
@@ -140,12 +177,34 @@ pub fn App() -> impl IntoView {
 /// Renders the home page of your application.
 #[component]
 fn HomePage() -> impl IntoView {
-    // Creates a reactive value to update the button
-    let count = RwSignal::new(0);
-    let on_click = move |_| *count.write() += 1;
+    let show_help = use_context::<RwSignal<ShowHelp>>().expect("Main page provides ShowHelp");
 
     view! {
-        <h1>"Welcome to Leptos!"</h1>
-        <button on:click=on_click>"Click Me: " {count}</button>
+        <div class="flex flex-row justify-center">
+            <div>
+                <h1 class="p-10 text-6xl font-semibold">Welcome to Critic</h1>
+                <div class="relative pt-6 text-lg">
+                    <p class="text-center">
+                        "On many pages, you can press"
+                        <span class="ml-2 text-orange-400">"ctrl+alt+h"</span>
+                        " to get contextual help. Try it!"
+                    </p>
+                    <div />
+                    <div
+                        class="bg-slate-500/50 rounded-lg backdrop-blur-xs absolute inset-0 w-full h-80 text-center"
+                        class=(["hidden"], move || !show_help.read().get())
+                        >
+                        <p class="mt-36">"Just like that!"</p>
+                        <p>
+                            "To get started, select one of the submenus from the top navigation bar."
+                        </p>
+                        <p>
+                            "Press"<span class="ml-2 text-orange-400">"ctrl+alt+h"</span>
+                            " again to close the help overlay."
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
     }
 }

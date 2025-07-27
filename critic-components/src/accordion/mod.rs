@@ -369,28 +369,23 @@ pub fn Accordion(
     };
 
     view! {
-        <div
-            style=format!("{} {}", size.to_style(), style)
-            class=class
-        >
+        <div style=format!("{} {}", size.to_style(), style) class=class>
             <div
-                aria-expanded={move || if aria_enabled { Some(expand.0.get().to_string()) } else { None }}
+                aria-expanded=move || {
+                    if aria_enabled { Some(expand.0.get().to_string()) } else { None }
+                }
                 aria-controls=aria_controls
                 on:click=move |_| toggle_expansion()
                 class=move || if expand.0.get() { expanded_class } else { collapsed_class }
-                style=move || format!(
-                    "cursor: pointer; transition: all {}ms; {}",
-                    duration,
-                    if expand.0.get() { expanded_style } else { collapsed_style }
-                )
+                style=move || {
+                    format!(
+                        "cursor: pointer; transition: all {}ms; {}",
+                        duration,
+                        if expand.0.get() { expanded_style } else { collapsed_style },
+                    )
+                }
             >
-                {move || {
-                    if expand.0.get() {
-                        expanded()
-                    } else {
-                        collapsed()
-                    }
-                }}
+                {move || { if expand.0.get() { expanded() } else { collapsed() } }}
             </div>
             <Show when=move || expand.0.get() clone:children>
                 <div
@@ -399,7 +394,7 @@ pub fn Accordion(
                     style=format!(
                         "overflow: hidden; transition: all {}ms; {}",
                         duration,
-                        content_style
+                        content_style,
                     )
                 >
                     {children()}
@@ -435,10 +430,7 @@ pub fn Item(
     icon: &'static str,
 ) -> impl IntoView {
     view! {
-        <li
-            class=class
-            style=format!("{} {}", align.to_style(), style)
-        >
+        <li class=class style=format!("{} {}", align.to_style(), style)>
             {move || {
                 if !icon.is_empty() {
                     Some(view! { <span class="mr-2">{icon}</span> })
@@ -447,11 +439,7 @@ pub fn Item(
                 }
             }}
             {move || {
-                if !title.is_empty() {
-                    Some(view! { <strong>{title}</strong> })
-                } else {
-                    None
-                }
+                if !title.is_empty() { Some(view! { <strong>{title}</strong> }) } else { None }
             }}
             {children()}
         </li>

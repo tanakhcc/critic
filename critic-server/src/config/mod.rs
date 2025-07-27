@@ -105,7 +105,7 @@ impl OauthConfig {
             auth_url: oauth2::AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
                 .map_err(ConfigError::GithubAddrParse)?,
             token_url: oauth2::TokenUrl::new(
-                "https://github.com/login/oauth/access_token".to_string()
+                "https://github.com/login/oauth/access_token".to_string(),
             )
             .map_err(ConfigError::GithubAddrParse)?,
             redirect_url: oauth2::RedirectUrl::new(format!("https://{public_addr}/oauth/redirect"))

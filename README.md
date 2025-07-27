@@ -152,10 +152,10 @@ A bimap between the schemes order and BHSs order
     - that branch is rebased onto master
 
 ## Q&A
-Using normal gitlab issues
+Using normal github issues
 
 ## Release Versions
-Using normal gitlab releases
+Using normal github releases
 
 ## Should we host a matrix server as well for better chats?
 Would be nice, but require a central LDAP for auth management
@@ -169,13 +169,13 @@ Source of truth is mixed.
 DB is used authoritatively for:
 - session stores (local sqlite)
 - current state of published files
-gitlab is used authoritatively for everything else:
+github is used authoritatively for everything else:
 - actual transcription data (after reconciliation)
 - (source metadata - this is part of the XML files for transcriptions)
 
 ## auto-rebuild
-- DB is rebuilt every now and then (daily??) from gitlab
-    - we check consistency of gitlab by building into a dev-db
+- DB is rebuilt every now and then (daily??) from github
+    - we check consistency of github by building into a dev-db
     - if that works, we build into the actual db
 
 ## consistency check

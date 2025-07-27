@@ -16,19 +16,14 @@ pub fn FileItem(
         <li class="border border-gray-200 rounded-lg mb-2 p-3">
             <div class="flex items-center">
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">
-                        {name}
-                    </p>
-                    <p class="text-sm text-gray-500 truncate">
-                        Size: {human_bytes(size)}
-                    </p>
+                    <p class="text-sm font-medium text-gray-900 truncate">{name}</p>
+                    <p class="text-sm text-gray-500 truncate">Size: {human_bytes(size)}</p>
                 </div>
                 <ButtonIcon
                     busy_reader=processing_reader
                     on_click=on_remove
-                    inner_icon=||view! { <TrashIcon inner_class="w-6 h-6" /> }
-                    >
-                </ButtonIcon>
+                    inner_icon=|| view! { <TrashIcon inner_class="w-6 h-6" /> }
+                ></ButtonIcon>
             </div>
         </li>
     }
@@ -44,25 +39,25 @@ pub fn FileList(
 ) -> impl IntoView {
     view! {
         <ul role="list">
-            <For
-                each=move || files.get()
-                key=|f| f.name()
-                let:file>
-            <FileItem
-                name=file.name()
-                size=file.size()
-                processing_reader=transfer_pending
-                on_remove=move |_| {
-                    files.update(|files| {
-                        let index = files.iter().position(|f_iter| f_iter.name().eq(&file.name())).unwrap();
-                        files.remove(index);
-                    });
-
-                    if files.get().is_empty() {
-                        dropped_setter.set(false);
+            <For each=move || files.get() key=|f| f.name() let:file>
+                <FileItem
+                    name=file.name()
+                    size=file.size()
+                    processing_reader=transfer_pending
+                    on_remove=move |_| {
+                        files
+                            .update(|files| {
+                                let index = files
+                                    .iter()
+                                    .position(|f_iter| f_iter.name().eq(&file.name()))
+                                    .unwrap();
+                                files.remove(index);
+                            });
+                        if files.get().is_empty() {
+                            dropped_setter.set(false);
+                        }
                     }
-                }
-            />
+                />
             </For>
         </ul>
     }

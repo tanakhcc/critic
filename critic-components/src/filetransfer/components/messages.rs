@@ -20,10 +20,7 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl Into
                     <div>Your files have been uploaded successfully.</div>
                 </div>
 
-                <Button
-                    busy_reader=busy_reader
-                    on_click=on_continue
-                    label="Continue" />
+                <Button busy_reader=busy_reader on_click=on_continue label="Continue" />
             </div>
         </div>
     }
@@ -45,32 +42,37 @@ pub fn TransferFailed(
                 <div class="flex flex-col items-center">
                     <div>Upload failed</div>
                     <div>Sorry! Something went wrong.</div>
-                    {
-                        if errs.len() != filenames.len() {
-                            leptos::logging::log!("Errors and filenames are not the same length in TransferFailed.");
-                            None
-                        } else {
-                            Some(
-                            view!{
+                    {if errs.len() != filenames.len() {
+                        leptos::logging::log!(
+                            "Errors and filenames are not the same length in TransferFailed."
+                        );
+                        None
+                    } else {
+                        Some(
+                            view! {
                                 <ul>
-                                {errs.into_iter().enumerate().map(|(idx, e)| e.map(|msg|
-                                            view!{
-                                                <li>{format!("File {}: {}", filenames.get(idx).unwrap(), msg)}</li>
-                                            })).collect_view() }
+                                    {errs
+                                        .into_iter()
+                                        .enumerate()
+                                        .map(|(idx, e)| {
+                                            e
+                                                .map(|msg| {
+                                                    view! {
+                                                        <li>
+                                                            {format!("File {}: {}", filenames.get(idx).unwrap(), msg)}
+                                                        </li>
+                                                    }
+                                                })
+                                        })
+                                        .collect_view()}
                                 </ul>
-                                <p>
-                                    All other files uploaded Ok.
-                                </p>
-                            }
-                            )
-                        }
-                    }
+                                <p>All other files uploaded Ok.</p>
+                            },
+                        )
+                    }}
                 </div>
 
-                <Button
-                    busy_reader=busy_reader
-                    on_click=on_try_again
-                    label="Try again" />
+                <Button busy_reader=busy_reader on_click=on_try_again label="Try again" />
             </div>
         </div>
     }

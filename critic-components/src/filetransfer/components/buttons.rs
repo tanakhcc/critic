@@ -19,8 +19,9 @@ where
             on:click=move |ev| {
                 if !busy_reader.get() {
                     on_click(ev);
-                };
-            }>
+                }
+            }
+        >
             {inner_icon()}
         </button>
     }
@@ -40,18 +41,15 @@ pub fn Button(
             on:click=move |ev| {
                 if !busy_reader.get() {
                     on_click(ev);
-                };
-            }>
+                }
+            }
+        >
 
-            <Show when=move ||busy_reader.get()>
-            <SpinIcon inner_class="animate-spin h-5 w-5 mr-2 text-white" />
+            <Show when=move || busy_reader.get()>
+                <SpinIcon inner_class="animate-spin h-5 w-5 mr-2 text-white" />
             </Show>
 
-            {move || if busy_reader.get() {
-                busy_label.to_string()
-            } else {
-                label.to_string()
-            }}
+            {move || if busy_reader.get() { busy_label.to_string() } else { label.to_string() }}
         </button>
     }
 }

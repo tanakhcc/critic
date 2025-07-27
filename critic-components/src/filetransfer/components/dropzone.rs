@@ -12,16 +12,27 @@ use crate::filetransfer::components::{buttons::Button, file::FileList};
 pub fn DropzoneBar() -> impl IntoView {
     view! {
         <div class="flex flex-col items-center justify-center pt-5 pb-6">
-            <svg class="w-8 h-8 mb-4 text-violet-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+            <svg
+                class="w-8 h-8 mb-4 text-violet-500"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 20 16"
+            >
+                <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
+                />
             </svg>
             <p class="mb-2 text-sm text-violet-500">
-                <span class="font-semibold">
-                    Click to upload
-                </span> or drag and drop
+                <span class="font-semibold">Click to upload</span>
+                or drag and drop
             </p>
             <p class="text-xs text-violet-500">
-                Up to {human_bytes::human_bytes(MAX_BODY_SIZE as f64)} per File.
+                Up to {human_bytes::human_bytes(MAX_BODY_SIZE as f64)}per File.
             </p>
         </div>
     }
@@ -76,38 +87,41 @@ pub fn DropzonePreview(
     view! {
         <div class="w-full max-w-lg p-3 bg-white border border-gray-200 rounded-lg md:p-6 sm:p-2">
             <div class="drop_zone_file_container">
-                <label node_ref=drop_zone_el
+                <label
+                    node_ref=drop_zone_el
                     for="drop_zone_input"
-                    class="flex flex-col items-center justify-center w-full h-28 border-2 border-violet-300 border-dashed rounded-lg cursor-pointer bg-violet-50 hover:bg-violet-100">
+                    class="flex flex-col items-center justify-center w-full h-28 border-2 border-violet-300 border-dashed rounded-lg cursor-pointer bg-violet-50 hover:bg-violet-100"
+                >
                     <DropzoneBar />
                 </label>
 
-                <input id="drop_zone_input"
+                <input
+                    id="drop_zone_input"
                     class="hidden"
                     type="file"
                     multiple
-                    on:change=on_change_file />
+                    on:change=on_change_file
+                />
 
-                <Show when=move ||dropped.get()>
-                <div class="flow-root mt-3">
-                    <FileList
-                        files=files
-                        transfer_pending=transfer_pending
-                        dropped_setter=set_dropped
-                    />
-                </div>
+                <Show when=move || dropped.get()>
+                    <div class="flow-root mt-3">
+                        <FileList
+                            files=files
+                            transfer_pending=transfer_pending
+                            dropped_setter=set_dropped
+                        />
+                    </div>
                 </Show>
 
-
-                <Show when=move ||dropped.get()>
-                <div class="mt-3">
-                    <Button
-                        label="Transfer"
-                        busy_label="Transferring..."
-                        busy_reader=transfer_pending
-                        on_click=on_transfer.clone()
+                <Show when=move || dropped.get()>
+                    <div class="mt-3">
+                        <Button
+                            label="Transfer"
+                            busy_label="Transferring..."
+                            busy_reader=transfer_pending
+                            on_click=on_transfer.clone()
                         />
-                </div>
+                    </div>
                 </Show>
             </div>
         </div>
