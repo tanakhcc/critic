@@ -6,10 +6,11 @@ use crate::app::TopLevelPosition;
 
 #[component]
 pub fn TranscribeTodoList() -> impl IntoView {
-    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    let set_top_level_pos =
+        use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
     *set_top_level_pos.write() = TopLevelPosition::Transcribe;
 
-    view!{
+    view! {
     <div class="flex h-full flex-col">
       <div class="flex flex-row justify-center">
         <h1 class="text-6xl font-semibold p-10">Start a new Transcription for ...</h1>

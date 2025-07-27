@@ -31,7 +31,7 @@ pub async fn run_web_server(
     };
     use critic::app::*;
     use critic_server::{
-        auth::GitlabOauthBackend, signal_handler::InShutdown, upload::upload_router,
+        auth::GithubOauthBackend, signal_handler::InShutdown, upload::upload_router,
     };
     use critic_shared::urls::{STATIC_BASE_URL, UPLOAD_BASE_URL};
     use leptos::prelude::*;
@@ -68,7 +68,7 @@ pub async fn run_web_server(
         .with_secure(false)
         .with_same_site(axum_login::tower_sessions::cookie::SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::days(1)));
-    let backend = GitlabOauthBackend::new(config.clone());
+    let backend = GithubOauthBackend::new(config.clone());
     let auth_layer = AuthManagerLayerBuilder::new(backend, session_layer).build();
 
     let static_router = match critic_server::static_files::image_dir_router(&config.data_directory)
@@ -83,7 +83,7 @@ pub async fn run_web_server(
     };
     let app = app_core
         .nest(UPLOAD_BASE_URL, upload_router())
-        .route_layer(login_required!(GitlabOauthBackend, login_url = "/login"))
+        .route_layer(login_required!(GithubOauthBackend, login_url = "/login"))
         .merge(critic_server::auth::backend::auth_router())
         .layer(auth_layer)
         .nest(STATIC_BASE_URL, static_router)

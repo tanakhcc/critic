@@ -14,7 +14,7 @@ pub enum ConfigError {
     ConfigFileRead(std::io::Error),
     PoolCreate(sqlx::Error),
     LogLevel(LevelParseError),
-    GitlabAddrParse(oauth2::url::ParseError),
+    GithubAddrParse(oauth2::url::ParseError),
     PublicAddrParse(oauth2::url::ParseError),
 }
 impl core::fmt::Display for ConfigError {
@@ -32,10 +32,10 @@ impl core::fmt::Display for ConfigError {
             Self::LogLevel(e) => {
                 write!(f, "Unable to parse log_level: {e}")
             }
-            Self::GitlabAddrParse(e) => {
+            Self::GithubAddrParse(e) => {
                 write!(
                     f,
-                    "Unable to interpret gitlab_addr as addr while using it to build a url: {e}"
+                    "Unable to interpret github_addr as addr while using it to build a url: {e}"
                 )
             }
             Self::PublicAddrParse(e) => {
@@ -73,7 +73,7 @@ struct WebConfigData {
     /// The address to host the website on (e.g. 127.0.0.1:8080)
     site_addr: String,
     /// Where is this website called from on the internet (including any reverse-proxies, NAT etc.)
-    /// Gitlab must be able to communicate with critic via this FQDN, using https
+    /// Github must be able to communicate with critic via this FQDN, using https
     public_addr: String,
 }
 
@@ -86,9 +86,9 @@ struct OauthConfigData {
 /// The OauthConfig that will be usable to create clients on the server side
 #[derive(Deserialize)]
 struct OauthConfig {
-    /// the client ID we use to authenticate to gitlab
+    /// the client ID we use to authenticate to github
     client_id: oauth2::ClientId,
-    /// the client secret we use to authenticate to gitlab
+    /// the client secret we use to authenticate to github
     client_secret: oauth2::ClientSecret,
     auth_url: oauth2::AuthUrl,
     token_url: oauth2::TokenUrl,
@@ -97,16 +97,17 @@ struct OauthConfig {
 impl OauthConfig {
     fn try_from_config_data(
         value: OauthConfigData,
-        gitlab_addr: &str,
         public_addr: &str,
     ) -> Result<Self, ConfigError> {
         Ok(Self {
             client_id: oauth2::ClientId::new(value.client_id),
             client_secret: oauth2::ClientSecret::new(value.client_secret),
-            auth_url: oauth2::AuthUrl::new(format!("https://{gitlab_addr}/oauth/authorize"))
-                .map_err(ConfigError::GitlabAddrParse)?,
-            token_url: oauth2::TokenUrl::new(format!("https://{gitlab_addr}/oauth/token"))
-                .map_err(ConfigError::GitlabAddrParse)?,
+            auth_url: oauth2::AuthUrl::new("https://github.com/login/oauth/authorize".to_string())
+                .map_err(ConfigError::GithubAddrParse)?,
+            token_url: oauth2::TokenUrl::new(
+                "https://github.com/login/oauth/access_token".to_string()
+            )
+            .map_err(ConfigError::GithubAddrParse)?,
             redirect_url: oauth2::RedirectUrl::new(format!("https://{public_addr}/oauth/redirect"))
                 .map_err(ConfigError::PublicAddrParse)?,
         })
@@ -137,19 +138,13 @@ impl From<OauthConfig> for OauthClient {
     }
 }
 
-/// Config partaining to the gitlab instance
+/// Config partaining to the github instance
 #[derive(Deserialize, Debug)]
-pub struct GitlabConfig {
-    /// the address where we can talk to gitlab
-    pub addr: String,
-    /// The name of the group, access to which configures access to the project (Dev / Maintainer)
-    ///
-    /// NOT url-encoded, e.g. `supergroup/subgroup`
-    pub group_name: String,
-    /// The url-encoded name of the main project to interact with
-    ///
-    /// This project MUST live in the namespace given by group_name
-    pub project_name: String,
+pub struct GithubConfig {
+    /// The name of the organization, members of which have access to critic.
+    pub org_name: String,
+    /// The url-encoded name of the main repository to interact with
+    pub repository_name: String,
 }
 
 /// The config data as it is present in (a well-formed) toml config file
@@ -159,8 +154,8 @@ struct ConfigData {
     web: WebConfigData,
     log_level: Option<String>,
     oauth: OauthConfigData,
-    /// used as server part for determining where to communicate to gitlab
-    gitlab: GitlabConfig,
+    /// used as server part for determining where to communicate to github
+    github: GithubConfig,
     /// The directory where xml and image files should live
     ///
     /// critic will create the required substructure there
@@ -185,8 +180,8 @@ pub struct Config {
     pub leptos_options: LeptosOptions,
     pub log_level: LevelFilter,
     pub oauth_client: OauthClient,
-    /// used as server part for determining where to communicate to gitlab
-    pub gitlab: GitlabConfig,
+    /// used as server part for determining where to communicate to github
+    pub github: GithubConfig,
     pub data_directory: String,
     pub worker_threads: u8,
 }
@@ -226,13 +221,9 @@ impl Config {
             db,
             leptos_options,
             log_level,
-            oauth_client: OauthConfig::try_from_config_data(
-                value.oauth,
-                &value.gitlab.addr,
-                &value.web.public_addr,
-            )?
-            .into(),
-            gitlab: value.gitlab,
+            oauth_client: OauthConfig::try_from_config_data(value.oauth, &value.web.public_addr)?
+                .into(),
+            github: value.github,
             data_directory: value.data_directory,
             worker_threads: value.worker_threads,
         })

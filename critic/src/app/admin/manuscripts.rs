@@ -124,7 +124,7 @@ pub fn ManuscriptList() -> impl IntoView {
             </form>
             </div>
             <div
-                id="search-wrapper" 
+                id="search-wrapper"
                 class="flex flex-row justify-start m-2 rounded-4xl border-2 border-slate-600 bg-slate-800 p-2 text-sm shadow-md shadow-sky-600"
                 >
                 <label for="ms-search">
@@ -161,7 +161,7 @@ pub fn ManuscriptList() -> impl IntoView {
                                 info.into_iter().map(|ms| {
                                         let ms_params = use_params::<MsParams>();
                                         let this_title = ms.title.clone();
-                                        let is_selected = move || ms_params.get().map_or(false, |param| param.msname.is_some_and(|param| param == this_title));
+                                        let is_selected = move || ms_params.get().is_ok_and(|param| param.msname.is_some_and(|param| param == this_title));
                                         view!{
                                                 <li class="flex">
                                                 {
@@ -307,7 +307,7 @@ pub fn Manuscript() -> impl IntoView {
                                             {
                                                 info.pages.into_iter().map(|page| {
                                                     let page_name = page.name.clone();
-                                                    let is_selected = move || page_params.get().map_or(false, |param| param.pagename.is_some_and(|param| param == page_name));
+                                                    let is_selected = move || page_params.get().is_ok_and(|param| param.pagename.is_some_and(|param| param == page_name));
                                                     view!{
                                                     <li class="flex">
                                                         <a
@@ -403,7 +403,7 @@ pub fn MMetaInput(
 #[server]
 async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(), ServerFnError> {
     use critic_server::auth::AuthSession;
-    use critic_server::gitlab::{get_user_role, GitlabUserRole};
+    use critic_server::github::user_is_member;
     use critic_shared::urls::IMAGE_BASE_LOCATION;
     use leptos_axum::extract;
 
@@ -418,56 +418,54 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
-    if let Some(user) = auth_session.user {
-        let user_role = match get_user_role(config.clone(), &user).await {
-            Ok(x) => x,
-            Err(e) => {
-                tracing::warn!("Unable to get the user role for {}: {e}", user.username);
-                return Err(ServerFnError::new(e.to_string()));
-            }
-        };
-        if user_role < GitlabUserRole::Maintainer {
-            Err(ServerFnError::new(
-                "Unauthorized: Need to be Maintainer to update MS metadata.",
-            ))
-        } else {
-            // change the MS in the db
-            if let Err(e) = critic_server::db::update_ms_meta(&config.db, &data).await {
-                tracing::warn!(
-                    "Failed to update manuscript metadata for ms with id {}",
-                    data.id
-                );
-                return Err(ServerFnError::new(e.to_string()));
-            };
-            // rename the image directory for the MS if it was renamed
-            if data.title != old_title {
-                let base_path = format!("{}{IMAGE_BASE_LOCATION}", &config.data_directory);
-                let old_path = format!("{base_path}/{old_title}");
-                let new_path = format!("{base_path}/{}", data.title);
-                if let Err(e) = std::fs::rename(&old_path, &new_path) {
-                    // TODO - this raises errors when renaming MSs without pages because then the
-                    // directory does not exist
-                    // get pages first, and only raise this error when no page exists
-                    tracing::warn!(
-                        "Failed to rename {old_path} to {new_path} while upating ms metadata: {e}."
-                    );
-                };
-                tracing::info!(
-                    "User {} renamed MS {} to {}.",
-                    user.username,
-                    old_title,
-                    data.title
-                );
-                // this is not quite enough - the MS will keep its wrong name in the left-hand
-                // sidebar
-                // But I don't really know how to change that behavior.
-                leptos_axum::redirect(&format!("/admin/manuscripts/{}", data.title));
-            };
-            Ok(())
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+    match user_is_member(config.clone(), &user).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(ServerFnError::new(
+                "Unauthorized: Need to be Org member to update MS metadata.",
+            ));
         }
-    } else {
-        Err(ServerFnError::new("No usersession available"))
-    }
+        Err(e) => {
+            tracing::warn!("Unable to get the user role for {}: {e}", user.username);
+            return Err(ServerFnError::new(e.to_string()));
+        }
+    };
+    // change the MS in the db
+    if let Err(e) = critic_server::db::update_ms_meta(&config.db, &data).await {
+        tracing::warn!(
+            "Failed to update manuscript metadata for ms with id {}",
+            data.id
+        );
+        return Err(ServerFnError::new(e.to_string()));
+    };
+    // rename the image directory for the MS if it was renamed
+    if data.title != old_title {
+        let base_path = format!("{}{IMAGE_BASE_LOCATION}", &config.data_directory);
+        let old_path = format!("{base_path}/{old_title}");
+        let new_path = format!("{base_path}/{}", data.title);
+        if let Err(e) = std::fs::rename(&old_path, &new_path) {
+            // TODO - this raises errors when renaming MSs without pages because then the
+            // directory does not exist
+            // get pages first, and only raise this error when no page exists
+            tracing::warn!(
+                "Failed to rename {old_path} to {new_path} while upating ms metadata: {e}."
+            );
+        };
+        tracing::info!(
+            "User {} renamed MS {} to {}.",
+            user.username,
+            old_title,
+            data.title
+        );
+        // this is not quite enough - the MS will keep its wrong name in the left-hand
+        // sidebar
+        // But I don't really know how to change that behavior.
+        leptos_axum::redirect(&format!("/admin/manuscripts/{}", data.title));
+    };
+    Ok(())
 }
 
 /// Show meta-information for an individual manuscript
@@ -565,7 +563,7 @@ pub fn Page() -> impl IntoView {
                             <h2 class="m-2 p-1 text-center text-2xl">"Page "<span class="font-bold">{pagename.clone()}</span></h2>
                             <div class="grid grid-cols-2 grid-rows-2 justify-start">
                                 <a class=DEFAULT_BUTTON_CLASSES href={format!("/index/{msname}/{pagename}")}>Index</a>
-                                <button class=DEFAULT_BUTTON_CLASSES>Edit - TODO</button>  
+                                <button class=DEFAULT_BUTTON_CLASSES>Edit - TODO</button>
                                 <a class=DEFAULT_BUTTON_CLASSES href={format!("{image_base}/original.webp")} target="_blank">View Original</a>
                                 <a class=DEFAULT_BUTTON_CLASSES href={format!("{image_base}/original.webp")} download="Babylonicus Petropolitanus_Babylonicus_Petropolitanus-007.webp">Download Original</a>
             </div>

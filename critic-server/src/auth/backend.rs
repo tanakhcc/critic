@@ -16,9 +16,9 @@ use super::{AuthSession, Credentials};
 
 pub fn auth_router() -> Router {
     Router::new()
-        // redirect to the oauth endpoint on gitlab
+        // redirect to the oauth endpoint on github
         .route("/login", axum::routing::get(login_get_endpoint))
-        // the endpoint that gitlab will redirect into after successful login there
+        // the endpoint that github will redirect into after successful login there
         .route(
             "/oauth/redirect",
             axum::routing::get(oauth_redirect_endpoint),

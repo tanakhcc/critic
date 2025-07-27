@@ -123,7 +123,7 @@ pub async fn insert_or_update_user_session(
             id = excluded.id
             returning *",
         user_info.id,
-        user_info.username,
+        user_info.login,
         token_res.access_token,
         token_res.refresh_token,
         token_res.expires_at,

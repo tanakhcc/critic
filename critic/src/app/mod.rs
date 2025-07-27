@@ -44,8 +44,13 @@ enum TopLevelPosition {
 
 const NAVBAR_BUTTON_CLASSES: &str = "p-2 pl-4 pr-4 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md";
 #[component]
-fn NavBarButton(to: &'static str, top_level_pos: ReadSignal<TopLevelPosition>, children: Children, active_state: &'static TopLevelPosition) -> impl IntoView {
-    view!{
+fn NavBarButton(
+    to: &'static str,
+    top_level_pos: ReadSignal<TopLevelPosition>,
+    children: Children,
+    active_state: &'static TopLevelPosition,
+) -> impl IntoView {
+    view! {
       <a
         class=NAVBAR_BUTTON_CLASSES
         class=(["text-sky-300", "shadow-slate-300"], move || top_level_pos.read() == *active_state)
@@ -60,7 +65,7 @@ fn NavBar(top_level_pos: ReadSignal<TopLevelPosition>) -> impl IntoView {
     let navbar_help_button_classes = "p-2 pl-4 pr-4 text-slate-50 hover:bg-slate-500 bg-slate-600 rounded-2xl text-2xl font-bold m-2 text-center shadow-md shadow-orange-400/70";
 
     let help_active = use_context::<RwSignal<ShowHelp>>().expect("App provides show-help context");
-    view!{
+    view! {
     <nav class="flex flex-row justify-around bg-black border-b-4 border-slate-600">
       <a href="/logo"><img alt="logo" src="/logo.webp"/></a>
       <NavBarButton to="/transcribe" top_level_pos=top_level_pos active_state=&TopLevelPosition::Transcribe>Transcribe</NavBarButton>

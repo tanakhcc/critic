@@ -14,19 +14,19 @@ use crate::{
 };
 
 // some basic types used across the app
-/// The JSON object returned from gitlabs get-user endpoint
+/// The JSON object returned from githubs get-user endpoint
 #[derive(Debug, Deserialize)]
 pub struct UserInfo {
-    /// ID of the user in gitlab - we use the same ID in the internal DB here
+    /// ID of the user in github - we use the same ID in the internal DB here
     pub id: i32,
-    /// username of the user in gitlab - we use the same here
-    pub username: String,
+    /// username of the user in github - we use the same here
+    pub login: String,
 }
 impl From<AuthenticatedUser> for UserInfo {
     fn from(value: AuthenticatedUser) -> Self {
         Self {
             id: value.id,
-            username: value.username,
+            login: value.username,
         }
     }
 }
@@ -138,10 +138,10 @@ pub struct Credentials {
 pub enum BackendError {
     /// failure while talking to our postgres
     DB(DBError),
-    /// failure while calling the /oauth/token endpoint in gitlab - could not get token
+    /// failure while calling the /oauth/token endpoint in github - could not get token
     TokenExchange(String),
     Reqwest(reqwest::Error),
-    Gitlab(reqwest::Error),
+    Github(reqwest::Error),
     TokenResponse(NormalizeTokenResponseError),
 }
 impl core::fmt::Display for BackendError {
@@ -159,13 +159,13 @@ impl core::fmt::Display for BackendError {
             Self::Reqwest(e) => {
                 write!(f, "Failure sending http request: {e}")
             }
-            Self::Gitlab(e) => {
-                write!(f, "Failure to parse response JSON from gitlab API: {e}")
+            Self::Github(e) => {
+                write!(f, "Failure to parse response JSON from github API: {e}")
             }
             Self::TokenResponse(e) => {
                 write!(
                     f,
-                    "Token response from gitlabs api was not as expected: {e}"
+                    "Token response from githubs api was not as expected: {e}"
                 )
             }
         }
@@ -174,12 +174,12 @@ impl core::fmt::Display for BackendError {
 impl std::error::Error for BackendError {}
 
 #[derive(Debug, Clone)]
-pub struct GitlabOauthBackend {
+pub struct GithubOauthBackend {
     db: sqlx::Pool<sqlx::Postgres>,
     client: crate::config::OauthClient,
 }
 
-impl GitlabOauthBackend {
+impl GithubOauthBackend {
     pub fn new(config: std::sync::Arc<Config>) -> Self {
         let db = config.db.clone();
         let client = config.oauth_client.clone();
@@ -203,7 +203,7 @@ impl GitlabOauthBackend {
 }
 
 #[async_trait::async_trait]
-impl AuthnBackend for GitlabOauthBackend {
+impl AuthnBackend for GithubOauthBackend {
     type User = AuthenticatedUser;
     type Credentials = Credentials;
     type Error = BackendError;
@@ -234,7 +234,7 @@ impl AuthnBackend for GitlabOauthBackend {
 
         // Use access token to request user info.
         let user_info = client
-            .get("https://gitlab.tanakhcc.org/api/v4/user")
+            .get("https://api.github.com/user")
             .header(USER_AGENT.as_str(), "axum-login") // See: https://docs.github.com/en/rest/overview/resources-in-the-rest-api?apiVersion=2022-11-28#user-agent-required
             .header(
                 AUTHORIZATION.as_str(),
@@ -246,7 +246,7 @@ impl AuthnBackend for GitlabOauthBackend {
         let user_info = user_info
             .json::<UserInfo>()
             .await
-            .map_err(Self::Error::Gitlab)?;
+            .map_err(Self::Error::Github)?;
 
         // Persist user in our database so we can use `get_user`.
         let user = db::insert_or_update_user_session(
@@ -274,4 +274,4 @@ impl AuthnBackend for GitlabOauthBackend {
 // We use a type alias for convenience.
 //
 // Note that we've supplied our concrete backend here.
-pub type AuthSession = axum_login::AuthSession<GitlabOauthBackend>;
+pub type AuthSession = axum_login::AuthSession<GithubOauthBackend>;

@@ -10,7 +10,8 @@ mod manuscripts;
 
 #[component]
 pub fn AdminLanding() -> impl IntoView {
-    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    let set_top_level_pos =
+        use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
     *set_top_level_pos.write() = TopLevelPosition::Admin;
 
     view! {
@@ -49,7 +50,8 @@ pub fn AdminLanding() -> impl IntoView {
 
 #[component(transparent)]
 pub fn AdminRouter() -> impl MatchNestedRoutes + Clone {
-    let set_top_level_pos = use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
+    let set_top_level_pos =
+        use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
     *set_top_level_pos.write() = TopLevelPosition::Admin;
 
     view! {
