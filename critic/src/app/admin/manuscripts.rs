@@ -8,7 +8,7 @@
 // @msq=search-term-to-find-ms
 
 use critic_components::filetransfer::TransferPage;
-use critic_components::{TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS};
+use critic_components::{DEFAULT_BUTTON_CLASSES, TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS};
 use critic_shared::urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL};
 use critic_shared::{ManuscriptMeta, PREVIEW_IMAGE_WIDTH};
 use leptos::either::Either;
@@ -16,8 +16,6 @@ use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::{query_signal, use_params};
 use leptos_router::params::Params;
-
-use crate::app::DEFAULT_BUTTON_CLASSES;
 
 #[derive(Params, Clone, PartialEq)]
 struct MsParams {
@@ -330,12 +328,12 @@ pub fn Manuscript() -> impl IntoView {
                                             <Show when=move || show_page_upload.get() fallback=|| {}>
                                                 <div class="absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
                                                     <div class="relative inset-1/12 w-10/12">
-                                                        <div class="bg-violet-50">
+                                                        <div class="bg-slate-500 rounded-lg">
                                                             <TransferPage msname=ms_name.clone() />
                                                         </div>
                                                         <div class="flex justify-around">
                                                             <button
-                                                                class=DEFAULT_BUTTON_CLASSES
+                                                                class="text-slate-50 bg-slate-700 hover:bg-slate-800 rounded-lg text-center p-3 mt-1"
                                                                 on:click=move |_| {
                                                                     show_page_upload.update(|x| *x = false);
                                                                     manuscript_info.refetch();
@@ -569,6 +567,11 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
     let hand_desc = RwSignal::new(meta.hand_desc.clone());
     let script_desc = RwSignal::new(meta.script_desc.clone());
     let new_name = RwSignal::new(meta.title.clone());
+    let institution_save = RwSignal::new(meta.institution);
+    let collection_save = RwSignal::new(meta.collection);
+    let hand_desc_save = RwSignal::new(meta.hand_desc);
+    let script_desc_save = RwSignal::new(meta.script_desc);
+    let new_name_save = RwSignal::new(meta.title.clone());
 
     let srvact = ServerAction::<UpdateMsMetadata>::new();
 
@@ -581,7 +584,7 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
             <ActionForm action=srvact>
                 <div class="flex justify-around flex-col">
                     <input type="hidden" name="data[id]" value=meta.id />
-                    <input type="hidden" name="old_title" value=meta.title.clone() />
+                    <input type="hidden" name="old_title" value=meta.title/>
                     <MMetaInput
                         name="data[institution]"
                         signal=institution
@@ -627,16 +630,28 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
                             class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
                             type="button"
                             on:click=move |_| {
-                                *institution.write() = meta.institution.clone();
-                                *collection.write() = meta.collection.clone();
-                                *hand_desc.write() = meta.hand_desc.clone();
-                                *script_desc.write() = meta.script_desc.clone();
-                                *new_name.write() = meta.title.clone();
+                                *institution.write() = institution_save.get();
+                                *collection.write() = collection_save.get();
+                                *hand_desc.write() = hand_desc_save.get();
+                                *script_desc.write() = script_desc_save.get();
+                                *new_name.write() = new_name_save.get();
                             }
                         >
-                            Cancel
+                            "Cancel"
                         </button>
-                        <button type="submit" class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")>
+                        <button type="submit"
+                            class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                            // if the users saves an edit and does not reload the page, edits again
+                            // and the clicks cancel, the last state already saved to the server
+                            // would be overwritten here
+                            on:click=move |_| {
+                                *institution_save.write() = institution.get();
+                                *collection_save.write() = collection_save.get();
+                                *hand_desc_save.write() = hand_desc.get();
+                                *script_desc_save.write() = script_desc.get();
+                                *new_name_save.write() = new_name_save.get();
+                            }
+                            >
                             Save changes
                         </button>
                     </div>

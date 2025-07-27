@@ -14,8 +14,6 @@ use transcribe::{editor::TranscribeEditor, todo::TranscribeTodoList};
 mod admin;
 mod transcribe;
 
-const DEFAULT_BUTTON_CLASSES: &str = "text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 shadow-sm shadow-sky-600 hover:bg-slate-500";
-
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>

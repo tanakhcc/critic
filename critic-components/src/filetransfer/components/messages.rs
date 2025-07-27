@@ -11,11 +11,11 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl Into
     let (busy_reader, _) = signal(false);
 
     view! {
-        <div class="w-full max-w-lg p-3 bg-white border border-gray-200 rounded-lg md:p-6 sm:p-2">
+        <div class="w-full max-w-lg p-3 bg-slate-100 border border-gray-200 rounded-lg md:p-6 sm:p-2">
             <div class="flex flex-col items-center gap-y-8">
-                <CheckIcon inner_class="text-green-500 h-24 w-24" />
+                <CheckIcon inner_class=""/>
 
-                <div class="flex flex-col items-center">
+                <div class="flex flex-col items-center text-slate-800">
                     <div>Upload complete</div>
                     <div>Your files have been uploaded successfully.</div>
                 </div>
