@@ -522,7 +522,7 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
             ));
         }
         Err(e) => {
-            tracing::warn!("Unable to get the user role for {}: {e}", user.username);
+            tracing::warn!("Unable to get github user membership for {}: {e}", user.username);
             return Err(ServerFnError::new(e.to_string()));
         }
     };

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use reqwest::StatusCode;
+use reqwest::{header::USER_AGENT, StatusCode};
 
 use crate::{auth::AuthenticatedUser, config::Config};
 
@@ -56,9 +56,11 @@ pub async fn user_is_member(
     );
     let response = reqwest::Client::new()
         .get(request_url)
+        .header(USER_AGENT.as_str(), "axum-login") // See: https://docs.github.com/en/rest/overview/resources-in-the-rest-api?apiVersion=2022-11-28#user-agent-required
         .bearer_auth(user.access_token.clone())
         .send()
         .await?;
+
     match response.status() {
         StatusCode::NO_CONTENT => Ok(true),
         StatusCode::NOT_FOUND => Ok(false),
