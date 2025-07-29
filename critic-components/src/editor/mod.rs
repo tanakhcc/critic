@@ -250,7 +250,8 @@ pub fn Editor(default_language: String) -> impl IntoView {
                         />
                     </svg>
                 </button>
-            }.into_any()
+            }
+            .into_any()
         } else {
             view! {
                 <button on:click=move |_| {} disabled=true>
@@ -270,7 +271,8 @@ pub fn Editor(default_language: String) -> impl IntoView {
                         />
                     </svg>
                 </button>
-            }.into_any()
+            }
+            .into_any()
         }
     };
 
@@ -303,7 +305,8 @@ pub fn Editor(default_language: String) -> impl IntoView {
                         />
                     </svg>
                 </button>
-            }.into_any()
+            }
+            .into_any()
         } else {
             view! {
                 <button on:click=move |_| {} disabled=true>
@@ -323,7 +326,8 @@ pub fn Editor(default_language: String) -> impl IntoView {
                         />
                     </svg>
                 </button>
-            }.into_any()
+            }
+            .into_any()
         }
     };
 

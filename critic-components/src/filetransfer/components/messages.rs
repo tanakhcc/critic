@@ -13,7 +13,7 @@ pub fn TransferComplete(on_continue: impl Fn(MouseEvent) + 'static) -> impl Into
     view! {
         <div class="w-full max-w-lg p-3 bg-slate-100 border border-gray-200 rounded-lg md:p-6 sm:p-2">
             <div class="flex flex-col items-center gap-y-8">
-                <CheckIcon inner_class=""/>
+                <CheckIcon inner_class="" />
 
                 <div class="flex flex-col items-center text-slate-800">
                     <div>Upload complete</div>
@@ -55,14 +55,13 @@ pub fn TransferFailed(
                                         .into_iter()
                                         .enumerate()
                                         .map(|(idx, e)| {
-                                            e
-                                                .map(|msg| {
-                                                    view! {
-                                                        <li>
-                                                            {format!("File {}: {}", filenames.get(idx).unwrap(), msg)}
-                                                        </li>
-                                                    }
-                                                })
+                                            e.map(|msg| {
+                                                view! {
+                                                    <li>
+                                                        {format!("File {}: {}", filenames.get(idx).unwrap(), msg)}
+                                                    </li>
+                                                }
+                                            })
                                         })
                                         .collect_view()}
                                 </ul>

@@ -28,7 +28,8 @@ pub fn DropzoneBar() -> impl IntoView {
                 />
             </svg>
             <p class="mb-2 text-sm text-slate-600">
-                <span class="font-semibold">"Click to upload "</span>"or drag and drop"
+                <span class="font-semibold">"Click to upload "</span>
+                "or drag and drop"
             </p>
             <p class="text-xs text-slate-600">
                 "Up to "{human_bytes::human_bytes(MAX_BODY_SIZE as f64)}" per File."

@@ -50,6 +50,25 @@ pub fn TranscribeTodoList() -> impl IntoView {
                             <div class="table-cell border-r border-inherit p-2">ML115</div>
                             <div class="table-cell border-r border-inherit p-2">Page 014</div>
                             <div class="table-cell border-r border-inherit p-2">
+                                Ps 32 : 4 - Ps 34 : 7
+                            </div>
+                            <div class="table-cell border-r border-inherit p-2">
+                                <div>
+                                    <span class="font-extrabold">2</span>
+                                    " started/ "
+                                    <span class="font-extrabold">1</span>
+                                    " published"
+                                </div>
+                                <div>You have started this page.</div>
+                            </div>
+                        </a>
+                        <a
+                            href="/transcribe/:msname/:pagename"
+                            class="table-row border-b border-slate-600 py-3 text-xl shadow-sky-600 last:border-b-0 odd:bg-slate-800 even:bg-slate-600 hover:bg-sky-900 hover:shadow-2xl"
+                        >
+                            <div class="table-cell border-r border-inherit p-2">ML115</div>
+                            <div class="table-cell border-r border-inherit p-2">Page 014</div>
+                            <div class="table-cell border-r border-inherit p-2">
                                 Ps 32:4 - Ps 34:7
                             </div>
                             <div class="table-cell border-r border-inherit p-2 text-green-500">

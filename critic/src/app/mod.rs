@@ -191,7 +191,7 @@ fn HomePage() -> impl IntoView {
                     <div
                         class="bg-slate-500/50 rounded-lg backdrop-blur-xs absolute inset-0 w-full h-80 text-center"
                         class=(["hidden"], move || !show_help.read().get())
-                        >
+                    >
                         <p class="mt-36">"Just like that!"</p>
                         <p>
                             "To get started, select one of the submenus from the top navigation bar."

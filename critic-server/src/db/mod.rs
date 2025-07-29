@@ -204,6 +204,12 @@ pub async fn get_manuscripts_by_name(
     }
 }
 
+pub async fn get_manuscripts(
+    pool: &Pool<Postgres>,
+) -> Result<Vec<critic_shared::ManuscriptMeta>, DBError> {
+    get_manuscripts_by_name(pool, None).await
+}
+
 pub async fn add_manuscript(pool: &Pool<Postgres>, msname: String) -> Result<(), DBError> {
     sqlx::query!("INSERT INTO manuscript (title) VALUES ($1);", msname)
         .execute(pool)

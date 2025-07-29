@@ -28,12 +28,11 @@ struct PageParams {
 }
 
 #[server]
-async fn get_manuscripts_by_name(
-    msname: Option<String>,
+async fn get_manuscripts(
 ) -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_manuscripts_by_name(&config.db, msname)
+    critic_server::db::get_manuscripts(&config.db)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }
@@ -54,15 +53,11 @@ pub fn ManuscriptList() -> impl IntoView {
     let (query, set_query) = query_signal::<String>("msq");
 
     // this can be toggled to force a reload for manuscripts
-    let force_manuscript_reload = RwSignal::new(false);
-    let manuscript_list = Resource::new(
-        move || (query.get(), force_manuscript_reload),
-        async |new_query| {
-            get_manuscripts_by_name(new_query.0).await.map_err(|e| {
-                ServerFnError::new(format!("Unable to get manuscript information: {e}"))
-            })
-        },
-    );
+    let manuscript_list = OnceResource::new(async {
+        get_manuscripts()
+            .await
+            .map_err(|e| ServerFnError::new(format!("Unable to get manuscript information: {e}")))
+    });
     let new_manuscript_open = RwSignal::new(false);
 
     let add_manuscript_srvact = ServerAction::<AddManuscript>::new();
@@ -114,7 +109,6 @@ pub fn ManuscriptList() -> impl IntoView {
                                 let _res = add_manuscript(new_msname.value()).await;
                             });
                             new_manuscript_open.update(|x| *x ^= true);
-                            manuscript_list.refetch();
                         }
                     >
                         <input
@@ -196,9 +190,20 @@ pub fn ManuscriptList() -> impl IntoView {
                                         .get()
                                         .map(|info_res| {
                                             info_res
-                                                .map(|info| {
+                                                .map(|info: Vec<critic_shared::ManuscriptMeta>| {
                                                     info.into_iter()
-                                                        .map(|ms| {
+                                                        .filter_map(|ms| {
+                                                            if !query
+                                                                .with(|msquery: &Option<String>| {
+                                                                    if let Some(searched_name) = msquery {
+                                                                        ms.title.contains(searched_name)
+                                                                    } else {
+                                                                        true
+                                                                    }
+                                                                })
+                                                            {
+                                                                return None;
+                                                            }
                                                             let ms_params = use_params::<MsParams>();
                                                             let this_title = ms.title.clone();
                                                             let is_selected = move || {
@@ -208,42 +213,46 @@ pub fn ManuscriptList() -> impl IntoView {
                                                                         param.msname.is_some_and(|param| param == this_title)
                                                                     })
                                                             };
-                                                            view! {
-                                                                <li class="flex">
-                                                                    {// keep query parameter if one is set
-                                                                    if let Some(query_name) = query.get() {
-                                                                        Either::Left(
-                                                                            view! {
-                                                                                <a
-                                                                                    href=format!(
-                                                                                        "/admin/manuscripts/{}?msq={}",
-                                                                                        ms.title,
-                                                                                        query_name,
-                                                                                    )
-                                                                                    class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
-                                                                                    class=(["shadow-sky-600"], !is_selected())
-                                                                                    class=(["shadow-slate-300", "text-sky-300"], is_selected())
-                                                                                >
-                                                                                    {ms.title.clone()}
-                                                                                </a>
-                                                                            },
-                                                                        )
-                                                                    } else {
-                                                                        Either::Right(
-                                                                            view! {
-                                                                                <a
-                                                                                    href=format!("/admin/manuscripts/{}", ms.title)
-                                                                                    class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
-                                                                                    class=(["shadow-sky-600"], !is_selected())
-                                                                                    class=(["shadow-slate-300", "text-sky-300"], is_selected())
-                                                                                >
-                                                                                    {ms.title.clone()}
-                                                                                </a>
-                                                                            },
-                                                                        )
-                                                                    }}
-                                                                </li>
-                                                            }
+                                                            Some(
+                                                                // we do not want to show MSS that the
+                                                                // user did not search for
+                                                                view! {
+                                                                    <li class="flex">
+                                                                        // keep query parameter if one is set
+                                                                        {if let Some(query_name) = query.get() {
+                                                                            Either::Left(
+                                                                                view! {
+                                                                                    <a
+                                                                                        href=format!(
+                                                                                            "/admin/manuscripts/{}?msq={}",
+                                                                                            ms.title,
+                                                                                            query_name,
+                                                                                        )
+                                                                                        class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
+                                                                                        class=(["shadow-sky-600"], !is_selected())
+                                                                                        class=(["shadow-slate-300", "text-sky-300"], is_selected())
+                                                                                    >
+                                                                                        {ms.title.clone()}
+                                                                                    </a>
+                                                                                },
+                                                                            )
+                                                                        } else {
+                                                                            Either::Right(
+                                                                                view! {
+                                                                                    <a
+                                                                                        href=format!("/admin/manuscripts/{}", ms.title)
+                                                                                        class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
+                                                                                        class=(["shadow-sky-600"], !is_selected())
+                                                                                        class=(["shadow-slate-300", "text-sky-300"], is_selected())
+                                                                                    >
+                                                                                        {ms.title.clone()}
+                                                                                    </a>
+                                                                                },
+                                                                            )
+                                                                        }}
+                                                                    </li>
+                                                                },
+                                                            )
                                                         })
                                                         .collect_view()
                                                 })
@@ -520,7 +529,10 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
             ));
         }
         Err(e) => {
-            tracing::warn!("Unable to get github user membership for {}: {e}", user.username);
+            tracing::warn!(
+                "Unable to get github user membership for {}: {e}",
+                user.username
+            );
             return Err(ServerFnError::new(e.to_string()));
         }
     };
@@ -584,7 +596,7 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
             <ActionForm action=srvact>
                 <div class="flex justify-around flex-col">
                     <input type="hidden" name="data[id]" value=meta.id />
-                    <input type="hidden" name="old_title" value=meta.title/>
+                    <input type="hidden" name="old_title" value=meta.title />
                     <MMetaInput
                         name="data[institution]"
                         signal=institution
@@ -639,7 +651,8 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
                         >
                             "Cancel"
                         </button>
-                        <button type="submit"
+                        <button
+                            type="submit"
                             class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
                             // if the users saves an edit and does not reload the page, edits again
                             // and the clicks cancel, the last state already saved to the server
@@ -651,7 +664,7 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
                                 *script_desc_save.write() = script_desc.get();
                                 *new_name_save.write() = new_name_save.get();
                             }
-                            >
+                        >
                             Save changes
                         </button>
                     </div>

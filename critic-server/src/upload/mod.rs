@@ -41,7 +41,10 @@ pub async fn page_upload(
         Ok(true) => {}
         Ok(false) => return StatusCode::UNAUTHORIZED.into_response(),
         Err(e) => {
-            tracing::warn!("Unable to get github user membership for {}: {e}", user.username);
+            tracing::warn!(
+                "Unable to get github user membership for {}: {e}",
+                user.username
+            );
             return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
     };
