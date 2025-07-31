@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end\n         FROM page\n         INNER JOIN manuscript on page.manuscript = manuscript.id\n         WHERE minified = false AND minification_failed = false\n         LIMIT 1;",
+  "query": "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end\n         FROM page\n         INNER JOIN manuscript on page.manuscript = manuscript.id\n         WHERE minified = false AND minification_failed = false\n         LIMIT $1;",
   "describe": {
     "columns": [
       {
@@ -35,7 +35,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -46,5 +48,5 @@
       true
     ]
   },
-  "hash": "f29fefdfe66bb5f9075261ce4fe041c4f7fa753bfa597f1ebe9f83f232dd166e"
+  "hash": "0afe656cba1ac0f6eeee1a83410927fd80461b3c750bacc0a68ff11f352a717d"
 }

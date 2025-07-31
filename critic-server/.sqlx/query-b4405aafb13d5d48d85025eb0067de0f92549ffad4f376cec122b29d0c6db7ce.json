@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE manuscript SET title = $1, institution = $2, collection = $3, hand_desc = $4, script_desc = $5 WHERE id = $6;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b4405aafb13d5d48d85025eb0067de0f92549ffad4f376cec122b29d0c6db7ce"
+}

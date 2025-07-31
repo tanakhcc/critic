@@ -73,6 +73,9 @@ pub struct ManuscriptMeta {
     pub collection: Option<String>,
     pub hand_desc: Option<String>,
     pub script_desc: Option<String>,
+    // TODO add this as editable in admin page
+    pub lang: Option<String>,
+    // TODO also add:
 }
 
 /// complete information for a manuscript, including its pages
@@ -115,5 +118,41 @@ impl ShowHelp {
 impl From<ShowHelp> for bool {
     fn from(value: ShowHelp) -> Self {
         value.0
+    }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+pub struct PageTodo {
+    pub manuscript_name: String,
+    pub page_name: String,
+    pub verse_start: Option<String>,
+    pub verse_end: Option<String>,
+    pub transcriptions_started: u8,
+    pub transcriptions_published: PublishedTranscriptions,
+    pub this_user_status: OwnStatus,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+pub enum OwnStatus {
+    None,
+    Started,
+    Published,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+pub enum PublishedTranscriptions {
+    None,
+    One,
+    Two,
+}
+impl TryFrom<i64> for PublishedTranscriptions {
+    type Error = ();
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(PublishedTranscriptions::None),
+            1 => Ok(PublishedTranscriptions::One),
+            2 => Ok(PublishedTranscriptions::Two),
+            _ => Err(()),
+        }
     }
 }

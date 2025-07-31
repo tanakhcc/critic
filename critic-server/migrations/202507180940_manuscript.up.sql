@@ -10,5 +10,7 @@ CREATE TABLE manuscript (
 	--- description of the different hands used in this manuscript
 	hand_desc TEXT,
 	--- description of the script in this manuscript
-	script_desc TEXT
+	script_desc TEXT,
+	--- default language of this manuscript
+	lang TEXT
 );

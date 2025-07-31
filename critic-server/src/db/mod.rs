@@ -1,8 +1,8 @@
 //! Communication with the postgres database
 
-use sqlx::{prelude::FromRow, query_as, Pool, Postgres};
+use sqlx::{prelude::FromRow, query_as, Pool, Postgres, QueryBuilder};
 
-use critic_shared::{ManuscriptMeta, PageMeta, VersificationScheme};
+use critic_shared::{ManuscriptMeta, OwnStatus, PageMeta, PageTodo, VersificationScheme};
 
 use crate::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
 
@@ -42,6 +42,7 @@ pub enum DBError {
     CannotGetPage(sqlx::Error),
     PageAlreadyExists,
     CannotUpdateManuscript(sqlx::Error),
+    CannotGetPagesByQuery(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -96,6 +97,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateManuscript(e) => {
                 write!(f, "Unable to update manuscript metadata: {e}")
+            }
+            Self::CannotGetPagesByQuery(e) => {
+                write!(f, "Unable to get pages from query: {e}")
             }
         }
     }
@@ -355,4 +359,204 @@ pub async fn update_ms_meta(pool: &Pool<Postgres>, data: &ManuscriptMeta) -> Res
         .await
         .map(|_| {})
         .map_err(DBError::CannotUpdateManuscript)
+}
+
+struct QueryTerm<'a> {
+    qtype: QueryType,
+    qstr: &'a str,
+}
+/// The different things we can search for.
+enum QueryType {
+    ManuscriptEqual,
+    ManuscriptContains,
+    LanguageEqual,
+    LanguageContains,
+    PageEqual,
+    PageContains,
+}
+
+/// Decompose a query such as
+/// ```text
+/// ms=IIB17+ lang=hbo-Hebr page:3
+/// ```
+fn decompose_query(query: &str) -> Vec<QueryTerm> {
+    let mut res = Vec::<QueryTerm>::new();
+    for item in query.split_whitespace() {
+        match item {
+            // TODO: allow quoted terms like ms:'Babylonicus Petropolitanus'
+            // This requires a proper lexer, and I am to lazy for that right now
+            //
+            // Good first Issue if you want to build one.
+            s if s.starts_with("ms:") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::ManuscriptContains,
+                    qstr: &s[3..],
+                });
+            }
+            s if s.starts_with("ms=") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::ManuscriptEqual,
+                    qstr: &s[3..],
+                });
+            }
+            s if s.starts_with("lang:") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::LanguageContains,
+                    qstr: &s[5..],
+                });
+            }
+            s if s.starts_with("lang=") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::LanguageEqual,
+                    qstr: &s[5..],
+                });
+            }
+            s if s.starts_with("page:") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::PageContains,
+                    qstr: &s[5..],
+                });
+            }
+            s if s.starts_with("page=") => {
+                res.push(QueryTerm {
+                    qtype: QueryType::PageEqual,
+                    qstr: &s[5..],
+                });
+            }
+            _ => {}
+        }
+    }
+    res
+}
+
+/// turn a query into a free standing SQL condition expression like `name = foo`
+fn query_term_to_sql_filter<'a>(
+    QueryTerm { qtype, qstr }: QueryTerm<'a>,
+    mut current_query: QueryBuilder<'a, Postgres>,
+) -> QueryBuilder<'a, Postgres> {
+    match qtype {
+        QueryType::ManuscriptEqual => {
+            current_query.push(" title = ");
+            current_query.push_bind(qstr);
+        }
+        QueryType::ManuscriptContains => {
+            current_query.push(" title LIKE '%");
+            current_query.push_bind(qstr);
+            current_query.push("%'");
+        }
+        QueryType::LanguageEqual => {
+            current_query.push(" lang = ");
+            current_query.push_bind(qstr);
+        }
+        QueryType::LanguageContains => {
+            current_query.push(" lang LIKE '%");
+            current_query.push_bind(qstr);
+            current_query.push("%'");
+        }
+        QueryType::PageEqual => {
+            current_query.push(" name = ");
+            current_query.push_bind(qstr);
+        }
+        QueryType::PageContains => {
+            current_query.push(" name LIKE '%");
+            current_query.push_bind(qstr);
+            current_query.push("%'");
+        }
+    };
+    current_query
+}
+
+#[derive(FromRow)]
+struct _GetPagesByQueryRow {
+    manuscript_name: String,
+    page_name: String,
+    verse_start: Option<String>,
+    verse_end: Option<String>,
+    transcriptions_published: i64,
+    transcriptions_started: i64,
+    transcriptions_by_this_user: i64,
+    published_by_this_user: i64,
+}
+
+pub async fn get_pages_by_query(
+    pool: &Pool<Postgres>,
+    query: &str,
+    this_username: &str,
+) -> Result<Vec<PageTodo>, DBError> {
+    let decomposed_query = decompose_query(query);
+    let mut builder = QueryBuilder::new(
+        "SELECT
+            manuscript.title as manuscript_name,
+            page.id,
+            page.name as page_name,
+            verse_start,
+            verse_end,
+            count(*) as transcriptions_started,
+            count(*) FILTER (WHERE transcription.published) as transcriptions_published,
+            count(*) FILTER (WHERE transcription.username = ",
+    );
+    // couting transcriptions started by this user
+    builder.push_bind(this_username);
+    builder.push(
+        ") as transcriptions_by_this_user,
+            count(*) FILTER (WHERE transcription.username = ",
+    );
+    // counting published transcriptions by this user separately
+    builder.push_bind(this_username);
+    builder.push(
+        " AND transcription.published) as published_by_this_user
+         FROM page
+         INNER JOIN manuscript on page.manuscript = manuscript.id
+         LEFT OUTER JOIN transcription on page.id = transcription.page
+         LEFT OUTER JOIN reconciliation on page.id = reconciliation.page
+         WHERE
+         ",
+    );
+    // user specified search filters
+    for query in decomposed_query {
+        builder = query_term_to_sql_filter(query, builder);
+        builder.push(" AND ");
+    }
+    // exclude MSS with reconciliation already in progress
+    builder.push(" reconciliation.id is NULL");
+    builder.push(" GROUP BY (manuscript_name, page.id, page_name, verse_start, verse_end) ");
+    // exclude MSS with two or more transcriptions
+    // y you has no WHERE on output column aliases @sql??
+    builder.push(" HAVING count(*) FILTER (WHERE transcription.published) < 2 ");
+    builder.push(" ORDER BY transcriptions_published DESC, transcriptions_started ASC ");
+    builder.push(" LIMIT 100;");
+
+    let page_query_rows = builder
+        .build_query_as::<_GetPagesByQueryRow>()
+        //.build()
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetPagesByQuery)?;
+
+    let mut res = Vec::<PageTodo>::new();
+    for item in page_query_rows {
+        res.push(PageTodo {
+            manuscript_name: item.manuscript_name,
+            page_name: item.page_name,
+            verse_start: item.verse_start,
+            verse_end: item.verse_end,
+            // this will always be positive, because it is Count(*) from SQL
+            // It should never be high (in practice), and we certainly don't care if this is wrong
+            transcriptions_started: item.transcriptions_started.try_into().unwrap_or(u8::MAX),
+            transcriptions_published: item
+                .transcriptions_published
+                .try_into()
+                .expect("Query filters for more transcriptions published"),
+            this_user_status: if item.transcriptions_by_this_user == 1
+                && item.published_by_this_user == 1
+            {
+                OwnStatus::Published
+            } else if item.transcriptions_by_this_user == 1 {
+                OwnStatus::Started
+            } else {
+                OwnStatus::None
+            },
+        });
+    }
+    Ok(res)
 }

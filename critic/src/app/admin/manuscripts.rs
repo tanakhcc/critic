@@ -28,8 +28,7 @@ struct PageParams {
 }
 
 #[server]
-async fn get_manuscripts(
-) -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
+async fn get_manuscripts() -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     critic_server::db::get_manuscripts(&config.db)
