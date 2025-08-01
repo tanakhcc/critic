@@ -144,6 +144,8 @@ pub enum PublishedTranscriptions {
     None,
     One,
     Two,
+    // This can happen when multiple users have started a transcription at the same time
+    More,
 }
 impl TryFrom<i64> for PublishedTranscriptions {
     type Error = ();
@@ -152,6 +154,7 @@ impl TryFrom<i64> for PublishedTranscriptions {
             0 => Ok(PublishedTranscriptions::None),
             1 => Ok(PublishedTranscriptions::One),
             2 => Ok(PublishedTranscriptions::Two),
+            m if m > 2 => Ok(PublishedTranscriptions::More),
             _ => Err(()),
         }
     }

@@ -436,35 +436,37 @@ fn query_term_to_sql_filter<'a>(
 ) -> QueryBuilder<'a, Postgres> {
     match qtype {
         QueryType::ManuscriptEqual => {
-            current_query.push(" title = ");
+            current_query.push(" manuscript.title = ");
             current_query.push_bind(qstr);
         }
         QueryType::ManuscriptContains => {
-            current_query.push(" title LIKE '%");
+            current_query.push(" manuscript.title LIKE CONCAT('%', ");
             current_query.push_bind(qstr);
-            current_query.push("%'");
+            current_query.push(", '%')");
         }
         QueryType::LanguageEqual => {
-            current_query.push(" lang = ");
+            current_query.push(" manuscript.lang = ");
             current_query.push_bind(qstr);
         }
         QueryType::LanguageContains => {
-            current_query.push(" lang LIKE '%");
+            current_query.push(" manuscript.lang LIKE CONCAT('%', ");
             current_query.push_bind(qstr);
-            current_query.push("%'");
+            current_query.push(", '%')");
         }
         QueryType::PageEqual => {
-            current_query.push(" name = ");
+            current_query.push(" page.name = ");
             current_query.push_bind(qstr);
         }
         QueryType::PageContains => {
-            current_query.push(" name LIKE '%");
+            current_query.push(" page.name LIKE CONCAT('%', ");
             current_query.push_bind(qstr);
-            current_query.push("%'");
+            current_query.push(", '%')");
         }
     };
     current_query
 }
+
+const DEFAULT_PAGINATION_SIZE: i32 = 50;
 
 #[derive(FromRow)]
 struct _GetPagesByQueryRow {
@@ -482,6 +484,7 @@ pub async fn get_pages_by_query(
     pool: &Pool<Postgres>,
     query: &str,
     this_username: &str,
+    page: i32,
 ) -> Result<Vec<PageTodo>, DBError> {
     let decomposed_query = decompose_query(query);
     let mut builder = QueryBuilder::new(
@@ -491,7 +494,7 @@ pub async fn get_pages_by_query(
             page.name as page_name,
             verse_start,
             verse_end,
-            count(*) as transcriptions_started,
+            count(*) FILTER (WHERE transcription.id is not NULL) as transcriptions_started,
             count(*) FILTER (WHERE transcription.published) as transcriptions_published,
             count(*) FILTER (WHERE transcription.username = ",
     );
@@ -519,16 +522,25 @@ pub async fn get_pages_by_query(
     }
     // exclude MSS with reconciliation already in progress
     builder.push(" reconciliation.id is NULL");
+
     builder.push(" GROUP BY (manuscript_name, page.id, page_name, verse_start, verse_end) ");
-    // exclude MSS with two or more transcriptions
+
+    // exclude MSS with two or more transcriptions, but always show MSS where the user has started
+    // a transcription
     // y you has no WHERE on output column aliases @sql??
-    builder.push(" HAVING count(*) FILTER (WHERE transcription.published) < 2 ");
+    builder.push(" HAVING (count(*) FILTER (WHERE transcription.published) < 2) OR (count(*) FILTER (WHERE transcription.username = ");
+    builder.push_bind(this_username);
+    builder.push(") = 1) ");
+
     builder.push(" ORDER BY transcriptions_published DESC, transcriptions_started ASC ");
-    builder.push(" LIMIT 100;");
+    builder.push(" LIMIT ");
+    builder.push_bind(DEFAULT_PAGINATION_SIZE);
+    builder.push(" OFFSET ");
+    builder.push_bind(page * DEFAULT_PAGINATION_SIZE);
+    builder.push(";");
 
     let page_query_rows = builder
         .build_query_as::<_GetPagesByQueryRow>()
-        //.build()
         .fetch_all(pool)
         .await
         .map_err(DBError::CannotGetPagesByQuery)?;
