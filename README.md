@@ -23,11 +23,20 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
-## Styling
-- Navbar should know which main site we are on and set `text-sky-300` for the active site
-    - make an enum in a context-signal, have the child change that on load
-## admin/manuscripts - download all on load, filter on the client on input change
-## change styling for the selected MS / the selected Page
+## Overview of required transcriptions
+- should contain a direct link to the image
+
+## styling - get-involved looks way more bare then the main page
+- very long background-image?
+
+## Transcribing
+Actual page containing
+- the editor
+- an XML output tab
+- an HTML output tab
+- the image (or just a link?)
+- the publish button, which shows a small popup and then allows you to publish
+- saving to the server in a predetermined location
 
 ## Admin page for adding manuscripts
 ### page edit
@@ -36,16 +45,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - upload new image
 - link to fullsize image
 - show preview image
-
-## Overview of required transcriptions
-
-## Saving transcriptions
-- new page for transcribing a manuscript
-
-## styling
-### navbar
-### get-started
-### admin landing page
 
 # TODOs - Editor
 ## automatically set lr/rl based on language
@@ -58,8 +57,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## Merge Blocks
 - up and down
 - das ist nicht immer erlaubt - ggf ist es besser, das einfach nicht zu erlauben und automatisch zu machen??
-
-## Styling
 
 # TODOs - General
 ## setup docker for code deployment later
