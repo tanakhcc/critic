@@ -3,7 +3,7 @@
 //! this shows the editor, the publish button, rendering to html and xml and so on
 
 use critic_components::editor::{blocks::EditorBlock, Editor};
-use critic_format::streamed::Manuscript;
+use critic_format::streamed::{Block, Manuscript};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params;
 
@@ -75,6 +75,47 @@ async fn get_initial_ms(
     }
 }
 
+#[server]
+pub async fn save_transcription(
+    blocks: Vec<Block>,
+    meta: critic_format::streamed::Meta,
+) -> Result<(), ServerFnError> {
+    use critic_format::streamed::Manuscript;
+    use critic_server::{auth::AuthSession, transcription_store::write_transcription_to_disk};
+    use leptos_axum::extract;
+
+    let auth_session = match extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+
+    // save the data to disk
+    let ms = Manuscript {
+        meta,
+        content: blocks,
+    };
+    // TODO this is really ugly. It would be nice if writing to XML could take the MS by ref (since
+    // we have to seralize it anyways, this does not need to own any of the actual data)
+    //
+    // However, that would require making the type have a lifetime into the data, and I do not have
+    // enough time to set this up right now.
+    let msname = ms.meta.title.clone();
+    let pagename = ms.meta.page_nr.clone();
+    write_transcription_to_disk(ms, &config.data_directory, &user.username)?;
+    // save the fact that this transcription exists to the DB
+    critic_server::db::add_transcription(&config.db, &msname, &pagename, &user.username).await?;
+    Ok(())
+}
+
 /// The main component for the transcription editor page
 #[component]
 pub fn TranscribeEditor() -> impl IntoView {
@@ -106,6 +147,7 @@ pub fn TranscribeEditor() -> impl IntoView {
             ))
         }
     });
+
     view! {
         <ErrorBoundary fallback=|errors| {
             view! {
@@ -144,11 +186,23 @@ pub fn TranscribeEditor() -> impl IntoView {
                                             })
                                             .collect::<Vec<_>>(),
                                     );
+                                    let save_state_action = Action::new(move |
+                                        blocks: &Vec<EditorBlock>|
+                                    {
+                                        let blocks_dehydrated = blocks
+                                            .iter()
+                                            .map(|b| b.inner.clone().into())
+                                            .collect();
+                                        let cloned_meta = manuscript.meta.clone();
+                                        async move {
+                                            save_transcription(blocks_dehydrated, cloned_meta).await
+                                        }
+                                    });
                                     view! {
                                         <Editor
                                             blocks=blocks
                                             default_language=default_lang
-                                            meta=manuscript.meta
+                                            on_save=save_state_action
                                         />
                                     }
                                 })

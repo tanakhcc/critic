@@ -4,13 +4,8 @@
 
 use critic_format::streamed::BlockType;
 use critic_shared::ShowHelp;
-use leptos::{
-    ev::keydown,
-    logging::log,
-    prelude::{Action, *},
-};
+use leptos::{ev::keydown, logging::log, prelude::*};
 use leptos_use::{use_document, use_event_listener};
-use save::save_transcription;
 use undo::{UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlTextAreaElement};
 
@@ -18,8 +13,6 @@ pub mod blocks;
 use blocks::*;
 
 mod undo;
-
-mod save;
 
 mod versification_scheme;
 
@@ -214,7 +207,7 @@ fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
 pub fn Editor(
     blocks: RwSignal<Vec<EditorBlock>>,
     default_language: String,
-    meta: critic_format::streamed::Meta,
+    on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
 ) -> impl IntoView {
     let undo_stack = RwSignal::new(UnReStack::new());
 
@@ -332,12 +325,7 @@ pub fn Editor(
         }
     };
 
-    let save_state_action = Action::new(move |blocks: &Vec<EditorBlock>| {
-        let blocks_dehydrated = blocks.iter().map(|b| b.inner.clone().into()).collect();
-        let cloned_meta = meta.clone();
-        async move { save_transcription(blocks_dehydrated, cloned_meta).await }
-    });
-    let pending_save = save_state_action.pending();
+    let pending_save = on_save.pending();
 
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
@@ -345,7 +333,7 @@ pub fn Editor(
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
             // we can only dispatch and hope for the best here
-            save_state_action.dispatch(blocks.read().to_owned());
+            on_save.dispatch(blocks.read().to_owned());
         // <ctrl>-<alt>-Z - undo
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
             match undo_stack.write().undo(&mut blocks.write()) {
