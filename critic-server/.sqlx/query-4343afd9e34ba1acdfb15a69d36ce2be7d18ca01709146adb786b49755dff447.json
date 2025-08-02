@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            manuscript.id as manuscript_id,\n            manuscript.institution,\n            manuscript.collection,\n            manuscript.hand_desc,\n            manuscript.script_desc,\n            manuscript.lang as default_language,\n            page.verse_start,\n            page.verse_end,\n            COUNT(*) FILTER (WHERE transcription.username = $3) as transcriptions_by_this_user\n        FROM\n            page\n        INNER JOIN manuscript\n            ON manuscript.id = page.manuscript\n        LEFT OUTER JOIN transcription\n            ON page.id = transcription.page\n        WHERE manuscript.title = $1 AND page.name = $2\n        GROUP BY (manuscript.id, manuscript.institution, manuscript.collection, manuscript.hand_desc, manuscript.script_desc, manuscript.lang, page.verse_start, page.verse_end)\n        ;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "manuscript_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "institution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "collection",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "hand_desc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "script_desc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "default_language",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "verse_start",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "verse_end",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "transcriptions_by_this_user",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "4343afd9e34ba1acdfb15a69d36ce2be7d18ca01709146adb786b49755dff447"
+}

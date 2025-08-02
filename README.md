@@ -23,6 +23,8 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
+## Allow changing MS language in admin interface
+
 ## Overview of required transcriptions
 - should contain a direct link to the image
 

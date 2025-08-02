@@ -15,17 +15,8 @@ use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::{query_signal, use_params};
-use leptos_router::params::Params;
 
-#[derive(Params, Clone, PartialEq)]
-struct MsParams {
-    msname: Option<String>,
-}
-
-#[derive(Params, Clone, PartialEq)]
-struct PageParams {
-    pagename: Option<String>,
-}
+use crate::app::shared::{MsParams, PageParams};
 
 #[server]
 async fn get_manuscripts() -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
@@ -42,7 +33,7 @@ async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
     leptos_axum::redirect(&format!("/admin/manuscripts/{msname}"));
-    critic_server::db::add_manuscript(&config.db, msname)
+    critic_server::db::add_manuscript(&config.db, &msname, None)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }

@@ -23,6 +23,8 @@ reqwasm = { version = "0.5.0" }
 human_bytes = { version = "0.4.3" }
 send_wrapper = { version = "0.6.0" }
 quick-xml = { version = "0.38.0", features = ["serialize"], optional = true }
+leptos_axum = { version = "0.8.5", optional = true }
+tracing = { version = "0.1.41", optional = true }
 
 [features]
 hydrate = [
@@ -38,4 +40,6 @@ ssr = [
     "critic-shared/ssr",
     "dep:quick-xml",
     "dep:critic-server",
+    "dep:leptos_axum",
+    "dep:tracing",
 ]

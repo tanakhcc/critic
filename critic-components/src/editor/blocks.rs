@@ -21,7 +21,7 @@ use crate::{
 
 /// A single block that we change in the editor
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub(super) struct EditorBlock {
+pub struct EditorBlock {
     /// ID of the block (i.e. creation-order, NOT position)
     pub id: usize,
     /// The actual content
@@ -1237,7 +1237,7 @@ impl PartialEq<InnerBlock> for Block {
 ///
 /// This is the same as [`critic_format::streamed::Block`], but all data is wrapped in an [`RwSignal`]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(super) enum InnerBlock {
+pub enum InnerBlock {
     /// A break in the text - line or column break
     Break(RwSignal<BreakType>),
     /// A lacuna in the manuscript

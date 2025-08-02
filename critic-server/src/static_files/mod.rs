@@ -4,7 +4,7 @@
 //! - images
 
 use axum::routing::get_service;
-use critic_shared::urls::IMAGE_BASE_LOCATION;
+use critic_shared::urls::{IMAGE_BASE_LOCATION, TRANSCRIPTION_BASE_LOCATION};
 use tower_http::services::ServeDir;
 
 /// Creates the following directory structure if it does not exist
@@ -14,6 +14,7 @@ use tower_http::services::ServeDir;
 fn create_data_directory_layout(data_directory: &str) -> Result<(), std::io::Error> {
     // the directory for manuscript images
     std::fs::create_dir_all(format!("{data_directory}{IMAGE_BASE_LOCATION}"))?;
+    std::fs::create_dir_all(format!("{data_directory}{TRANSCRIPTION_BASE_LOCATION}"))?;
     Ok(())
 }
 

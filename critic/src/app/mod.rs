@@ -8,10 +8,10 @@ use leptos_router::{
 
 use leptos_use::{use_document, use_event_listener};
 
-use critic_components::editor::Editor;
 use transcribe::{editor::TranscribeEditor, todo::TranscribeTodoList};
 
 mod admin;
+pub mod shared;
 mod transcribe;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -158,13 +158,6 @@ pub fn App() -> impl IntoView {
                             <Route path=path!("") view=admin::AdminLanding />
                             <admin::AdminRouter />
                         </ParentRoute>
-                        <Route
-                            path=path!("/editor")
-                            view=|| {
-                                view! { <Editor default_language="hbo-Hebr".to_string() /> }
-                                    .into_view()
-                            }
-                        />
                     </Routes>
                 </main>
             </Router>

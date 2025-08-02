@@ -10,11 +10,11 @@ use leptos::{
     prelude::{Action, *},
 };
 use leptos_use::{use_document, use_event_listener};
-use save::{load_editor_state, save_editor_state};
+use save::save_transcription;
 use undo::{UnReStack, UnReStep};
 use web_sys::{wasm_bindgen::JsCast, HtmlTextAreaElement};
 
-mod blocks;
+pub mod blocks;
 use blocks::*;
 
 mod undo;
@@ -34,8 +34,7 @@ mod versification_scheme;
 /// automatically
 fn new_node(
     physical_index_maybe: impl Fn(usize) -> Option<usize>,
-    blocks: ReadSignal<Vec<EditorBlock>>,
-    set_blocks: WriteSignal<Vec<EditorBlock>>,
+    blocks: RwSignal<Vec<EditorBlock>>,
     next_id: RwSignal<usize>,
     block_type: BlockType,
     undo_stack: RwSignal<UnReStack>,
@@ -106,7 +105,7 @@ fn new_node(
                     }
                 };
                 // replace the block currently at physical_index with the new blocks
-                let removed = set_blocks
+                let removed = blocks
                     .write()
                     .splice(physical_index..physical_index + 1, new_blocks.clone())
                     .collect();
@@ -127,7 +126,7 @@ fn new_node(
                     String::default(),
                     true,
                 );
-                set_blocks.write().insert(physical_index, new_block.clone());
+                blocks.write().insert(physical_index, new_block.clone());
                 // add the insertion to the undo stack
                 undo_stack
                     .write()
@@ -212,13 +211,15 @@ fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
 }
 
 #[component]
-pub fn Editor(default_language: String) -> impl IntoView {
+pub fn Editor(
+    blocks: RwSignal<Vec<EditorBlock>>,
+    default_language: String,
+    meta: critic_format::streamed::Meta,
+) -> impl IntoView {
     let undo_stack = RwSignal::new(UnReStack::new());
 
-    // logical ID of blocks, 1-based
-    let next_id = RwSignal::new(1_usize);
-    let init_blocks = Vec::<EditorBlock>::new();
-    let (blocks, set_blocks) = signal(init_blocks);
+    // logical ID (insertion order) of blocks, 1-based
+    let next_id = RwSignal::new(blocks.read_untracked().len() + 1);
 
     let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
@@ -229,7 +230,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
         if let Some(physical_index) = index_if_not_first(id) {
             view! {
                 <button on:click=move |_| {
-                    set_blocks.write().swap(physical_index, physical_index - 1);
+                    blocks.write().swap(physical_index, physical_index - 1);
                     undo_stack
                         .write()
                         .push_undo(UnReStep::new_swap(physical_index, physical_index - 1));
@@ -284,7 +285,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
         if let Some(physical_index) = index_if_not_last(id) {
             view! {
                 <button on:click=move |_| {
-                    set_blocks.write().swap(physical_index, physical_index + 1);
+                    blocks.write().swap(physical_index, physical_index + 1);
                     undo_stack
                         .write()
                         .push_undo(UnReStep::new_swap(physical_index, physical_index + 1));
@@ -331,9 +332,10 @@ pub fn Editor(default_language: String) -> impl IntoView {
         }
     };
 
-    let save_state_action = Action::new(|blocks: &Vec<EditorBlock>| {
+    let save_state_action = Action::new(move |blocks: &Vec<EditorBlock>| {
         let blocks_dehydrated = blocks.iter().map(|b| b.inner.clone().into()).collect();
-        async move { save_editor_state(blocks_dehydrated).await }
+        let cloned_meta = meta.clone();
+        async move { save_transcription(blocks_dehydrated, cloned_meta).await }
     });
     let pending_save = save_state_action.pending();
 
@@ -346,7 +348,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
             save_state_action.dispatch(blocks.read().to_owned());
         // <ctrl>-<alt>-Z - undo
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 90 {
-            match undo_stack.write().undo(&mut set_blocks.write()) {
+            match undo_stack.write().undo(&mut blocks.write()) {
                 Ok(()) => {}
                 Err(e) => {
                     log!("{e}");
@@ -354,7 +356,7 @@ pub fn Editor(default_language: String) -> impl IntoView {
             };
         // <ctrl>-<alt>-R - redo
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 82 {
-            match undo_stack.write().redo(&mut set_blocks.write()) {
+            match undo_stack.write().redo(&mut blocks.write()) {
                 Ok(()) => {}
                 Err(e) => {
                     log!("{e}");
@@ -365,7 +367,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Text,
                 undo_stack,
@@ -376,7 +377,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Abbreviation,
                 undo_stack,
@@ -387,7 +387,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Uncertain,
                 undo_stack,
@@ -398,7 +397,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Lacuna,
                 undo_stack,
@@ -409,7 +407,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Anchor,
                 undo_stack,
@@ -420,7 +417,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Correction,
                 undo_stack,
@@ -431,7 +427,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Space,
                 undo_stack,
@@ -442,7 +437,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
             new_node(
                 physical_index_maybe,
                 blocks,
-                set_blocks,
                 next_id,
                 BlockType::Break,
                 undo_stack,
@@ -454,28 +448,6 @@ pub fn Editor(default_language: String) -> impl IntoView {
     // the undo_stack is used in most inner blocks later and we do not want to manually pass it
     // around
     provide_context(undo_stack);
-
-    let load_state_resource = OnceResource::<Vec<EditorBlock>>::new(async move {
-        match load_editor_state().await {
-            Ok(streamed) => {
-                let blocks: Vec<EditorBlock> = streamed
-                    .content
-                    .into_iter()
-                    .enumerate()
-                    .map(|(idx, x)| EditorBlock {
-                        focus_on_load: false,
-                        inner: x.into(),
-                        id: idx,
-                    })
-                    .collect();
-                blocks
-            }
-            Err(e) => {
-                log!("Error loading server state: {e}");
-                vec![]
-            }
-        }
-    });
 
     // Start loading versification schemes and provide them - only the Anchor components will use
     // them, and probably only much later then page load
@@ -490,71 +462,58 @@ pub fn Editor(default_language: String) -> impl IntoView {
             <HelpOverlay active=help_active />
             <p>{move || pending_save.get().then_some("Saving state...")}</p>
             <br />
-            <Suspense fallback=|| {
-                view! { <p>"Loading editor state from the server..."</p> }
-            }>
-                {move || Suspend::new(async move {
-                    let init_blocks = load_state_resource.await;
-                    *next_id.write() = init_blocks.len() + 1;
-                    set_blocks.set(init_blocks);
+            <For
+                each=move || blocks.get()
+                key=|block| block.id()
+                children=move |outer_block| {
+                    let outer_id = outer_block.id();
                     view! {
-                        <For
-                            each=move || blocks.get()
-                            key=|block| block.id()
-                            children=move |outer_block| {
-                                let outer_id = outer_block.id();
-                                view! {
-                                    <br />
-                                    <div class="flex justify-between">
-                                        <span>
-                                            {move || move_up_button(outer_id)}
-                                            {move || move_down_button(outer_id)}
-                                        </span>
+                        <br />
+                        <div class="flex justify-between">
+                            <span>
+                                {move || move_up_button(outer_id)}
+                                {move || move_down_button(outer_id)}
+                            </span>
 
-                                        {move || { outer_block.clone().view() }}
+                            {move || { outer_block.clone().view() }}
 
-                                        <button on:click=move |_| {
-                                            let physical_index = match blocks
-                                                .read()
-                                                .iter()
-                                                .position(|blck| blck.id() == outer_id)
-                                            {
-                                                Some(x) => x,
-                                                None => {
-                                                    return;
-                                                }
-                                            };
-                                            let removed_block = set_blocks
-                                                .write()
-                                                .remove(physical_index);
-                                            undo_stack
-                                                .write()
-                                                .push_undo(
-                                                    UnReStep::new_deletion(physical_index, removed_block),
-                                                );
-                                        }>
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke-width="1.5"
-                                                stroke="currentColor"
-                                                class="size-6"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                            }
-                        ></For>
+                            <button on:click=move |_| {
+                                let physical_index = match blocks
+                                    .read()
+                                    .iter()
+                                    .position(|blck| blck.id() == outer_id)
+                                {
+                                    Some(x) => x,
+                                    None => {
+                                        return;
+                                    }
+                                };
+                                let removed_block = blocks.write().remove(physical_index);
+                                undo_stack
+                                    .write()
+                                    .push_undo(
+                                        UnReStep::new_deletion(physical_index, removed_block),
+                                    );
+                            }>
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke-width="1.5"
+                                    stroke="currentColor"
+                                    class="size-6"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
                     }
-                })}
-            </Suspense>
+                }
+            ></For>
         </div>
     }
 }

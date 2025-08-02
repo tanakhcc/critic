@@ -5,6 +5,8 @@
 /// URL and filesystem-location to put images into
 /// lives under the data-directory in the fs
 pub const IMAGE_BASE_LOCATION: &str = "/images";
+/// Filesystem Location where transcription data is stored.
+pub const TRANSCRIPTION_BASE_LOCATION: &str = "/transcriptions";
 /// Base url for static content like files etc.
 pub const STATIC_BASE_URL: &str = "/static";
 /// The base url for uploading anything

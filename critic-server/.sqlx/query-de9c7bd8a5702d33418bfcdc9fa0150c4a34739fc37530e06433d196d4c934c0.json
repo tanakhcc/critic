@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO transcription\n            (page, username)\n        VALUES\n            ((SELECT page.id\n                FROM page\n                INNER JOIN manuscript\n                    ON page.manuscript = manuscript.id\n                WHERE manuscript.title = $1 AND page.name = $2),\n             $3)\n        ON CONFLICT DO NOTHING;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "de9c7bd8a5702d33418bfcdc9fa0150c4a34739fc37530e06433d196d4c934c0"
+}

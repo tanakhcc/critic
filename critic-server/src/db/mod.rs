@@ -43,6 +43,8 @@ pub enum DBError {
     PageAlreadyExists,
     CannotUpdateManuscript(sqlx::Error),
     CannotGetPagesByQuery(sqlx::Error),
+    CannotGetEditorInitialValue(sqlx::Error),
+    CannotInsertTranscription(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -100,6 +102,15 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetPagesByQuery(e) => {
                 write!(f, "Unable to get pages from query: {e}")
+            }
+            Self::CannotGetEditorInitialValue(e) => {
+                write!(
+                    f,
+                    "Unable to get the seeding values for editor initial state: {e}"
+                )
+            }
+            Self::CannotInsertTranscription(e) => {
+                write!(f, "Unable to insert transcription: {e}")
             }
         }
     }
@@ -214,12 +225,20 @@ pub async fn get_manuscripts(
     get_manuscripts_by_name(pool, None).await
 }
 
-pub async fn add_manuscript(pool: &Pool<Postgres>, msname: String) -> Result<(), DBError> {
-    sqlx::query!("INSERT INTO manuscript (title) VALUES ($1);", msname)
-        .execute(pool)
-        .await
-        .map(|_| ())
-        .map_err(DBError::CannotAddManuscript)
+pub async fn add_manuscript(
+    pool: &Pool<Postgres>,
+    msname: &str,
+    lang: Option<&str>,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "INSERT INTO manuscript (title, lang) VALUES ($1, $2);",
+        msname,
+        lang.unwrap_or_else(|| "unknown")
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(DBError::CannotAddManuscript)
 }
 
 pub async fn get_versification_schemes(
@@ -571,4 +590,102 @@ pub async fn get_pages_by_query(
         });
     }
     Ok(res)
+}
+
+pub struct EditorInitialValue {
+    pub meta: ManuscriptMeta,
+    pub user_has_started: bool,
+    pub verse_start: Option<i64>,
+    pub verse_end: Option<i64>,
+}
+
+struct _EditorIVSeed {
+    manuscript_id: i64,
+    institution: Option<String>,
+    collection: Option<String>,
+    hand_desc: Option<String>,
+    script_desc: Option<String>,
+    default_language: String,
+    verse_start: Option<i64>,
+    verse_end: Option<i64>,
+    transcriptions_by_this_user: Option<i64>,
+}
+
+/// Get the initial value for a transcription editor
+pub async fn get_editor_initial_value(
+    pool: &Pool<Postgres>,
+    msname: &str,
+    pagename: &str,
+    this_username: &str,
+) -> Result<EditorInitialValue, DBError> {
+    let seed = sqlx::query_as!(
+        _EditorIVSeed,
+        "SELECT
+            manuscript.id as manuscript_id,
+            manuscript.institution,
+            manuscript.collection,
+            manuscript.hand_desc,
+            manuscript.script_desc,
+            manuscript.lang as default_language,
+            page.verse_start,
+            page.verse_end,
+            COUNT(*) FILTER (WHERE transcription.username = $3) as transcriptions_by_this_user
+        FROM
+            page
+        INNER JOIN manuscript
+            ON manuscript.id = page.manuscript
+        LEFT OUTER JOIN transcription
+            ON page.id = transcription.page
+        WHERE manuscript.title = $1 AND page.name = $2
+        GROUP BY (manuscript.id, manuscript.institution, manuscript.collection, manuscript.hand_desc, manuscript.script_desc, manuscript.lang, page.verse_start, page.verse_end)
+        ;",
+        msname,
+        pagename,
+        this_username
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(DBError::CannotGetEditorInitialValue)?;
+    Ok(EditorInitialValue {
+        user_has_started: seed.transcriptions_by_this_user.unwrap_or_default() > 0,
+        verse_start: seed.verse_start,
+        verse_end: seed.verse_end,
+        meta: ManuscriptMeta {
+            id: seed.manuscript_id,
+            title: msname.to_string(),
+            institution: seed.institution,
+            collection: seed.collection,
+            hand_desc: seed.hand_desc,
+            script_desc: seed.script_desc,
+            lang: seed.default_language,
+        },
+    })
+}
+
+pub async fn add_transcription(
+    pool: &Pool<Postgres>,
+    msname: &str,
+    pagename: &str,
+    username: &str,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "
+        INSERT INTO transcription
+            (page, username)
+        VALUES
+            ((SELECT page.id
+                FROM page
+                INNER JOIN manuscript
+                    ON page.manuscript = manuscript.id
+                WHERE manuscript.title = $1 AND page.name = $2),
+             $3)
+        ON CONFLICT DO NOTHING;",
+        msname,
+        pagename,
+        username
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(DBError::CannotInsertTranscription)
 }

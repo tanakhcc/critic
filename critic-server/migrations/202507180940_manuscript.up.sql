@@ -12,5 +12,5 @@ CREATE TABLE manuscript (
 	--- description of the script in this manuscript
 	script_desc TEXT,
 	--- default language of this manuscript
-	lang TEXT
+	lang TEXT NOT NULL
 );

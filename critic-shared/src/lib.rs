@@ -74,7 +74,7 @@ pub struct ManuscriptMeta {
     pub hand_desc: Option<String>,
     pub script_desc: Option<String>,
     // TODO add this as editable in admin page
-    pub lang: Option<String>,
+    pub lang: String,
     // TODO also add:
 }
 

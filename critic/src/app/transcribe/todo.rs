@@ -255,14 +255,16 @@ pub fn TranscribeTodoList() -> impl IntoView {
                     </svg>
                 </button>
             </div>
-            {move ||
-                page.get().map(|x|
+            {move || {
+                page.get()
+                    .map(|x| {
                         view! {
                             <div class="absolute bottom-2 flex justify-center w-full">
                                 <p>"Result Page "{x + 1}</p>
                             </div>
                         }
-                )}
+                    })
+            }}
             <div class="absolute bottom-2 right-4">
                 // we have no good way to know whether this is the las page, so we always allow the
                 // button

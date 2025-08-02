@@ -9,4 +9,5 @@ pub mod github;
 pub mod minification;
 pub mod signal_handler;
 pub mod static_files;
+pub mod transcription_store;
 pub mod upload;
