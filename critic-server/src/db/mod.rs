@@ -487,7 +487,7 @@ fn query_term_to_sql_filter<'a>(
 
 const DEFAULT_PAGINATION_SIZE: i32 = 50;
 
-#[derive(FromRow)]
+#[derive(FromRow, Debug)]
 struct _GetPagesByQueryRow {
     manuscript_name: String,
     page_name: String,

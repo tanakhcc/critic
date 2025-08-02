@@ -12,14 +12,27 @@ pub async fn get_pages_by_query(
     query: String,
     page: Option<i32>,
 ) -> Result<Vec<PageTodo>, ServerFnError> {
+    use critic_server::auth::AuthSession;
+    use leptos_axum::extract;
     let config: std::sync::Arc<critic_server::config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let username = "TODO-THE-User-name";
-    // TODO add pagination setting
+
+    let auth_session = match extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+
     let res = critic_server::db::get_pages_by_query(
         &config.db,
         &query,
-        username,
+        &user.username,
         page.unwrap_or_default(),
     )
     .await;
