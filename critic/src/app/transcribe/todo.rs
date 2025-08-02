@@ -66,11 +66,7 @@ pub fn TranscribeTodoList() -> impl IntoView {
     let pages = Resource::new(
         move || (query.get(), page.get()),
         async |(new_query, new_page)| {
-            if let Some(qstr) = new_query {
-                get_pages_by_query(qstr, new_page).await
-            } else {
-                get_pages_by_query("".to_string(), None).await
-            }
+            get_pages_by_query(new_query.unwrap_or_default(), new_page).await
         },
     );
     let todos_rendered = move || {

@@ -571,7 +571,7 @@ pub async fn get_pages_by_query(
             page_name: item.page_name,
             verse_start: item.verse_start,
             verse_end: item.verse_end,
-            // this will always be positive, because it is Count(*) from SQL
+            // this will always be nonnegative, because it is Count(*) from SQL
             // It should never be high (in practice), and we certainly don't care if this is wrong
             transcriptions_started: item.transcriptions_started.try_into().unwrap_or(u8::MAX),
             transcriptions_published: item
