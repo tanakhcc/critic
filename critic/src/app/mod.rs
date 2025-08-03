@@ -14,6 +14,15 @@ mod admin;
 pub mod shared;
 mod transcribe;
 
+#[derive(Debug)]
+struct EmptyError {}
+impl core::fmt::Display for EmptyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "An unspecified error occured.")
+    }
+}
+impl std::error::Error for EmptyError {}
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>

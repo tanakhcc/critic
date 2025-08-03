@@ -45,6 +45,7 @@ pub enum DBError {
     CannotGetPagesByQuery(sqlx::Error),
     CannotGetEditorInitialValue(sqlx::Error),
     CannotInsertTranscription(sqlx::Error),
+    CannotPublish(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -111,6 +112,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotInsertTranscription(e) => {
                 write!(f, "Unable to insert transcription: {e}")
+            }
+            Self::CannotPublish(e) => {
+                write!(f, "Unable to publish a transcription: {e}")
             }
         }
     }
@@ -688,4 +692,31 @@ pub async fn add_transcription(
     .await
     .map(|_| ())
     .map_err(DBError::CannotInsertTranscription)
+}
+
+/// set this transcription as published
+pub async fn publish_transcription(
+    pool: &Pool<Postgres>,
+    msname: &str,
+    pagename: &str,
+    username: &str,
+) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE transcription
+        SET published = true
+        FROM page p, manuscript m
+        WHERE p.id = transcription.page
+            AND m.id = p.manuscript
+            AND m.title = $1
+            AND p.name = $2
+            AND transcription.username = $3
+        ",
+        msname,
+        pagename,
+        username
+    )
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(DBError::CannotPublish)
 }

@@ -2,14 +2,24 @@
 //!
 //! this shows the editor, the publish button, rendering to html and xml and so on
 
-use critic_components::editor::{blocks::EditorBlock, Editor};
-use critic_format::streamed::{Block, Manuscript};
-use leptos::prelude::*;
+use critic_components::{
+    editor::{blocks::EditorBlock, Editor},
+    xmleditor::{XmlEditor, XmlState},
+};
+use critic_format::streamed::{Block, Manuscript, Meta};
+use critic_shared::{
+    urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL},
+    ShowHelp,
+};
+use leptos::{
+    either::{Either, EitherOf3},
+    prelude::*,
+};
 use leptos_router::hooks::use_params;
 
 use crate::app::{
     shared::{MsParams, PageParams},
-    TopLevelPosition,
+    EmptyError, TopLevelPosition,
 };
 
 /// WIP.
@@ -116,6 +126,31 @@ pub async fn save_transcription(
     Ok(())
 }
 
+#[server]
+pub async fn publish_transcription(msname: String, pagename: String) -> Result<(), ServerFnError> {
+    use critic_server::auth::AuthSession;
+    use leptos_axum::extract;
+
+    let auth_session = match extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+
+    critic_server::db::publish_transcription(&config.db, &msname, &pagename, &user.username)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
 /// The main component for the transcription editor page
 #[component]
 pub fn TranscribeEditor() -> impl IntoView {
@@ -149,66 +184,367 @@ pub fn TranscribeEditor() -> impl IntoView {
     });
 
     view! {
-        <ErrorBoundary fallback=|errors| {
-            view! {
-                <div>
-                    "Error: failed to get initial data for the Transcription editor"
-                    <ul>
-                        {move || {
-                            errors
-                                .get()
-                                .into_iter()
-                                .map(|(_, e)| view! { <li>{e.to_string()}</li> })
-                                .collect::<Vec<_>>()
-                        }}
-                    </ul>
-                </div>
-            }
-        }>
-            <Transition fallback=|| {
-                view! { <p>"Loading manuscripts..."</p> }
+        <div class="flex h-full flex-col">
+            <h1 class="p-10 text-center text-6xl font-semibold">
+                "Transcribing "{move || both_names().1}
+            </h1>
+            // show links to the image
+            <ErrorBoundary fallback=|_errors| {
+                view! { "Failed to get manuscriptname and page name from the url." }
             }>
                 {move || {
-                    ms_res
-                        .get()
-                        .map(|ms_or_err| {
-                            ms_or_err
-                                .map(|(manuscript, default_lang)| {
-                                    let blocks = RwSignal::new(
-                                        manuscript
-                                            .content
-                                            .into_iter()
-                                            .enumerate()
-                                            .map(|(id, b)| EditorBlock {
-                                                id,
-                                                inner: b.into(),
-                                                focus_on_load: false,
-                                            })
-                                            .collect::<Vec<_>>(),
-                                    );
-                                    let save_state_action = Action::new(move |
-                                        blocks: &Vec<EditorBlock>|
-                                    {
-                                        let blocks_dehydrated = blocks
-                                            .iter()
-                                            .map(|b| b.inner.clone().into())
-                                            .collect();
-                                        let cloned_meta = manuscript.meta.clone();
-                                        async move {
-                                            save_transcription(blocks_dehydrated, cloned_meta).await
-                                        }
-                                    });
-                                    view! {
-                                        <Editor
-                                            blocks=blocks
-                                            default_language=default_lang
-                                            on_save=save_state_action
-                                        />
-                                    }
-                                })
-                        })
+                    if let (Some(msname), Some(pagename)) = (
+                        ms_param.get().map(|p| p.msname).unwrap_or(None),
+                        page_param.get().map(|p| p.pagename).unwrap_or(None),
+                    ) {
+                        let image_link = format!(
+                            "{STATIC_BASE_URL}{IMAGE_BASE_LOCATION}/{msname}/{pagename}/original.webp",
+                        );
+                        Ok(
+                            view! {
+                                <div class="flex justify-center">
+                                    <a
+                                        class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 hover:bg-slate-500"
+                                        href=image_link.clone()
+                                    >
+                                        View the image
+                                    </a>
+                                    <a
+                                        class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 hover:bg-slate-500"
+                                        href=image_link
+                                        download="pagename"
+                                    >
+                                        Download the image
+                                    </a>
+                                </div>
+                            },
+                        )
+                    } else {
+                        Err(EmptyError {})
+                    }
                 }}
-            </Transition>
-        </ErrorBoundary>
+            </ErrorBoundary>
+            <ErrorBoundary fallback=|errors| {
+                view! {
+                    <div>
+                        "Error: failed to get initial data for the Transcription editor"
+                        <ul>
+                            {move || {
+                                errors
+                                    .get()
+                                    .into_iter()
+                                    .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                    .collect::<Vec<_>>()
+                            }}
+                        </ul>
+                    </div>
+                }
+            }>
+                <Transition fallback=|| {
+                    view! { <p>"Loading manuscripts..."</p> }
+                }>
+                    {move || {
+                        ms_res
+                            .get()
+                            .map(|ms_or_err| {
+                                ms_or_err
+                                    .map(|(manuscript, default_lang)| {
+                                        let blocks = RwSignal::new(
+                                            manuscript
+                                                .content
+                                                .into_iter()
+                                                .enumerate()
+                                                .map(|(id, b)| EditorBlock {
+                                                    id,
+                                                    inner: b.into(),
+                                                    focus_on_load: false,
+                                                })
+                                                .collect::<Vec<_>>(),
+                                        );
+                                        let new_meta = manuscript.meta.clone();
+                                        let save_state_action = Action::new(move |
+                                            blocks: &Vec<EditorBlock>|
+                                        {
+                                            let blocks_dehydrated = blocks
+                                                .iter()
+                                                .map(|b| b.inner.clone().into())
+                                                .collect();
+                                            let cloned_meta = new_meta.clone();
+                                            async move {
+                                                save_transcription(blocks_dehydrated, cloned_meta).await
+                                            }
+                                        });
+                                        let new_meta = manuscript.meta.clone();
+                                        let publish_action = Action::new(move |
+                                            blocks: &Vec<EditorBlock>|
+                                        {
+                                            let blocks_dehydrated = blocks
+                                                .iter()
+                                                .map(|b| b.inner.clone().into())
+                                                .collect();
+                                            let msname = new_meta.title.clone();
+                                            let pagename = new_meta.page_nr.clone();
+                                            let cloned_meta = new_meta.clone();
+                                            async move {
+                                                save_transcription(blocks_dehydrated, cloned_meta).await?;
+                                                publish_transcription(msname, pagename).await
+                                            }
+                                        });
+                                        view! {
+                                            <EditorWithTabs
+                                                blocks=blocks
+                                                meta=manuscript.meta
+                                                default_language=default_lang
+                                                on_save=save_state_action
+                                                on_publish=publish_action
+                                            />
+                                        }
+                                    })
+                            })
+                    }}
+                </Transition>
+            </ErrorBoundary>
+        </div>
+    }
+}
+
+const SHORTCUT_DESCRIPTIONS: &[(&str, &str, &str)] = &[
+    (
+        "s",
+        "Save",
+        "Save the current state of the editor to the server",
+    ),
+    ("z", "Undo", "Undo your last action"),
+    ("r", "Redo", "Redo the action you just undid"),
+    ("t", "Text", "Add a new block of text without markup"),
+    (
+        "a",
+        "Abbreviation",
+        "Turn the selection into an abbreviation",
+    ),
+    ("u", "Uncertain", "Mark the selection as uncertain"),
+    ("l", "Lacuna", "Mark the selection as lacunous"),
+    ("c", "Correction", "Mark the selection as corrected"),
+    (
+        "v",
+        "Verse",
+        "Delete the selection, putting a verse boundary in its place",
+    ),
+    (
+        "<space>",
+        "Space",
+        "Delete the selection, marking intended whitespace",
+    ),
+    (
+        "<enter>",
+        "Enter",
+        "Delete the selection, marking the end of a line or column",
+    ),
+    (
+        "p",
+        "Parse",
+        "XML only: parse the input. Equivalent to che Check button.",
+    ),
+];
+
+#[component]
+fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
+    view! {
+        <div
+            on:click=move |_| { active.update(|a| a.set_off()) }
+            // my tailwind is not compiling backdrop-blur-xs and I don't know why..
+            class="absolute inset-0 w-full bg-slate-900/90 backdrop-blur-[8px] overflow-y-auto"
+            class=("block", move || active.read().get())
+            class=("hidden", move || !active.read().get())
+        >
+            <div class="absolute left-20 w-4/5 text-lg text-white">
+                <p>
+                    "This is the transcription editor. Copy a base text from another edition, then edit it here, marking up differences you find in the manuscript image."
+                </p>
+                <p>
+                    "You can use the normal Editor, view an approximated render of what you have entered so far, or edit the XML directly. Remember that when you edit XML, you need to convert it to the normal editor before saving or publishing to make sure the data is correct."
+                </p>
+                <p>
+                    "You can use these keyboard shortcuts: "
+                    <span class="text-2xl">ctrl + alt +</span>"..."
+                </p>
+                <table class="table-fixed flex justify-around">
+                    <tbody>
+                        {SHORTCUT_DESCRIPTIONS
+                            .iter()
+                            .map(|(key, name, descr)| {
+                                view! {
+                                    <tr>
+                                        <td class="text-2xl w-28">{*key}</td>
+                                        <td class="text-xl w-36">{*name}</td>
+                                        <td>{*descr}</td>
+                                    </tr>
+                                }
+                            })
+                            .collect::<Vec<_>>()}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EditorTabs {
+    Block,
+    Render,
+    Xml,
+}
+
+/// Switches between the different tabs in the editor
+#[component]
+fn EditorWithTabs(
+    blocks: RwSignal<Vec<EditorBlock>>,
+    meta: Meta,
+    default_language: String,
+    on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
+    on_publish: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
+) -> impl IntoView {
+    let help_active: RwSignal<ShowHelp> = use_context().expect("Root mounts ShowHelp context");
+    let tab_active = RwSignal::new(EditorTabs::Block);
+
+    let xml_state = RwSignal::new(XmlState::Checked);
+
+    view! {
+        <div class="mx-16 my-4 flex flex-col h-full bg-slate-800 relative">
+            <HelpOverlay active=help_active />
+            <div class="text-red">
+                {move || match xml_state.get() {
+                    XmlState::Checked | XmlState::Unchecked => Either::Left(()),
+                    XmlState::Err(e) => Either::Right(view! { <p>{e}</p> }),
+                }}
+            </div>
+            <div id="editor-tab-header" class="mb-4 p-2 pb-0 border-b border-slate-600">
+                <button
+                    on:click=move |_| {
+                        match xml_state.get() {
+                            XmlState::Checked => {
+                                tab_active.set(EditorTabs::Block);
+                            }
+                            XmlState::Err(_) => {}
+                            XmlState::Unchecked => {
+                                xml_state
+                                    .set(
+                                        XmlState::Err(
+                                            "You need to check the XML first.".to_string(),
+                                        ),
+                                    );
+                            }
+                        }
+                    }
+                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Block)
+                >
+                    Editor
+                </button>
+                <button
+                    on:click=move |_| {
+                        match xml_state.get() {
+                            XmlState::Checked => {
+                                tab_active.set(EditorTabs::Render);
+                            }
+                            XmlState::Err(_) => {}
+                            XmlState::Unchecked => {
+                                xml_state
+                                    .set(
+                                        XmlState::Err(
+                                            "You need to check the XML first.".to_string(),
+                                        ),
+                                    );
+                            }
+                        }
+                    }
+                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Render)
+                >
+                    Render
+                </button>
+                <button
+                    on:click=move |_| {
+                        tab_active.set(EditorTabs::Xml);
+                    }
+                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Xml)
+                >
+                    XML
+                </button>
+            </div>
+            {move || {
+                tab_active
+                    .with(|tab| match tab {
+                        EditorTabs::Block => {
+                            let lang_cloned = default_language.clone();
+                            EitherOf3::A(
+                                view! {
+                                    <Editor
+                                        blocks=blocks
+                                        default_language=lang_cloned
+                                        on_save=on_save
+                                    />
+                                },
+                            )
+                        }
+                        EditorTabs::Render => EitherOf3::B(view! { TODO }),
+                        EditorTabs::Xml => {
+                            let meta_cloned = meta.clone();
+                            EitherOf3::C(
+                                view! {
+                                    <XmlEditor
+                                        blocks=blocks
+                                        meta=meta_cloned
+                                        on_save=on_save
+                                        xml_state=xml_state
+                                    />
+                                },
+                            )
+                        }
+                    })
+            }}
+        </div>
+        // note: deliberately not in the div, but after it
+        <div class="flex justify-center w-full">
+            {move || {
+                xml_state
+                    .with(|state| match state {
+                        XmlState::Checked => {
+                            Either::Left(
+                                view! {
+                                    <button
+                                        class="w-96 text-2xl m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 shadow-sm shadow-sky-600 hover:bg-slate-500"
+                                        on:click=move |_| {
+                                            on_publish.dispatch(blocks.get());
+                                        }
+                                    >
+                                        "Publish this transcription"
+                                    </button>
+                                },
+                            )
+                        }
+                        XmlState::Unchecked => {
+                            Either::Right(
+                                view! {
+                                    <span class="w-96 text-2xl m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50">
+                                        "Check your XML before publishing!"
+                                    </span>
+                                },
+                            )
+                        }
+                        XmlState::Err(_) => {
+                            Either::Right(
+                                view! {
+                                    <span class="w-96 text-2xl m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50">
+                                        "Fix errors before publishing!"
+                                    </span>
+                                },
+                            )
+                        }
+                    })
+            }}
+        </div>
     }
 }

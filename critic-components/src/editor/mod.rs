@@ -3,7 +3,6 @@
 //! This is the GUI-area and directly related APIs/server functions to save its data.
 
 use critic_format::streamed::BlockType;
-use critic_shared::ShowHelp;
 use leptos::{ev::keydown, logging::log, prelude::*};
 use leptos_use::{use_document, use_event_listener};
 use undo::{UnReStack, UnReStep};
@@ -130,79 +129,7 @@ fn new_node(
     };
 }
 
-const SHORTCUT_DESCRIPTIONS: &[(&str, &str, &str)] = &[
-    (
-        "s",
-        "Save",
-        "Save the current state of the editor to the server",
-    ),
-    ("z", "Undo", "Undo your last action"),
-    ("r", "Redo", "Redo the action you just undid"),
-    ("t", "Text", "Add a new block of text without markup"),
-    (
-        "a",
-        "Abbreviation",
-        "Turn the selection into an abbreviation",
-    ),
-    ("u", "Uncertain", "Mark the selection as uncertain"),
-    ("l", "Lacuna", "Mark the selection as lacunous"),
-    ("c", "Correction", "Mark the selection as corrected"),
-    (
-        "v",
-        "Verse",
-        "Delete the selection, putting a verse boundary in its place",
-    ),
-    (
-        "<space>",
-        "Space",
-        "Delete the selection, marking intended whitespace",
-    ),
-    (
-        "<enter>",
-        "Enter",
-        "Delete the selection, marking the end of a line or column",
-    ),
-];
-
-#[component]
-fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
-    view! {
-        <div
-            on:click=move |_| { active.update(|a| a.set_off()) }
-            // my tailwind is not compiling backdrop-blur-xs and I don't know why..
-            class="absolute w-full inset-0 bg-stone-100/60 backdrop-blur-[8px]"
-            class=("block", move || active.read().get())
-            class=("hidden", move || !active.read().get())
-        >
-            <div class="absolute top-20 left-20 w-4/5 text-xl text-stone-800">
-                <p>
-                    "This is the transcription editor. Copy a base text from another edition, then edit it here, marking up differences you find in the manuscript image."
-                </p>
-                <p>
-                    "You can use these keyboard shortcuts: "
-                    <span class="text-3xl">ctrl + alt +</span>"..."
-                </p>
-                <table class="table-fixed flex justify-around">
-                    <tbody>
-                        {SHORTCUT_DESCRIPTIONS
-                            .iter()
-                            .map(|(key, name, descr)| {
-                                view! {
-                                    <tr>
-                                        <td class="text-3xl w-28">{*key}</td>
-                                        <td class="text-xl w-36">{*name}</td>
-                                        <td>{*descr}</td>
-                                    </tr>
-                                }
-                            })
-                            .collect::<Vec<_>>()}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    }
-}
-
+/// The raw block-editor (i.e. not containing XML and such)
 #[component]
 pub fn Editor(
     blocks: RwSignal<Vec<EditorBlock>>,
@@ -325,11 +252,8 @@ pub fn Editor(
         }
     };
 
-    let pending_save = on_save.pending();
-
     // the keyboard-shortcut listener
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
-        log!("Pressed: {}", evt.key_code());
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
             // we can only dispatch and hope for the best here
@@ -442,14 +366,9 @@ pub fn Editor(
     let versification_schemes =
         OnceResource::new(versification_scheme::get_versification_schemes());
     provide_context(versification_schemes);
-    let help_active: RwSignal<ShowHelp> = use_context().expect("Root mounts ShowHelp context");
 
     view! {
-        <div class="relative">
-            <button on:click=move |_| {}>"Publish this transcription"</button>
-            <HelpOverlay active=help_active />
-            <p>{move || pending_save.get().then_some("Saving state...")}</p>
-            <br />
+        <div id="editor-blocks" class="h-0 grow overflow-y-auto">
             <For
                 each=move || blocks.get()
                 key=|block| block.id()

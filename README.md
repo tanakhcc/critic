@@ -23,6 +23,16 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
+## We actually need each XML file to be for an entire MS to map metainformation correctly
+- changing meta in admin page for things which have completed reconciliations need a PR in github to change that data
+    - open this automatically
+- Saving to file:
+    - for normal transcriptions: simply put the `<div type="page">` in a file
+    - for reconciliations: --same--
+    - for finished reconciliations: read the file from github, insert the `<div type="page">` in the correct location, add this change as a PR
+
+## Should render XMl nicely for the XML editor start value
+
 ## Allow changing MS language in admin interface
 
 ## Overview of required transcriptions
@@ -35,7 +45,7 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 Actual page containing
 - the editor
 - an XML output tab
-- an HTML output tab
+- later: an HTML output tab
 - the image (or just a link?)
 - the publish button, which shows a small popup and then allows you to publish
 - saving to the server in a predetermined location

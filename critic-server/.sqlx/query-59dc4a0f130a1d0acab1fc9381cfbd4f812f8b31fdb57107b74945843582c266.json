@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE transcription\n        SET published = true\n        FROM page p, manuscript m\n        WHERE p.id = transcription.page\n            AND m.id = p.manuscript\n            AND m.title = $1\n            AND p.name = $2\n            AND transcription.username = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "59dc4a0f130a1d0acab1fc9381cfbd4f812f8b31fdb57107b74945843582c266"
+}

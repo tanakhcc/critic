@@ -17,6 +17,7 @@ use leptos_router::components::Outlet;
 use leptos_router::hooks::{query_signal, use_params};
 
 use crate::app::shared::{MsParams, PageParams};
+use crate::app::EmptyError;
 
 #[server]
 async fn get_manuscripts() -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
@@ -664,15 +665,6 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
     }
 }
 
-#[derive(Debug)]
-struct EmptyError {}
-impl core::fmt::Display for EmptyError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "An unspecified error occured.")
-    }
-}
-impl std::error::Error for EmptyError {}
-
 /// show information for a complete page
 #[component]
 pub fn Page() -> impl IntoView {
@@ -715,6 +707,7 @@ pub fn Page() -> impl IntoView {
                                     <a
                                         class=DEFAULT_BUTTON_CLASSES
                                         href=format!("{image_base}/original.webp")
+                                        // TODO fix this
                                         download="Babylonicus Petropolitanus_Babylonicus_Petropolitanus-007.webp"
                                     >
                                         Download Original
