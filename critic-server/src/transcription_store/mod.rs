@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use critic_format::{
-    denorm::NormalizationError, destream::StreamError, streamed::Manuscript, ConversionError,
+    denorm::NormalizationError, destream::StreamError, streamed::Block, ConversionError,
 };
 use critic_shared::urls::TRANSCRIPTION_BASE_LOCATION;
 
@@ -66,7 +66,8 @@ pub fn read_transcription_from_disk(
     msname: &str,
     pagename: &str,
     username: &str,
-) -> Result<Manuscript, TranscriptionStoreError> {
+    default_language: &str,
+) -> Result<(Vec<Block>, String), TranscriptionStoreError> {
     let mut path = PathBuf::new();
     path.push(data_directory);
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
@@ -74,6 +75,7 @@ pub fn read_transcription_from_disk(
     path.push(pagename);
     path.push(username);
     path.set_extension("xml");
+    // TODO: canonicalize and check that the path is subdirectory to data_directory/TRANSCRIPTION_BASE_LOCATION
     let file = match std::fs::File::open(&path) {
         Ok(x) => x,
         Err(e) => {
@@ -84,7 +86,7 @@ pub fn read_transcription_from_disk(
         }
     };
     let buf_reader = std::io::BufReader::new(file);
-    critic_format::from_xml(buf_reader).map_err(|e| match e {
+    critic_format::page_from_xml(buf_reader, default_language).map_err(|e| match e {
         ConversionError::DeSer(de_err) => {
             TranscriptionStoreError::Deser(path.to_string_lossy().to_string(), de_err)
         }
@@ -99,15 +101,18 @@ pub fn read_transcription_from_disk(
 /// We have already checked that we really want to save this transcription data.
 /// Write it to disk.
 pub fn write_transcription_to_disk(
-    data: Manuscript,
+    data: Vec<Block>,
     data_directory: &str,
+    msname: &str,
+    pagename: String,
     username: &str,
 ) -> Result<(), TranscriptionStoreError> {
     let mut path = PathBuf::new();
     path.push(data_directory);
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
-    path.push(&data.meta.title);
-    path.push(&data.meta.page_nr);
+    path.push(msname);
+    path.push(&pagename);
+    // TODO: canonicalize and check that the path is subdirectory to data_directory/TRANSCRIPTION_BASE_LOCATION
     std::fs::create_dir_all(&path)
         .map_err(|e| TranscriptionStoreError::CreateDir(path.to_string_lossy().to_string(), e))?;
     path.push(username);
@@ -116,6 +121,7 @@ pub fn write_transcription_to_disk(
         .read(false)
         .write(true)
         .create(true)
+        .truncate(true)
         .open(&path)
     {
         Ok(x) => x,
@@ -127,7 +133,7 @@ pub fn write_transcription_to_disk(
         }
     };
 
-    let sr = critic_format::to_xml(data).map_err(|e| match e {
+    let sr = critic_format::page_to_xml(data, pagename).map_err(|e| match e {
         ConversionError::Ser(e) => TranscriptionStoreError::Ser(e),
         ConversionError::DeNorm(e) => TranscriptionStoreError::DeNorm(e),
         ConversionError::DeStream(e) => TranscriptionStoreError::DeStream(e),

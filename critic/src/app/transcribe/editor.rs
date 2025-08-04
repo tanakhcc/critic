@@ -6,7 +6,7 @@ use critic_components::{
     editor::{blocks::EditorBlock, Editor},
     xmleditor::{XmlEditor, XmlState},
 };
-use critic_format::streamed::{Block, Manuscript, Meta};
+use critic_format::streamed::Block;
 use critic_shared::{
     urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL},
     ShowHelp,
@@ -34,7 +34,7 @@ use crate::app::{
 async fn get_initial_ms(
     msname: String,
     pagename: String,
-) -> Result<(Manuscript, String), ServerFnError> {
+) -> Result<(Vec<Block>, String), ServerFnError> {
     use critic_format::streamed::Block;
     use critic_server::{
         auth::AuthSession, db::get_editor_initial_value,
@@ -58,39 +58,35 @@ async fn get_initial_ms(
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
+    // TODO: first get default language from the DB
+    let default_language = initial_seed.meta.lang;
+
     if initial_seed.user_has_started {
         Ok((
-                read_transcription_from_disk(&config.data_directory, &msname, &pagename, &user.username)
+                read_transcription_from_disk(&config.data_directory, &msname, &pagename, &user.username, &default_language)
+                    .map(|(blocks, _pagename)| blocks)
                     .map_err(|e| ServerFnError::new(format!("Transcription /{msname}/{pagename}/{} should exist but is not readable from disk: {e}", user.username)))?,
-                initial_seed.meta.lang))
+                default_language))
     } else {
         // TODO - do the whole indexing and find the right place in the base text
         // WIP
         Ok((
-                Manuscript {
-                    meta: critic_format::normalized::Meta {
-                        name: format!("{msname} page {pagename}"),
-                        page_nr: pagename,
-                        title: msname,
-                        institution: initial_seed.meta.institution,
-                        collection: initial_seed.meta.collection,
-                        hand_desc: initial_seed.meta.hand_desc,
-                        script_desc: initial_seed.meta.script_desc},
-                        content: vec![Block::Text(critic_format::streamed::Paragraph {
-                            lang: initial_seed.meta.lang.clone(),
-                            content: "WIP - In the future, the correct part of the basetext will automatically be put here.".to_string()
-                        })]
-                },
-                initial_seed.meta.lang))
+            vec![
+                Block::Text(critic_format::streamed::Paragraph {
+                    lang: "".to_string(),
+                    content: "WIP - In the future, the correct part of the basetext will automatically be put here.".to_string()})
+            ],
+            default_language
+        ))
     }
 }
 
 #[server]
 pub async fn save_transcription(
     blocks: Vec<Block>,
-    meta: critic_format::streamed::Meta,
+    msname: String,
+    pagename: String,
 ) -> Result<(), ServerFnError> {
-    use critic_format::streamed::Manuscript;
     use critic_server::{auth::AuthSession, transcription_store::write_transcription_to_disk};
     use leptos_axum::extract;
 
@@ -108,19 +104,13 @@ pub async fn save_transcription(
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
-    // save the data to disk
-    let ms = Manuscript {
-        meta,
-        content: blocks,
-    };
-    // TODO this is really ugly. It would be nice if writing to XML could take the MS by ref (since
-    // we have to seralize it anyways, this does not need to own any of the actual data)
-    //
-    // However, that would require making the type have a lifetime into the data, and I do not have
-    // enough time to set this up right now.
-    let msname = ms.meta.title.clone();
-    let pagename = ms.meta.page_nr.clone();
-    write_transcription_to_disk(ms, &config.data_directory, &user.username)?;
+    write_transcription_to_disk(
+        blocks,
+        &config.data_directory,
+        &msname,
+        pagename.to_string(),
+        &user.username,
+    )?;
     // save the fact that this transcription exists to the DB
     critic_server::db::add_transcription(&config.db, &msname, &pagename, &user.username).await?;
     Ok(())
@@ -164,16 +154,20 @@ pub fn TranscribeEditor() -> impl IntoView {
     // get msname from url
     let both_names = move || {
         (
-            ms_param.read().as_ref().ok().and_then(|x| x.msname.clone()),
+            ms_param
+                .read_untracked()
+                .as_ref()
+                .ok()
+                .and_then(|x| x.msname.clone()),
             page_param
-                .read()
+                .read_untracked()
                 .as_ref()
                 .ok()
                 .and_then(|x| x.pagename.clone()),
         )
     };
     // get initial state from the server
-    let ms_res = Resource::new(both_names, async |(ms_name_opt, page_name_opt)| {
+    let blocks_res = Resource::new(both_names, async |(ms_name_opt, page_name_opt)| {
         if let (Some(x), Some(y)) = (ms_name_opt, page_name_opt) {
             get_initial_ms(x, y).await
         } else {
@@ -244,14 +238,13 @@ pub fn TranscribeEditor() -> impl IntoView {
                     view! { <p>"Loading manuscripts..."</p> }
                 }>
                     {move || {
-                        ms_res
+                        blocks_res
                             .get()
-                            .map(|ms_or_err| {
-                                ms_or_err
-                                    .map(|(manuscript, default_lang)| {
+                            .map(|blocks_or_err| {
+                                blocks_or_err
+                                    .map(|(blocks, default_lang)| {
                                         let blocks = RwSignal::new(
-                                            manuscript
-                                                .content
+                                            blocks
                                                 .into_iter()
                                                 .enumerate()
                                                 .map(|(id, b)| EditorBlock {
@@ -261,7 +254,6 @@ pub fn TranscribeEditor() -> impl IntoView {
                                                 })
                                                 .collect::<Vec<_>>(),
                                         );
-                                        let new_meta = manuscript.meta.clone();
                                         let save_state_action = Action::new(move |
                                             blocks: &Vec<EditorBlock>|
                                         {
@@ -269,12 +261,15 @@ pub fn TranscribeEditor() -> impl IntoView {
                                                 .iter()
                                                 .map(|b| b.inner.clone().into())
                                                 .collect();
-                                            let cloned_meta = new_meta.clone();
                                             async move {
-                                                save_transcription(blocks_dehydrated, cloned_meta).await
+                                                if let (Some(msname), Some(pagename)) = both_names() {
+                                                    save_transcription(blocks_dehydrated, msname, pagename)
+                                                        .await
+                                                } else {
+                                                    Ok(())
+                                                }
                                             }
                                         });
-                                        let new_meta = manuscript.meta.clone();
                                         let publish_action = Action::new(move |
                                             blocks: &Vec<EditorBlock>|
                                         {
@@ -282,23 +277,33 @@ pub fn TranscribeEditor() -> impl IntoView {
                                                 .iter()
                                                 .map(|b| b.inner.clone().into())
                                                 .collect();
-                                            let msname = new_meta.title.clone();
-                                            let pagename = new_meta.page_nr.clone();
-                                            let cloned_meta = new_meta.clone();
                                             async move {
-                                                save_transcription(blocks_dehydrated, cloned_meta).await?;
-                                                publish_transcription(msname, pagename).await
+                                                if let (Some(msname), Some(pagename)) = both_names() {
+                                                    save_transcription(
+                                                            blocks_dehydrated,
+                                                            msname.clone(),
+                                                            pagename.clone(),
+                                                        )
+                                                        .await?;
+                                                    publish_transcription(msname, pagename).await
+                                                } else {
+                                                    Ok(())
+                                                }
                                             }
                                         });
-                                        view! {
-                                            <EditorWithTabs
-                                                blocks=blocks
-                                                meta=manuscript.meta
-                                                default_language=default_lang
-                                                on_save=save_state_action
-                                                on_publish=publish_action
-                                            />
-                                        }
+                                        both_names()
+                                            .1
+                                            .map(|pagename| {
+                                                view! {
+                                                    <EditorWithTabs
+                                                        blocks=blocks
+                                                        default_language=default_lang
+                                                        on_save=save_state_action
+                                                        on_publish=publish_action
+                                                        pagename=pagename
+                                                    />
+                                                }
+                                            })
                                     })
                             })
                     }}
@@ -340,11 +345,7 @@ const SHORTCUT_DESCRIPTIONS: &[(&str, &str, &str)] = &[
         "Enter",
         "Delete the selection, marking the end of a line or column",
     ),
-    (
-        "p",
-        "Parse",
-        "XML only: parse the input. Equivalent to che Check button.",
-    ),
+    ("c", "Check", "XML only: check that XML is valid."),
 ];
 
 #[component]
@@ -400,10 +401,10 @@ enum EditorTabs {
 #[component]
 fn EditorWithTabs(
     blocks: RwSignal<Vec<EditorBlock>>,
-    meta: Meta,
     default_language: String,
     on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
     on_publish: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
+    pagename: String,
 ) -> impl IntoView {
     let help_active: RwSignal<ShowHelp> = use_context().expect("Root mounts ShowHelp context");
     let tab_active = RwSignal::new(EditorTabs::Block);
@@ -489,16 +490,22 @@ fn EditorWithTabs(
                                 },
                             )
                         }
-                        EditorTabs::Render => EitherOf3::B(view! { TODO }),
+                        EditorTabs::Render => {
+                            EitherOf3::B(
+                                view! {
+                                    "TODO. In the future, you will see an approximate render of your entered text as it would look like on the page."
+                                },
+                            )
+                        }
                         EditorTabs::Xml => {
-                            let meta_cloned = meta.clone();
                             EitherOf3::C(
                                 view! {
                                     <XmlEditor
                                         blocks=blocks
-                                        meta=meta_cloned
                                         on_save=on_save
                                         xml_state=xml_state
+                                        pagename=pagename.clone()
+                                        default_language=default_language.clone()
                                     />
                                 },
                             )

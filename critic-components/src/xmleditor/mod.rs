@@ -1,10 +1,6 @@
 //! The XML editor (Basically a glorified textarea.
 
-use critic_format::{
-    from_xml,
-    streamed::{Manuscript, Meta},
-    to_xml,
-};
+use critic_format::{page_from_xml, page_to_xml};
 use leptos::{either::Either, ev::keydown, prelude::*};
 use leptos_use::use_event_listener;
 
@@ -30,21 +26,18 @@ pub enum XmlState {
 #[component]
 pub fn XmlEditor(
     blocks: RwSignal<Vec<EditorBlock>>,
-    meta: Meta,
     on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
     /// Communicates the XML state to the parent (we disallow leaving the XmlEditor if the XMl is
     /// invalid
     xml_state: RwSignal<XmlState>,
+    /// the name of the page we are transcribing
+    pagename: String,
+    default_language: String,
 ) -> impl IntoView {
-    let ms = Manuscript {
-        content: blocks
-            .get_untracked()
-            .into_iter()
-            .map(|b| b.inner.into())
-            .collect(),
-        meta,
-    };
-    let starting_xml = match to_xml(ms) {
+    let starting_xml = match page_to_xml(
+        blocks.get_untracked().into_iter().map(|b| b.inner.into()),
+        pagename.clone(),
+    ) {
         Ok(x) => x,
         Err(e) => {
             return Either::Left(view! {
@@ -58,14 +51,21 @@ pub fn XmlEditor(
 
     let textarea_content = RwSignal::new(starting_xml);
 
+    let check_name = pagename.clone();
     let check = move || {
-        match from_xml(textarea_content.read().as_bytes()).map_err(|e| e.to_string()) {
-            Ok(ms) => {
+        match page_from_xml(textarea_content.read().as_bytes(), &default_language)
+            .map_err(|e| e.to_string())
+        {
+            Ok((blocks_from_xml, name)) => {
+                if name != check_name {
+                    *xml_state.write() =
+                        XmlState::Err(format!("The name of this page must be {check_name}"));
+                    return false;
+                }
                 // check was ok
                 *xml_state.write() = XmlState::Checked;
                 // set blocks accordingly
-                *blocks.write() = ms
-                    .content
+                *blocks.write() = blocks_from_xml
                     .into_iter()
                     .enumerate()
                     .map(|(id, b)| EditorBlock {
@@ -83,21 +83,24 @@ pub fn XmlEditor(
             }
         }
     };
+    let save_check = check.clone();
     let save = move || {
-        if check() {
+        if save_check() {
             // and now save
             on_save.dispatch(blocks.get());
         };
     };
 
     let textarea_ref = NodeRef::new();
+    let key_save = save.clone();
+    let key_check = check.clone();
     let _cleanup = use_event_listener(textarea_ref, keydown, move |evt| {
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
-            save();
+            key_save();
         // <ctrl>-<alt>-C - Check
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 67 {
-            check();
+            key_check();
         }
     });
 
