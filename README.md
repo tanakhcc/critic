@@ -23,8 +23,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
-## fix directory traversal attacks when building PathBufs and such
-
 ## Should render XMl nicely for the XML editor start value
 
 ## Allow changing MS language in admin interface

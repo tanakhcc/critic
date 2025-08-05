@@ -25,6 +25,8 @@ pub enum TranscriptionStoreError {
     DeStream(StreamError),
     Norm(NormalizationError),
     DeNorm(NormalizationError),
+    Canonicalize(String, std::io::Error),
+    PathInvalid(PathBuf),
 }
 impl core::fmt::Display for TranscriptionStoreError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
@@ -56,6 +58,12 @@ impl core::fmt::Display for TranscriptionStoreError {
             Self::DeNorm(e) => {
                 write!(f, "Failed to denormalize transcription: {e}")
             }
+            Self::Canonicalize(path, e) => {
+                write!(f, "Failed to canonicalize {path}: {e}")
+            }
+            Self::PathInvalid(path) => {
+                write!(f, "The path {} is not legal to access.", path.to_string_lossy())
+            }
         }
     }
 }
@@ -68,14 +76,24 @@ pub fn read_transcription_from_disk(
     username: &str,
     default_language: &str,
 ) -> Result<(Vec<Block>, String), TranscriptionStoreError> {
+    // basic path sanitization
+    if msname.contains('.') || msname.contains('/') {
+        return Err(TranscriptionStoreError::PathInvalid(msname.into()));
+    };
+    if pagename.contains('.') || pagename.contains('/') {
+        return Err(TranscriptionStoreError::PathInvalid(msname.into()));
+    };
     let mut path = PathBuf::new();
     path.push(data_directory);
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
     path.push(msname);
-    path.push(pagename);
+    path.push(&pagename);
+    let abspath = std::path::absolute(&path).map_err(|e| TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e))?;
+    if !abspath.to_string_lossy().contains(&format!("{}{}/{}/{}", data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename)) {
+        return Err(TranscriptionStoreError::PathInvalid(abspath));
+    };
     path.push(username);
     path.set_extension("xml");
-    // TODO: canonicalize and check that the path is subdirectory to data_directory/TRANSCRIPTION_BASE_LOCATION
     let file = match std::fs::File::open(&path) {
         Ok(x) => x,
         Err(e) => {
@@ -107,12 +125,22 @@ pub fn write_transcription_to_disk(
     pagename: String,
     username: &str,
 ) -> Result<(), TranscriptionStoreError> {
+    // basic path sanitization
+    if msname.contains('.') || msname.contains('/') {
+        return Err(TranscriptionStoreError::PathInvalid(msname.into()));
+    };
+    if pagename.contains('.') || pagename.contains('/') {
+        return Err(TranscriptionStoreError::PathInvalid(msname.into()));
+    };
     let mut path = PathBuf::new();
     path.push(data_directory);
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
     path.push(msname);
     path.push(&pagename);
-    // TODO: canonicalize and check that the path is subdirectory to data_directory/TRANSCRIPTION_BASE_LOCATION
+    let abspath = std::path::absolute(&path).map_err(|e| TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e))?;
+    if !abspath.to_string_lossy().contains(&format!("{}{}/{}/{}", data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename)) {
+        return Err(TranscriptionStoreError::PathInvalid(abspath));
+    };
     std::fs::create_dir_all(&path)
         .map_err(|e| TranscriptionStoreError::CreateDir(path.to_string_lossy().to_string(), e))?;
     path.push(username);
