@@ -326,7 +326,7 @@ pub fn Manuscript() -> impl IntoView {
                                             // wrapper around the page upload form - this is show over the
                                             // entire page-list and page info part of the page
                                             <Show when=move || show_page_upload.get() fallback=|| {}>
-                                                <div class="absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
+                                                <div class="z-20 absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
                                                     <div class="relative inset-1/12 w-10/12">
                                                         <div class="bg-slate-500 rounded-lg">
                                                             <TransferPage msname=ms_name.clone() />

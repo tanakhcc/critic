@@ -17,7 +17,6 @@ mod versification_scheme;
 
 /// Add a new Block to the editor
 ///
-/// `physical_index_maybe`: find the physical position of the block with this id
 /// `blocks`: the blocks currently present
 /// `next_id`: use this ID for the new block
 /// `block_type`: create a block of this type
@@ -25,7 +24,6 @@ mod versification_scheme;
 /// `default_language`: use this language for the new block if its language cannot be determined
 /// automatically
 fn new_node(
-    physical_index_maybe: impl Fn(usize) -> Option<usize>,
     blocks: RwSignal<Vec<EditorBlock>>,
     next_id: RwSignal<usize>,
     block_type: BlockType,
@@ -57,6 +55,8 @@ fn new_node(
             return;
         }
     };
+
+    let physical_index_maybe = move |id: usize| blocks.read().iter().position(|b| b.id() == id);
 
     // If text is currently selected, the block should be created with the selected text as its
     // content
@@ -253,6 +253,7 @@ pub fn Editor(
     };
 
     // the keyboard-shortcut listener
+    let cloned_default_language = default_language.clone();
     let _cleanup = use_event_listener(use_document(), keydown, move |evt| {
         // <ctrl>-<alt>-S - Save
         if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 83 {
@@ -277,82 +278,74 @@ pub fn Editor(
         // <ctrl>-<alt>-T (new Text)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 84 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Text,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         // <ctrl>-<alt>-A (new Abbreviation)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 65 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Abbreviation,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             )
         // <ctrl>-<alt>-U (new Uncertain)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 85 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Uncertain,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             )
         // <ctrl>-<alt>-L (new Lacuna)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 76 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Lacuna,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         // <ctrl>-<alt>-V (new Anchor/Verse)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 86 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Anchor,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         // <ctrl>-<alt>-C (new Correction)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 67 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Correction,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         // <ctrl>-<alt>-<space> (new Space)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 32 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Space,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         // <ctrl>-<alt>-<ENTER> (new Break)
         } else if evt.alt_key() && evt.ctrl_key() && evt.key_code() == 13 {
             new_node(
-                physical_index_maybe,
                 blocks,
                 next_id,
                 BlockType::Break,
                 undo_stack,
-                &default_language,
+                &cloned_default_language,
             );
         };
     });
@@ -368,6 +361,13 @@ pub fn Editor(
     provide_context(versification_schemes);
 
     view! {
+        <EditorEditButtons
+            default_language=default_language
+            blocks=blocks
+            next_id=next_id
+            undo_stack=undo_stack
+            on_save=on_save
+        />
         <div id="editor-blocks" class="h-0 grow overflow-y-auto">
             <For
                 each=move || blocks.get()
@@ -421,6 +421,177 @@ pub fn Editor(
                     }
                 }
             ></For>
+        </div>
+    }
+}
+
+#[component]
+fn EditorEditButtons(
+    blocks: RwSignal<Vec<EditorBlock>>,
+    next_id: RwSignal<usize>,
+    undo_stack: RwSignal<UnReStack>,
+    default_language: String,
+    on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
+) -> impl IntoView {
+    const BUTTON_DEFAULT_CLASS: &str = "rounded-md bg-slate-700 p-1 hover:bg-slate-500";
+
+    // each on click handler needs to own the default language, so we arc-clone it :/
+    let default_language = std::sync::Arc::new(default_language);
+    let text_lang = default_language.clone();
+    let uncertain_lang = default_language.clone();
+    let lacuna_lang = default_language.clone();
+    let abbr_lang = default_language.clone();
+    let corr_lang = default_language.clone();
+    let space_lang = default_language.clone();
+    let break_lang = default_language.clone();
+    view! {
+        <div class="grid grid-cols-11 gap-1 border-b border-slate-600 p-1" id="editor-tab-header">
+            <span class="text-orange-400 flex flex-col justify-center">ctrl + alt +</span>
+            <button class=BUTTON_DEFAULT_CLASS>
+                <span
+                    class="text-orange-400"
+                    on:click=move |ev| {
+                        ev.prevent_default();
+                        on_save.dispatch(blocks.read().to_owned());
+                    }
+                >
+                    "S: "
+                </span>
+                save
+            </button>
+            <button class=BUTTON_DEFAULT_CLASS>
+                <span
+                    class="text-orange-400"
+                    on:click=move |_ev| {
+                        match undo_stack.write().undo(&mut blocks.write()) {
+                            Ok(()) => {}
+                            Err(e) => {
+                                log!("{e}");
+                            }
+                        };
+                    }
+                >
+                    "Z: "
+                </span>
+                undo
+            </button>
+            <button class=BUTTON_DEFAULT_CLASS>
+                <span
+                    class="text-orange-400"
+                    on:click=move |_ev| {
+                        match undo_stack.write().redo(&mut blocks.write()) {
+                            Ok(()) => {}
+                            Err(e) => {
+                                log!("{e}");
+                            }
+                        };
+                    }
+                >
+                    "R: "
+                </span>
+                redo
+            </button>
+            <button
+                class=BUTTON_DEFAULT_CLASS
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Text, undo_stack, &text_lang);
+                }
+            >
+                <span class="text-orange-400">"T: "</span>
+                text
+            </button>
+            <button
+                class=BUTTON_DEFAULT_CLASS
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Uncertain, undo_stack, &uncertain_lang);
+                }
+            >
+                <span class="text-orange-400">"U: "</span>
+                uncertain
+            </button>
+            <button
+                class=BUTTON_DEFAULT_CLASS
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Lacuna, undo_stack, &lacuna_lang);
+                }
+            >
+                <span class="text-orange-400">"L: "</span>
+                lacuna
+            </button>
+            <button
+                class=BUTTON_DEFAULT_CLASS
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Abbreviation, undo_stack, &abbr_lang);
+                }
+            >
+                <span class="text-orange-400">"A: "</span>
+                abbreviation
+            </button>
+            <button
+                class=BUTTON_DEFAULT_CLASS
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Correction, undo_stack, &corr_lang);
+                }
+            >
+                <span class="text-orange-400">"C: "</span>
+                correction
+            </button>
+            <button
+                class="inline-flex rounded-md bg-slate-700 p-1 hover:bg-slate-500"
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Space, undo_stack, &space_lang);
+                }
+            >
+                <span class="inline-flex text-orange-400">
+                    <svg
+                        class="size-4 translate-y-2"
+                        viewBox="0 0 24 24"
+                        version="1.1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        xmlns:xlink="http://www.w3.org/1999/xlink"
+                    >
+                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                            <g fill="currentColor" fill-rule="nonzero">
+                                <path d="M20.5,11 L20.5,13 C20.5,13.1380712 20.3880712,13.25 20.25,13.25 L3.75,13.25 C3.61192881,13.25 3.5,13.1380712 3.5,13 L3.5,11 C3.5,10.5857864 3.16421356,10.25 2.75,10.25 C2.33578644,10.25 2,10.5857864 2,11 C2,11.4444444 2,12.1111111 2,13 C2,13.9664983 2.78350169,14.75 3.75,14.75 L20.25,14.75 C21.2164983,14.75 22,13.9664983 22,13 L22,11 C22,10.5857864 21.6642136,10.25 21.25,10.25 C20.8357864,10.25 20.5,10.5857864 20.5,11 Z"></path>
+                            </g>
+                        </g>
+                    </svg>
+                    :
+                </span>
+                "space"
+            </button>
+            <button
+                class="inline-flex rounded-md bg-slate-700 p-1 hover:bg-slate-500"
+                on:click=move |ev| {
+                    ev.prevent_default();
+                    new_node(blocks, next_id, BlockType::Break, undo_stack, &break_lang);
+                }
+            >
+                <span class="inline-flex text-orange-400">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="size-4 translate-y-1.5"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m7.49 12-3.75 3.75m0 0 3.75 3.75m-3.75-3.75h16.5V4.499"
+                        />
+                    </svg>
+                    :
+                </span>
+                enter
+            </button>
         </div>
     }
 }

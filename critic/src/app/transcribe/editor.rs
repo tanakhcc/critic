@@ -354,7 +354,7 @@ fn HelpOverlay(active: RwSignal<ShowHelp>) -> impl IntoView {
         <div
             on:click=move |_| { active.update(|a| a.set_off()) }
             // my tailwind is not compiling backdrop-blur-xs and I don't know why..
-            class="absolute inset-0 w-full bg-slate-900/90 backdrop-blur-[8px] overflow-y-auto"
+            class="z-10 absolute inset-0 w-full bg-slate-900/90 backdrop-blur-[8px] overflow-y-auto"
             class=("block", move || active.read().get())
             class=("hidden", move || !active.read().get())
         >
@@ -415,66 +415,14 @@ fn EditorWithTabs(
         <div class="mx-16 my-4 flex flex-col h-full bg-slate-800 relative">
             <HelpOverlay active=help_active />
             <div class="text-red">
-                {move || match xml_state.get() {
-                    XmlState::Checked | XmlState::Unchecked => Either::Left(()),
-                    XmlState::Err(e) => Either::Right(view! { <p>{e}</p> }),
-                }}
+                <p>
+                    {move || match xml_state.get() {
+                        XmlState::Checked | XmlState::Unchecked => Either::Left(()),
+                        XmlState::Err(e) => Either::Right(e),
+                    }}
+                </p>
             </div>
-            <div id="editor-tab-header" class="mb-4 p-2 pb-0 border-b border-slate-600">
-                <button
-                    on:click=move |_| {
-                        match xml_state.get() {
-                            XmlState::Checked => {
-                                tab_active.set(EditorTabs::Block);
-                            }
-                            XmlState::Err(_) => {}
-                            XmlState::Unchecked => {
-                                xml_state
-                                    .set(
-                                        XmlState::Err(
-                                            "You need to check the XML first.".to_string(),
-                                        ),
-                                    );
-                            }
-                        }
-                    }
-                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
-                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Block)
-                >
-                    Editor
-                </button>
-                <button
-                    on:click=move |_| {
-                        match xml_state.get() {
-                            XmlState::Checked => {
-                                tab_active.set(EditorTabs::Render);
-                            }
-                            XmlState::Err(_) => {}
-                            XmlState::Unchecked => {
-                                xml_state
-                                    .set(
-                                        XmlState::Err(
-                                            "You need to check the XML first.".to_string(),
-                                        ),
-                                    );
-                            }
-                        }
-                    }
-                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
-                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Render)
-                >
-                    Render
-                </button>
-                <button
-                    on:click=move |_| {
-                        tab_active.set(EditorTabs::Xml);
-                    }
-                    class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
-                    class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Xml)
-                >
-                    XML
-                </button>
-            </div>
+            <TabSwitcher xml_state=xml_state tab_active=tab_active />
             {move || {
                 tab_active
                     .with(|tab| match tab {
@@ -514,6 +462,74 @@ fn EditorWithTabs(
             }}
         </div>
         // note: deliberately not in the div, but after it
+        <PublishButton
+            xml_state=xml_state.read_only()
+            on_publish=on_publish
+            blocks=blocks.read_only()
+        />
+    }
+}
+
+#[component]
+fn TabSwitcher(xml_state: RwSignal<XmlState>, tab_active: RwSignal<EditorTabs>) -> impl IntoView {
+    view! {
+        <div id="editor-tab-header" class="mb-4 p-2 pb-0 border-b border-slate-600">
+            <button
+                on:click=move |_| {
+                    match xml_state.get() {
+                        XmlState::Checked => {
+                            tab_active.set(EditorTabs::Block);
+                        }
+                        XmlState::Err(_) => {}
+                        XmlState::Unchecked => {
+                            xml_state
+                                .set(XmlState::Err("You need to check the XML first.".to_string()));
+                        }
+                    }
+                }
+                class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Block)
+            >
+                Editor
+            </button>
+            <button
+                on:click=move |_| {
+                    match xml_state.get() {
+                        XmlState::Checked => {
+                            tab_active.set(EditorTabs::Render);
+                        }
+                        XmlState::Err(_) => {}
+                        XmlState::Unchecked => {
+                            xml_state
+                                .set(XmlState::Err("You need to check the XML first.".to_string()));
+                        }
+                    }
+                }
+                class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Render)
+            >
+                Render
+            </button>
+            <button
+                on:click=move |_| {
+                    tab_active.set(EditorTabs::Xml);
+                }
+                class="mx-2 mb-0 p-2 hover:bg-slate-500 rounded-t-lg"
+                class=("bg-sky-600/30", move || tab_active.get() == EditorTabs::Xml)
+            >
+                XML
+            </button>
+        </div>
+    }
+}
+
+#[component]
+fn PublishButton(
+    xml_state: ReadSignal<XmlState>,
+    on_publish: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
+    blocks: ReadSignal<Vec<EditorBlock>>,
+) -> impl IntoView {
+    view! {
         <div class="flex justify-center w-full">
             {move || {
                 xml_state

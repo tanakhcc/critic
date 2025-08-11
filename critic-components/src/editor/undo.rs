@@ -12,7 +12,6 @@
 //! editor.
 
 use critic_format::streamed::Block;
-use leptos::logging::log;
 
 use super::EditorBlock;
 
@@ -312,12 +311,6 @@ impl Invert for BlockChange {
 impl Replay for BlockChange {
     fn replay(&self, blocks: &mut Vec<EditorBlock>) -> Result<(), ReplayError> {
         // make sure the next blocks after physical_index_of_change are the correct ones
-        log!(
-            "physical: {:?}, old: {:?}, new: {:?}",
-            self.physical_index_of_change,
-            self.old_blocks,
-            self.new_blocks
-        );
         if self.physical_index_of_change + self.old_blocks.len() > blocks.len() {
             return Err(ReplayError::OldStateInconsistent);
         };
