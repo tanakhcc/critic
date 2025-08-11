@@ -62,7 +62,11 @@ impl core::fmt::Display for TranscriptionStoreError {
                 write!(f, "Failed to canonicalize {path}: {e}")
             }
             Self::PathInvalid(path) => {
-                write!(f, "The path {} is not legal to access.", path.to_string_lossy())
+                write!(
+                    f,
+                    "The path {} is not legal to access.",
+                    path.to_string_lossy()
+                )
             }
         }
     }
@@ -88,8 +92,13 @@ pub fn read_transcription_from_disk(
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
     path.push(msname);
     path.push(&pagename);
-    let abspath = std::path::absolute(&path).map_err(|e| TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e))?;
-    if !abspath.to_string_lossy().contains(&format!("{}{}/{}/{}", data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename)) {
+    let abspath = std::path::absolute(&path).map_err(|e| {
+        TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e)
+    })?;
+    if !abspath.to_string_lossy().contains(&format!(
+        "{}{}/{}/{}",
+        data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename
+    )) {
         return Err(TranscriptionStoreError::PathInvalid(abspath));
     };
     path.push(username);
@@ -137,8 +146,13 @@ pub fn write_transcription_to_disk(
     path.push(&TRANSCRIPTION_BASE_LOCATION[1..]);
     path.push(msname);
     path.push(&pagename);
-    let abspath = std::path::absolute(&path).map_err(|e| TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e))?;
-    if !abspath.to_string_lossy().contains(&format!("{}{}/{}/{}", data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename)) {
+    let abspath = std::path::absolute(&path).map_err(|e| {
+        TranscriptionStoreError::Canonicalize(path.to_string_lossy().to_string(), e)
+    })?;
+    if !abspath.to_string_lossy().contains(&format!(
+        "{}{}/{}/{}",
+        data_directory, TRANSCRIPTION_BASE_LOCATION, msname, pagename
+    )) {
         return Err(TranscriptionStoreError::PathInvalid(abspath));
     };
     std::fs::create_dir_all(&path)

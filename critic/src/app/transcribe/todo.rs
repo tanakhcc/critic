@@ -187,6 +187,7 @@ pub fn TranscribeTodoList() -> impl IntoView {
                         node_ref=search_node_ref
                         id="page-search"
                         class="w-0 grow border-0 font-mono text-slate-400"
+                        placeholder="ms:<name> page:<nr> lang:<>"
                         type="search"
                         value=move || query.get()
                     />
