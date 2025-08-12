@@ -23,20 +23,13 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
-## correction
-### Hand in Correction shows undefined sometimes - should be empty instead
-### Prepopulate correction when new version is added with content of the last version if available
-
-## Reuse SVGs instead of pushing them one-by-one
-
-## Lacuna now needs to hold text
-- also set the lacuna extent automatically
-
 ## Message to Andrew
 - i am talking to Drew/Troy at CEHP
 - Transcription editor is done - check it out
     - provide him the base text for a page
     - upload the page image
+
+## Reuse SVGs instead of pushing them one-by-one
 
 ## set rtl based on language
 
@@ -49,17 +42,7 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## Overview of required transcriptions
 - should contain a direct link to the image
 
-## styling - get-involved looks way more bare then the main page
-- very long background-image?
-
-## Transcribing
-Actual page containing
-- the editor
-- an XML output tab
-- later: an HTML output tab
-- the image (or just a link?)
-- the publish button, which shows a small popup and then allows you to publish
-- saving to the server in a predetermined location
+## Transcribing - HTML output tab
 
 ## Admin page for adding manuscripts
 ### page edit

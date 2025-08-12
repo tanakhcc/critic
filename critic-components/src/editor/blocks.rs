@@ -853,7 +853,12 @@ fn inner_correction_view(
         let new_version = Version {
             hand: None,
             lang: default_language.clone(),
-            content: String::default(),
+            content: current_correction
+                .read()
+                .versions
+                .last()
+                .map(|v| v.content.clone())
+                .unwrap_or_default(),
         };
         correction.write().versions.push(new_version.clone());
         undo_stack.write().push_undo(UnReStep::new_data_change(
@@ -1022,7 +1027,13 @@ fn inner_correction_view(
                                 <Item align=Align::Left>
                                     <span class=LABEL_DEFAULT_CLASSES>"Hand: "</span>
                                     <input
-                                        prop:value=move || memo_val.read().hand.clone()
+                                        prop:value=move || {
+                                            memo_val
+                                                .read()
+                                                .hand
+                                                .clone()
+                                                .unwrap_or_else(|| "".to_string())
+                                        }
                                         class=OPTION_DEFAULT_CLASSES
                                         placeholder="hand"
                                         autocomplete="false"
