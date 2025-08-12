@@ -16,7 +16,7 @@ use critic_shared::VersificationScheme;
 use crate::{
     accordion::{Accordion, Align, Item, List},
     icons::CogIcon,
-    TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS,
+    TEXTAREA_DEFAULT_COLS,
 };
 
 /// A single block that we change in the editor
@@ -766,7 +766,7 @@ fn inner_abbreviation_view(
                 <span class=format!("min-w-24 {LABEL_DEFAULT_CLASSES}")>"Expanded form:"</span>
                 // expanded form
                 <textarea
-                    class=format!("{CONTENT_DEFAULT_CLASSES} resize-none")
+                    class=format!("{CONTENT_UNCERTAIN_DEFAULT_CLASSES} resize-none")
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     prop:value=move || abbreviation.read().expansion.clone()
@@ -1153,18 +1153,6 @@ impl EditorBlock {
     /// Get this blocks id
     pub fn id(&self) -> usize {
         self.id
-    }
-
-    /// Display this block
-    pub(super) fn view(self) -> impl IntoView {
-        view! {
-            <span>
-                // we probably do not want to show the blocks ID to the user
-                // {self.id}
-                // ":"
-                <InnerView inner=self.inner id=self.id focus_on_load=self.focus_on_load></InnerView>
-            </span>
-        }
     }
 
     /// Overwrite the inner block with `new_inner` if it is currently `old_inner`

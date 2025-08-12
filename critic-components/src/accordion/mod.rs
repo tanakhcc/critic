@@ -29,33 +29,6 @@
 
 use leptos::prelude::*;
 
-/// Accordion Size
-#[derive(Clone, PartialEq, Default)]
-pub enum Size {
-    Small,
-    Medium,
-    Large,
-    XSmall,
-    XLarge,
-    #[default]
-    XXLarge,
-    Custom(&'static str),
-}
-
-impl Size {
-    pub fn to_style(&self) -> String {
-        match self {
-            Size::Small => "width: 7rem;".to_string(),
-            Size::Medium => "width: 10rem;".to_string(),
-            Size::Large => "width: 20rem;".to_string(),
-            Size::XSmall => "width: 5rem;".to_string(),
-            Size::XLarge => "width: 25rem;".to_string(),
-            Size::XXLarge => "width: 30rem;".to_string(),
-            Size::Custom(custom_size) => format!("width: {custom_size}; "),
-        }
-    }
-}
-
 /// Accordion Item Alignment
 #[derive(Clone, PartialEq, Default)]
 pub enum Align {
@@ -219,7 +192,6 @@ impl Align {
 /// - ARIA attributes can be toggled for better accessibility when `aria_enabled` is `true`.
 ///
 /// # Notes
-/// - The `size` property determines the overall size of the accordion (e.g., `Size::Small`, `Size::Medium`).
 /// - Use inline styles or CSS classes for detailed customization of the accordion's appearance.
 /// - Default callbacks (`will_open`, `did_open`, `will_close`, `did_close`) are no-ops but can be customized as needed.
 #[component]
@@ -248,25 +220,12 @@ pub fn Accordion(
     /// These are additional elements that are rendered as part of the accordion's body.
     children: ChildrenFn,
 
-    /// Size of the accordion.
-    ///
-    /// This defines the overall size of the accordion component. Acceptable values
-    /// are defined by the `Size` enum, and the default value is `Size::XXLarge`.
-    #[prop(default = Size::XXLarge)]
-    size: Size,
-
     /// ARIA controls attribute.
     ///
     /// Sets the value for the `aria-controls` attribute, which is used for accessibility
     /// purposes to associate the accordion header with its content. Defaults to an empty string.
     #[prop(default = "")]
     aria_controls: &'static str,
-
-    /// Inline style for the accordion.
-    ///
-    /// Applies custom inline styles to the accordion container. Defaults to an empty string.
-    #[prop(default = "")]
-    style: &'static str,
 
     /// Style when the accordion is expanded.
     ///
