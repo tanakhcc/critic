@@ -43,13 +43,13 @@ fn inner_text_view(
             <div>
                 <p class="font-light text-xs">"Raw Text: "</p>
                 <textarea
-                    class="bg-yellow-100 text-black font-mono"
+                    class="text-right font-serif text-3xl bg-yellow-100 text-black font-mono"
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     autocomplete="false"
                     spellcheck="false"
                     rows=TEXTAREA_DEFAULT_ROWS
-                    cols=TEXTAREA_DEFAULT_COLS
+                    cols=TEXTAREA_DEFAULT_COLS * 2
                     // reactive, so undo/redo actions can change the view
                     prop:value=move || paragraph.read().content.clone()
                     on:input:target=move |ev| {
@@ -281,7 +281,7 @@ fn inner_uncertain_view(
                 <br />
                 // proposed (reconstructed) content
                 <textarea
-                    class="bg-orange-100 text-black font-mono"
+                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     prop:value=move || uncertain.read().content.clone()
@@ -683,7 +683,7 @@ fn inner_abbreviation_view(
             <div>
                 // surface form
                 <textarea
-                    class="bg-orange-100 text-black font-mono"
+                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
                     node_ref=focus_element
                     prop:value=move || abbreviation.read().surface.clone()
                     autocomplete="false"
@@ -754,7 +754,7 @@ fn inner_abbreviation_view(
             <div>
                 // expanded form
                 <textarea
-                    class="bg-orange-100 text-black font-mono"
+                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     prop:value=move || abbreviation.read().expansion.clone()
@@ -879,7 +879,7 @@ fn inner_correction_view(
                         <span class="font-light text-xs">"Version "{dyn_v.0}":"</span>
                         <div>
                             <textarea
-                                class="bg-orange-100 text-black font-mono"
+                                class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
                                 id=format!("block-input-{id}-v-{}", dyn_v.0)
                                 node_ref=focus_element
                                 prop:value=move || memo_val.read().content.clone()

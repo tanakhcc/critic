@@ -200,15 +200,16 @@ pub fn TranscribeEditor() -> impl IntoView {
                                     <a
                                         class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 hover:bg-slate-500"
                                         href=image_link.clone()
+                                        rel="external"
                                     >
-                                        View the image
+                                        "View the image"
                                     </a>
                                     <a
                                         class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 hover:bg-slate-500"
                                         href=image_link
-                                        download="pagename"
+                                        download=pagename
                                     >
-                                        Download the image
+                                        "Download the image"
                                     </a>
                                 </div>
                             },

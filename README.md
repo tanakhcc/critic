@@ -23,7 +23,20 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
-## Buttons for the transcription editor
+## Break line type should have a name or id
+
+## Lacuna now needs to hold text
+- also set the lacuna extent automatically
+
+## Message to Andrew
+- i am talking to Drew/Troy at CEHP
+- Transcription editor is done - check it out
+    - provide him the base text for a page
+    - upload the page image
+
+## set rtl based on language
+
+## website redesign einarbeiten
 
 ## Should render XMl nicely for the XML editor start value
 
