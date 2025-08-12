@@ -30,6 +30,14 @@ pub struct EditorBlock {
     pub focus_on_load: bool,
 }
 
+const LABEL_DEFAULT_CLASSES: &str = "font-light text-sm";
+const OPTION_DEFAULT_CLASSES: &str = "bg-slate-600 px-1 mx-1 rounded-xs text-white";
+const CONTENT_DEFAULT_CLASSES: &str =
+    "w-full text-right font-serif text-3xl bg-yellow-100 text-black";
+const CONTENT_UNCERTAIN_DEFAULT_CLASSES: &str =
+    "w-full text-right font-serif text-3xl bg-orange-100 text-black";
+const SELECT_DEFAULT_CLASSES: &str = "bg-slate-600 rounded-md p-1";
+
 fn inner_text_view(
     undo_stack: RwSignal<UnReStack>,
     paragraph: RwSignal<Paragraph>,
@@ -39,17 +47,15 @@ fn inner_text_view(
     let current_paragraph = RwSignal::new(paragraph.get_untracked());
     let config_expanded = signal(false);
     view! {
-        <div class="flex justify-between">
-            <div>
-                <p class="font-light text-xs">"Raw Text: "</p>
+        <div class="flex justify-start w-full">
+            <div class="w-3/4 grow p-1">
+                <p class=LABEL_DEFAULT_CLASSES>"Raw Text: "</p>
                 <textarea
-                    class="text-right font-serif text-3xl bg-yellow-100 text-black font-mono"
+                    class=CONTENT_DEFAULT_CLASSES
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     autocomplete="false"
                     spellcheck="false"
-                    rows=TEXTAREA_DEFAULT_ROWS
-                    cols=TEXTAREA_DEFAULT_COLS * 2
                     // reactive, so undo/redo actions can change the view
                     prop:value=move || paragraph.read().content.clone()
                     on:input:target=move |ev| {
@@ -74,16 +80,17 @@ fn inner_text_view(
                 />
             </div>
             <Accordion
+                class="w-1/4 max-w-44"
                 expand=config_expanded
                 expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                 collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Language: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Language: "</span>
                         <input
                             prop:value=move || paragraph.read().lang.clone()
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="language"
                             autocomplete="false"
                             spellcheck="false"
@@ -128,10 +135,10 @@ fn inner_lacuna_view(
     view! {
         <div class="flex justify-between">
             <div>
-                <span class="font-light text-xs">"Lacuna because of "</span>
+                <span class=LABEL_DEFAULT_CLASSES>"Lacuna because of "</span>
                 <input
                     prop:value=move || lacuna.read().reason.clone()
-                    class="text-sm"
+                    class=OPTION_DEFAULT_CLASSES
                     placeholder="reason"
                     autocomplete="false"
                     spellcheck="false"
@@ -161,10 +168,10 @@ fn inner_lacuna_view(
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Extent: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Extent: "</span>
                         <input
                             prop:value=move || lacuna.read().n
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="n"
                             autocomplete="false"
                             spellcheck="false"
@@ -191,9 +198,10 @@ fn inner_lacuna_view(
                         />
                     </Item>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Unit of Extent: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Unit of Extent: "</span>
                         <select
                             id=format!("block-input-{id}-unit")
+                            class=SELECT_DEFAULT_CLASSES
                             prop:value=move || lacuna.read().unit.name()
                             on:input:target=move |ev| {
                                 lacuna.write().unit = ev
@@ -249,46 +257,45 @@ fn inner_uncertain_view(
     let config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-            <div>
-                // header line
-                <span class="font-light text-xs">"Uncertain because of "</span>
-                // reason for the uncertainty
-                <input
-                    prop:value=move || uncertain.read().agent.clone()
-                    class="text-sm"
-                    placeholder="reason"
-                    autocomplete="false"
-                    spellcheck="false"
-                    id=format!("block-input-{id}-agent")
-                    on:input:target=move |ev| {
-                        uncertain.write().agent = ev.target().value();
-                    }
-                    on:change:target=move |ev| {
-                        uncertain.write().agent = ev.target().value();
-                        undo_stack
-                            .write()
-                            .push_undo(
-                                UnReStep::new_data_change(
-                                    id,
-                                    Block::Uncertain(current_uncertain.get_untracked()),
-                                    Block::Uncertain(uncertain.get_untracked()),
-                                ),
-                            );
-                        current_uncertain.write().agent = uncertain.get_untracked().agent;
-                    }
-                />
-                <span class="font-light text-xs">:</span>
-                <br />
+            <div class="w-3/4 grow p-1">
+                <span>
+                    // header line
+                    <span class=LABEL_DEFAULT_CLASSES>"Uncertain because of "</span>
+                    // reason for the uncertainty
+                    <input
+                        prop:value=move || uncertain.read().agent.clone()
+                        class=OPTION_DEFAULT_CLASSES
+                        placeholder="reason"
+                        autocomplete="false"
+                        spellcheck="false"
+                        id=format!("block-input-{id}-agent")
+                        on:input:target=move |ev| {
+                            uncertain.write().agent = ev.target().value();
+                        }
+                        on:change:target=move |ev| {
+                            uncertain.write().agent = ev.target().value();
+                            undo_stack
+                                .write()
+                                .push_undo(
+                                    UnReStep::new_data_change(
+                                        id,
+                                        Block::Uncertain(current_uncertain.get_untracked()),
+                                        Block::Uncertain(uncertain.get_untracked()),
+                                    ),
+                                );
+                            current_uncertain.write().agent = uncertain.get_untracked().agent;
+                        }
+                    />
+                    <span class=LABEL_DEFAULT_CLASSES>:</span>
+                </span>
                 // proposed (reconstructed) content
                 <textarea
-                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
+                    class=CONTENT_UNCERTAIN_DEFAULT_CLASSES
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     prop:value=move || uncertain.read().content.clone()
                     autocomplete="false"
                     spellcheck="false"
-                    rows=TEXTAREA_DEFAULT_ROWS
-                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
                         uncertain.write().content = ev.target().value();
                     }
@@ -308,16 +315,17 @@ fn inner_uncertain_view(
                 />
             </div>
             <Accordion
+                class="w-1/4 max-w-44"
                 expand=config_expanded
                 expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                 collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Language: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Language: "</span>
                         <input
                             prop:value=move || uncertain.read().lang.clone()
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="language"
                             autocomplete="false"
                             spellcheck="false"
@@ -344,12 +352,12 @@ fn inner_uncertain_view(
                         />
                     </Item>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Certainty: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Certainty: "</span>
                         <input
                             // the unwrap_or_else is required, because cert can be None but we want to push
                             // "" to the user in that case
                             prop:value=move || uncertain.read().cert.clone().unwrap_or_default()
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="certainty"
                             autocomplete="false"
                             spellcheck="false"
@@ -390,12 +398,12 @@ fn inner_space_view(
 ) -> impl IntoView {
     let current_space = RwSignal::new(space.get_untracked());
     view! {
-        <div class="flex justify-between">
-            <span class="font-light text-xs">"Space: "</span>
-            <span class="font-light text-xs">"Extent: "</span>
+        <span class=LABEL_DEFAULT_CLASSES>"Space: "</span>
+        <div class="flex">
+            <span class=LABEL_DEFAULT_CLASSES>"Extent: "</span>
             <input
                 prop:value=move || space.read().quantity
-                class="text-sm"
+                class=OPTION_DEFAULT_CLASSES
                 placeholder="extent"
                 autocomplete="false"
                 spellcheck="false"
@@ -420,9 +428,10 @@ fn inner_space_view(
                     current_space.write().quantity = space.get_untracked().quantity;
                 }
             />
-            <span class="font-light text-xs">"Unit of Extent: "</span>
+            <span class=LABEL_DEFAULT_CLASSES>"Unit of Extent: "</span>
             <select
                 id=format!("block-input-{id}-unit")
+                class=SELECT_DEFAULT_CLASSES
                 prop:value=move || space.read().unit.name()
                 on:input:target=move |ev| {
                     space.write().unit = ev
@@ -465,8 +474,10 @@ fn inner_break_view(
     let current_break_block = RwSignal::new(break_block.get_untracked());
     view! {
         <div>
-            <p class="font-light text-xs">"Break: "</p>
+            <p class=LABEL_DEFAULT_CLASSES>"Break: "</p>
             <select
+                id=format!("block-input-{id}-type")
+                class=SELECT_DEFAULT_CLASSES
                 prop:value=break_block.get_untracked().name()
                 on:input:target=move |ev| {
                     *break_block.write() = ev
@@ -557,7 +568,7 @@ fn inner_anchor_view(
                 // Anchor 'content', i.e. the actual id not containing the versification scheme
                 <input
                     prop:value=move || raw_id.get()
-                    class="text-sm"
+                    class=OPTION_DEFAULT_CLASSES
                     placeholder="id"
                     autocomplete="false"
                     spellcheck="false"
@@ -593,8 +604,9 @@ fn inner_anchor_view(
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Versification Scheme: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Versification Scheme: "</span>
                         <select
+                            class=SELECT_DEFAULT_CLASSES
                             prop:value=move || anchor.read().anchor_type.clone()
                             on:input:target=move |ev| {
                                 anchor.write().anchor_type = ev.target().value();
@@ -678,19 +690,18 @@ fn inner_abbreviation_view(
     let expansion_config_expanded = signal(false);
     let surface_config_expanded = signal(false);
     view! {
-        <div class="flex justify-between">
-            <span>"Surface form:"</span>
-            <div>
+        <div class="flex justify-start">
+            <div class="w-3/4 grow p-1">
+                <span class=format!("min-w-24 {LABEL_DEFAULT_CLASSES}")>"Surface form:"</span>
                 // surface form
                 <textarea
-                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
+                    class=format!("{CONTENT_DEFAULT_CLASSES} resize-none")
                     node_ref=focus_element
                     prop:value=move || abbreviation.read().surface.clone()
                     autocomplete="false"
                     spellcheck="false"
                     id=format!("block-input-{id}-surface")
                     rows=1
-                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
                         abbreviation.write().surface = ev.target().value();
                     }
@@ -710,16 +721,17 @@ fn inner_abbreviation_view(
                 />
             </div>
             <Accordion
+                class="w-1/4 max-w-44"
                 expand=surface_config_expanded
                 expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                 collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Surface Language: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Surface Language: "</span>
                         <input
                             prop:value=move || abbreviation.read().surface_lang.clone()
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="surface-language"
                             autocomplete="false"
                             spellcheck="false"
@@ -750,18 +762,17 @@ fn inner_abbreviation_view(
         </div>
 
         <div class="flex justify-between">
-            <span>"Expanded form:"</span>
-            <div>
+            <div class="w-3/4 grow p-1">
+                <span class=format!("min-w-24 {LABEL_DEFAULT_CLASSES}")>"Expanded form:"</span>
                 // expanded form
                 <textarea
-                    class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
+                    class=format!("{CONTENT_DEFAULT_CLASSES} resize-none")
                     id=format!("block-input-{id}")
                     node_ref=focus_element
                     prop:value=move || abbreviation.read().expansion.clone()
                     autocomplete="false"
                     spellcheck="false"
                     rows=1
-                    cols=TEXTAREA_DEFAULT_COLS
                     on:input:target=move |ev| {
                         abbreviation.write().expansion = ev.target().value();
                     }
@@ -783,16 +794,17 @@ fn inner_abbreviation_view(
                 />
             </div>
             <Accordion
+                class="w-1/4 max-w-44"
                 expand=expansion_config_expanded
                 expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                 collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
             >
                 <List>
                     <Item align=Align::Left>
-                        <span class="font-light text-xs">"Expansion Language: "</span>
+                        <span class=LABEL_DEFAULT_CLASSES>"Expansion Language: "</span>
                         <input
                             prop:value=move || abbreviation.read().expansion_lang.clone()
-                            class="text-sm"
+                            class=OPTION_DEFAULT_CLASSES
                             placeholder="expansion-language"
                             autocomplete="false"
                             spellcheck="false"
@@ -854,7 +866,7 @@ fn inner_correction_view(
     };
 
     view! {
-        <span class="font-light text-xs">"Correction with these versions:"</span>
+        <span class=LABEL_DEFAULT_CLASSES>"Correction with these versions:"</span>
         <For
             each=move || correction.get().versions.into_iter().enumerate()
             key=|dyn_v| dyn_v.0
@@ -876,10 +888,40 @@ fn inner_correction_view(
                 let config_expanded = signal(false);
                 view! {
                     <div class="flex justify-between">
-                        <span class="font-light text-xs">"Version "{dyn_v.0}":"</span>
-                        <div>
+                        <div class="w-3/4 grow p-1">
+                            <div class="flex">
+                                <span class=LABEL_DEFAULT_CLASSES>"Version "{dyn_v.0}":"</span>
+                                <button on:click=move |_| {
+                                    correction.write().versions.remove(dyn_v.0);
+                                    undo_stack
+                                        .write()
+                                        .push_undo(
+                                            UnReStep::new_data_change(
+                                                id,
+                                                Block::Correction(current_correction.get_untracked()),
+                                                Block::Correction(correction.get_untracked()),
+                                            ),
+                                        );
+                                    current_correction.write().versions.remove(dyn_v.0);
+                                }>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke-width="1.5"
+                                        stroke="currentColor"
+                                        class="size-4"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
                             <textarea
-                                class="text-right font-serif text-3xl bg-orange-100 text-black font-mono"
+                                class=format!("{CONTENT_DEFAULT_CLASSES} resize-none")
                                 id=format!("block-input-{id}-v-{}", dyn_v.0)
                                 node_ref=focus_element
                                 prop:value=move || memo_val.read().content.clone()
@@ -925,16 +967,17 @@ fn inner_correction_view(
                             />
                         </div>
                         <Accordion
+                            class="w-1/4 max-w-44"
                             expand=config_expanded
                             expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                             collapsed=Box::new(|| view! { <CogIcon /> }.into_any())
                         >
                             <List>
                                 <Item align=Align::Left>
-                                    <span class="font-light text-xs">"Language: "</span>
+                                    <span class=LABEL_DEFAULT_CLASSES>"Language: "</span>
                                     <input
                                         prop:value=move || memo_val.read().lang.clone()
-                                        class="text-sm"
+                                        class=OPTION_DEFAULT_CLASSES
                                         placeholder="language"
                                         autocomplete="false"
                                         spellcheck="false"
@@ -977,10 +1020,10 @@ fn inner_correction_view(
                                     />
                                 </Item>
                                 <Item align=Align::Left>
-                                    <span class="font-light text-xs">"Hand: "</span>
+                                    <span class=LABEL_DEFAULT_CLASSES>"Hand: "</span>
                                     <input
                                         prop:value=move || memo_val.read().hand.clone()
-                                        class="text-sm"
+                                        class=OPTION_DEFAULT_CLASSES
                                         placeholder="hand"
                                         autocomplete="false"
                                         spellcheck="false"
@@ -1030,34 +1073,6 @@ fn inner_correction_view(
                                 </Item>
                             </List>
                         </Accordion>
-                        <button on:click=move |_| {
-                            correction.write().versions.remove(dyn_v.0);
-                            undo_stack
-                                .write()
-                                .push_undo(
-                                    UnReStep::new_data_change(
-                                        id,
-                                        Block::Correction(current_correction.get_untracked()),
-                                        Block::Correction(correction.get_untracked()),
-                                    ),
-                                );
-                            current_correction.write().versions.remove(dyn_v.0);
-                        }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="1.5"
-                                stroke="currentColor"
-                                class="size-4"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
-                                />
-                            </svg>
-                        </button>
                     </div>
                 }
             }
@@ -1083,8 +1098,9 @@ fn inner_correction_view(
     }
 }
 
+/// The inner view of this block - excluding the movement and delete-button
 #[component]
-fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView {
+pub fn InnerView(inner: InnerBlock, id: usize, focus_on_load: bool) -> impl IntoView {
     let focus_element = NodeRef::<Textarea>::new();
     // if do_focus is true, focus this input when it is created
     if focus_on_load {

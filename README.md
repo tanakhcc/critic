@@ -23,7 +23,11 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
 # TODOs - next
-## Break line type should have a name or id
+## correction
+### Hand in Correction shows undefined sometimes - should be empty instead
+### Prepopulate correction when new version is added with content of the last version if available
+
+## Reuse SVGs instead of pushing them one-by-one
 
 ## Lacuna now needs to hold text
 - also set the lacuna extent automatically

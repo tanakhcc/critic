@@ -375,48 +375,53 @@ pub fn Editor(
                 children=move |outer_block| {
                     let outer_id = outer_block.id();
                     view! {
-                        <br />
-                        <div class="flex justify-between">
-                            <span>
+                        <div class="flex justify-between not-last:border-b border-slate-600">
+                            <span class="flex m-2">
                                 {move || move_up_button(outer_id)}
                                 {move || move_down_button(outer_id)}
+                                <button on:click=move |_| {
+                                    let physical_index = match blocks
+                                        .read()
+                                        .iter()
+                                        .position(|blck| blck.id() == outer_id)
+                                    {
+                                        Some(x) => x,
+                                        None => {
+                                            return;
+                                        }
+                                    };
+                                    let removed_block = blocks.write().remove(physical_index);
+                                    undo_stack
+                                        .write()
+                                        .push_undo(
+                                            UnReStep::new_deletion(physical_index, removed_block),
+                                        );
+                                }>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke-width="1.5"
+                                        stroke="currentColor"
+                                        class="size-6"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
+                                        />
+                                    </svg>
+                                </button>
                             </span>
 
-                            {move || { outer_block.clone().view() }}
+                            <div class="m-2 w-0 grow">
+                                <InnerView
+                                    inner=outer_block.inner
+                                    id=outer_block.id
+                                    focus_on_load=outer_block.focus_on_load
+                                />
+                            </div>
 
-                            <button on:click=move |_| {
-                                let physical_index = match blocks
-                                    .read()
-                                    .iter()
-                                    .position(|blck| blck.id() == outer_id)
-                                {
-                                    Some(x) => x,
-                                    None => {
-                                        return;
-                                    }
-                                };
-                                let removed_block = blocks.write().remove(physical_index);
-                                undo_stack
-                                    .write()
-                                    .push_undo(
-                                        UnReStep::new_deletion(physical_index, removed_block),
-                                    );
-                            }>
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                    stroke="currentColor"
-                                    class="size-6"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z"
-                                    />
-                                </svg>
-                            </button>
                         </div>
                     }
                 }
@@ -568,7 +573,7 @@ fn EditorEditButtons(
             </button>
             <button
                 class="inline-flex rounded-md bg-slate-700 p-1 hover:bg-slate-500"
-                on:click=move |ev| {
+                on:mousedown=move |ev| {
                     ev.prevent_default();
                     new_node(blocks, next_id, BlockType::Break, undo_stack, &break_lang);
                 }

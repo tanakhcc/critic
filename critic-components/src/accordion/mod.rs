@@ -369,7 +369,7 @@ pub fn Accordion(
     };
 
     view! {
-        <div style=format!("{} {}", size.to_style(), style) class=class>
+        <div class=class>
             <div
                 aria-expanded=move || {
                     if aria_enabled { Some(expand.0.get().to_string()) } else { None }
