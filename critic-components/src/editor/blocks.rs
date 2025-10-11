@@ -134,7 +134,7 @@ fn inner_lacuna_view(
     let config_expanded = signal(false);
     view! {
         <div class="flex justify-between">
-            <div>
+            <div class="w-3/4 grow p-1">
                 <span class=LABEL_DEFAULT_CLASSES>"Lacuna because of "</span>
                 <input
                     prop:value=move || lacuna.read().reason.clone()
@@ -162,6 +162,7 @@ fn inner_lacuna_view(
                 />
             </div>
             <Accordion
+                class="w-1/4 max-w-44"
                 expand=config_expanded
                 expanded=Box::new(|| view! { <CogIcon /> }.into_any())
                 collapsed=Box::new(|| view! { <CogIcon /> }.into_any())

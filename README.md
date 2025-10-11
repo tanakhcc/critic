@@ -22,12 +22,63 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # Known Bugs
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
 
+# TODOs - Redesign for visual Transcription Editor
+
+## segmentation and recognition via kraken
+### own subcrate for this
+### uses pyo3 to call into kraken and pass from/to rust
+### step 1 - segmentation
+- pass image path from rust, get baselines from python
+### step 2 - recognition
+- pass image path and baselines from rust, get recognized text from python
+
+## redo image editor
+### one editor for all functions
+### shows the image, zoomable and scrollable
+- just have hooks on scroll/zoom that change width/height/position
+- baselines are simply divs that can be changed with ondrag events
+- right margin shows associated objects to a baseline (recognized text, transcriptions, ...)
+### shows baselines
+#### these can be edited
+- set type (main, marginalia)
+- set start and end
+### for each baseline, show associated information
+#### type
+#### automatic polygonalization
+- can not be edited
+- maybe do not show, since humans need not interact with it
+#### automatically recognized text
+#### automatically assigned base text
+#### transcriptions (manual)
+#### reconciliations (manual)
+
+
+## Automatically (OCR) find out which part of the base text belongs to which line
+If this does not work well, this entire approach will not work
+
+## Image viewer with zoom in/out and scrolling
+
+## Layout Editor
+
+## What do we do with marginalia
+They are not on lines - how do we handle this? I think we just don't layout them and still have them be manual blocks in the editor
+
+## Visual Transcription Editor
+### Can we add position information to TEI
+Instead of div/div/div for page/col/line, we would use
+- surface
+- zone
+- line
+Alle haben `@n`, `@lang` und `@id` (sollte eh von n auf id umsteigen) und `@{coordinated}`, also können wir die Positionsdaten angeben.
+Wir können `<graphic>` nutzen, um das richtige Bild zu verlinken.
+Wir könnten sogar `@type` nutzen, um marginalia (Masorah, ...) speziell zu markieren (type="marginalia", normale Blöcke sind type="column")
+
+## Visual Reconciliation Editor
+
 # TODOs - next
-## Message to Andrew
-- i am talking to Drew/Troy at CEHP
-- Transcription editor is done - check it out
-    - provide him the base text for a page
-    - upload the page image
+## correctly do grapheme clustering - lacuna size calculation does not work for hebrew
+
+## Add Button for anchor
 
 ## Reuse SVGs instead of pushing them one-by-one
 
@@ -41,8 +92,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 ## Overview of required transcriptions
 - should contain a direct link to the image
-
-## Transcribing - HTML output tab
 
 ## Admin page for adding manuscripts
 ### page edit

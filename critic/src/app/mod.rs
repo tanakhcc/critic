@@ -156,6 +156,7 @@ pub fn App() -> impl IntoView {
                 <main class="h-0 grow w-full">
                     <Routes fallback=|| "Page not found.".into_view()>
                         <Route path=StaticSegment("") view=HomePage />
+                        <Route path=StaticSegment("view") view=MsViewer />
                         <Route path=path!("transcribe") view=TranscribeTodoList />
                         <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor />
                         <ParentRoute
@@ -170,6 +171,117 @@ pub fn App() -> impl IntoView {
                     </Routes>
                 </main>
             </Router>
+        </div>
+    }
+}
+
+#[component]
+fn MsViewer() -> impl IntoView {
+    let x = RwSignal::new(0);
+    let y = RwSignal::new(0);
+    let scale = RwSignal::new(1.);
+    let in_drag = RwSignal::new(false);
+    let saved_real_pixel = RwSignal::new((0, 0));
+
+    // given the position in the enclosing div, return the position in "real live" pixels on the MS
+    // i.e. 0, 0 is exactly the top-left point of the MS, no matter how it is currently scaled or
+    // translated.
+    // The input coordinates need to be in the coordinate system given by the MS images parent -
+    // i.e. you may need to add offsets beforehand if your coordinates come from the viewport
+    // coordinates of an event.
+    let real_pixel = move |x_vp: i32, y_vp: i32| {
+        (
+            ((x_vp - x.get_untracked()) as f64 / scale.get_untracked()) as i32,
+            ((y_vp - y.get_untracked()) as f64 / scale.get_untracked()) as i32,
+        )
+    };
+    // given the real and viewport coordinates, find the offset so that these positions coincide at
+    // the current scaling
+    let offset_from_real_pixel_at_vp = move |x_r: i32, y_r: i32, x_vp: i32, y_vp: i32| {
+        (
+            (x_vp as f64 - scale.get_untracked() * x_r as f64) as i32,
+            (y_vp as f64 - scale.get_untracked() * y_r as f64) as i32,
+        )
+    };
+    // TODO: also add a middle-mouse-button
+    view! {
+        <div class="overflow-none flex h-full w-full flex-row">
+            <div
+                class="w-0 grow overflow-auto border-r-2 border-slate-600"
+                style="scrollbar-width: none;"
+            >
+                <div
+                    class="overflow-clip"
+                    on:mousedown=move |evt: leptos::ev::MouseEvent| {
+                        if evt.buttons() == 4 {
+                            in_drag.set(true);
+                            saved_real_pixel.set(real_pixel(evt.client_x(), evt.client_y()));
+                        }
+                    }
+                    on:mousemove=move |evt: leptos::ev::MouseEvent| {
+                        if in_drag.get_untracked() {
+                            if evt.buttons() == 4 {
+                                let (x_r, y_r) = saved_real_pixel.get_untracked();
+                                let (x_new, y_new) = offset_from_real_pixel_at_vp(
+                                    x_r,
+                                    y_r,
+                                    evt.client_x(),
+                                    evt.client_y(),
+                                );
+                                x.set(x_new);
+                                y.set(y_new);
+                            } else {
+                                in_drag.set(false);
+                            }
+                        }
+                    }
+                    on:wheel=move |evt: leptos::ev::WheelEvent| {
+                        evt.prevent_default();
+                        if evt.ctrl_key() {
+                            let effective_scaling_factor = if evt.delta_y() >= 0. {
+                                0.8
+                            } else {
+                                1.25
+                            };
+                            let x_vp = evt.x();
+                            let y_vp = evt.y() + 80;
+                            x.update(|curr| {
+                                *curr = x_vp
+                                    - (effective_scaling_factor * (x_vp - *curr) as f64) as i32
+                            });
+                            y.update(|curr| {
+                                *curr = y_vp
+                                    - (effective_scaling_factor * (y_vp - *curr) as f64) as i32
+                            });
+                            scale.update(|s| *s *= effective_scaling_factor);
+                        } else {
+                            if evt.shift_key() {
+                                x.update(|x| {
+                                    *x
+                                        += (evt.delta_y() / (scale.get_untracked() as f64).sqrt())
+                                            as i32;
+                                })
+                            } else {
+                                y.update(|y| {
+                                    *y
+                                        += (evt.delta_y() / (scale.get_untracked() as f64).sqrt())
+                                            as i32;
+                                })
+                            }
+                        }
+                    }
+                >
+                    <div style:transform=move || format!("translate({}px, {}px)", x.get(), y.get())>
+                        <img
+                            src="https://ntmss.info/images/webfriendly/HBCE/Hebrew_Manuscripts/Firkovich_Collections/II_B_115/SP%20RNL%20EVR%20II%20B%20115a_Vpage_012.jpg"
+                            alt="ms name"
+                            style:scale=move || format!("{}", scale.get())
+                            style:transform-origin="top left"
+                        />
+                    </div>
+                </div>
+            </div>
+            <div class="h-full w-1/5 max-w-72 min-w-44 bg-red-200">hi i ams content</div>
         </div>
     }
 }
