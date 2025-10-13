@@ -159,3 +159,17 @@ impl TryFrom<i64> for PublishedTranscriptions {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+pub enum ImageType {
+    Original,
+    Preview,
+}
+impl core::fmt::Display for ImageType {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            ImageType::Original => write!(f, "original"),
+            ImageType::Preview => write!(f, "original"),
+        }
+    }
+}

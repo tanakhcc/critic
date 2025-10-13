@@ -1,4 +1,7 @@
-use critic_shared::ShowHelp;
+use critic_shared::{
+    urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL},
+    ShowHelp,
+};
 use leptos::{ev::keydown, prelude::*};
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
@@ -175,13 +178,41 @@ pub fn App() -> impl IntoView {
     }
 }
 
+#[server]
+async fn get_image_dimensions(
+    msname: String,
+    pagename: String,
+    which: critic_shared::ImageType,
+) -> Result<(u32, u32), ServerFnError> {
+    use leptos::prelude::use_context;
+    let config: std::sync::Arc<critic_server::config::Config> =
+        use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_server::static_files::get_image_dimensions(
+        &config.data_directory,
+        msname,
+        pagename,
+        which,
+    )
+    .map_err(|e| ServerFnError::new(e.to_string()))
+}
+
 #[component]
 fn MsViewer() -> impl IntoView {
+    let msname = "IIB115+";
+    let pagename = "016";
+    let image_base = format!("{STATIC_BASE_URL}{IMAGE_BASE_LOCATION}/{msname}/{pagename}",);
+    let image_dimensions = OnceResource::new(get_image_dimensions(
+        msname.to_string(),
+        pagename.to_string(),
+        critic_shared::ImageType::Original,
+    ));
+
     let x = RwSignal::new(0);
     let y = RwSignal::new(0);
     let scale = RwSignal::new(1.);
     let in_drag = RwSignal::new(false);
-    let saved_real_pixel = RwSignal::new((0, 0));
+    let saved_real_pixel = RwSignal::new((0., 0.));
+    let view_ref = NodeRef::new();
 
     // given the position in the enclosing div, return the position in "real live" pixels on the MS
     // i.e. 0, 0 is exactly the top-left point of the MS, no matter how it is currently scaled or
@@ -191,24 +222,130 @@ fn MsViewer() -> impl IntoView {
     // coordinates of an event.
     let real_pixel = move |x_vp: i32, y_vp: i32| {
         (
-            ((x_vp - x.get_untracked()) as f64 / scale.get_untracked()) as i32,
-            ((y_vp - y.get_untracked()) as f64 / scale.get_untracked()) as i32,
+            (x_vp - x.get_untracked()) as f64 / scale.get_untracked(),
+            (y_vp - y.get_untracked()) as f64 / scale.get_untracked(),
         )
     };
     // given the real and viewport coordinates, find the offset so that these positions coincide at
     // the current scaling
-    let offset_from_real_pixel_at_vp = move |x_r: i32, y_r: i32, x_vp: i32, y_vp: i32| {
+    let offset_from_real_pixel_at_vp = move |x_r: f64, y_r: f64, x_vp: i32, y_vp: i32| {
         (
-            (x_vp as f64 - scale.get_untracked() * x_r as f64) as i32,
-            (y_vp as f64 - scale.get_untracked() * y_r as f64) as i32,
+            (x_vp as f64 - scale.get_untracked() * x_r) as i32,
+            (y_vp as f64 - scale.get_untracked() * y_r) as i32,
         )
     };
-    // TODO: also add a middle-mouse-button
+
+    // this much of the parent div is always occupied by the image - prevents scrolling/scaling so
+    // that the image is not in the viewport anymore
+    // Works separately for x and y coordinate.
+    let minimal_incidence_factor = 0.2_f64;
+    // Sets the offset, but clips the values so that minimal_incidence_factor is respected.
+    let set_offset_clipped = move |x_new: i32, y_new: i32| {
+        let clipped_offset = if let Some(Ok((dimension_x, dimension_y))) = image_dimensions.get() {
+            let div_ref: web_sys::HtmlDivElement = view_ref
+                .get_untracked()
+                .expect("statically mounted noderef");
+            let vp_extent_x = div_ref.offset_width();
+            let vp_extent_y = div_ref.offset_height();
+            let x_max = ((1. - minimal_incidence_factor) * vp_extent_x as f64) as i32;
+            let y_max = ((1. - minimal_incidence_factor) * vp_extent_y as f64) as i32;
+            let scale = scale.get_untracked();
+            let x_min = ((minimal_incidence_factor - scale as f64) * vp_extent_x as f64) as i32;
+            let y_min = (minimal_incidence_factor * vp_extent_y as f64
+                - dimension_y as f64 / dimension_x as f64 * vp_extent_x as f64 * scale)
+                as i32;
+            (x_new.clamp(x_min, x_max), y_new.clamp(y_min, y_max))
+        } else {
+            (x_new, y_new)
+        };
+        x.update(|x| *x = clipped_offset.0);
+        y.update(|y| *y = clipped_offset.1);
+    };
+
+    // this function deals with scrolling and zooming
+    let on_wheel = move |evt: leptos::ev::WheelEvent| {
+        // do not scroll with browser default, we control scrolling behaviour here
+        evt.prevent_default();
+        // scaling
+        if evt.ctrl_key() {
+            let effective_scaling_factor = if evt.delta_y() >= 0. { 0.8 } else { 1.25 };
+            let old_scale = scale.get_untracked();
+            // get real pixel the mouse points to right now
+            let (x_r, y_r) = real_pixel(evt.client_x(), evt.client_y() - 70);
+            // update the scale
+            scale.update(|s| *s *= effective_scaling_factor);
+            let new_scale = old_scale * effective_scaling_factor;
+            let x_new = (x_r * (old_scale - new_scale)) as i32 + x.get_untracked();
+            let y_new = (y_r * (old_scale - new_scale)) as i32 + y.get_untracked();
+            set_offset_clipped(x_new, y_new);
+        } else {
+            if evt.shift_key() {
+                // left-right scrolling
+                set_offset_clipped(
+                    x.get_untracked()
+                        + (evt.delta_y() / (scale.get_untracked() as f64).sqrt()) as i32,
+                    y.get_untracked(),
+                );
+            } else {
+                // top-bottom scrolling
+                set_offset_clipped(
+                    x.get_untracked(),
+                    y.get_untracked()
+                        + (evt.delta_y() / (scale.get_untracked() as f64).sqrt()) as i32,
+                );
+            }
+        }
+    };
+
+    let space_down = RwSignal::new(false);
+    // last known mouse position - we need this to get the initial position for the move-on-space-hold
+    let last_known_mouse_position = RwSignal::new((0, 0));
+
+    let _down = use_event_listener(view_ref, keydown, move |evt| {
+        if evt.key_code() == 32 {
+            // on the first space-down, save the starting position for the move and set
+            // space_down
+            if !space_down.get_untracked() {
+                space_down.update(|c| *c = true);
+                let (x, y) = last_known_mouse_position.get_untracked();
+                saved_real_pixel.set(real_pixel(x, y));
+            }
+        };
+    });
+    let _up = use_event_listener(view_ref, leptos::ev::keyup, move |evt| {
+        if evt.key_code() == 32 {
+            space_down.update(|c| *c = false);
+        }
+    });
+
+    // this function changes offset while moving
+    let on_move = move |evt: leptos::ev::MouseEvent| {
+        last_known_mouse_position.set((evt.client_x(), evt.client_y()));
+        let space_down_now = space_down.get_untracked();
+        if in_drag.get_untracked() || space_down_now {
+            if evt.buttons() == 4 || space_down_now {
+                let (x_r, y_r) = saved_real_pixel.get_untracked();
+                let (x_new, y_new) =
+                    offset_from_real_pixel_at_vp(x_r, y_r, evt.client_x(), evt.client_y());
+                set_offset_clipped(x_new, y_new);
+            // we transformed because of middle-mouse-drag, but middle mouse is no longer pressed -
+            // stop dragging
+            } else {
+                in_drag.set(false);
+            }
+        }
+    };
+
+    // TODO:
+    // smaller image for the viewer here?
     view! {
         <div class="overflow-none flex h-full w-full flex-row">
             <div
                 class="w-0 grow overflow-auto border-r-2 border-slate-600"
                 style="scrollbar-width: none;"
+                node_ref=view_ref
+                tabindex="0"
+                autofocus
             >
                 <div
                     class="overflow-clip"
@@ -218,66 +355,21 @@ fn MsViewer() -> impl IntoView {
                             saved_real_pixel.set(real_pixel(evt.client_x(), evt.client_y()));
                         }
                     }
-                    on:mousemove=move |evt: leptos::ev::MouseEvent| {
-                        if in_drag.get_untracked() {
-                            if evt.buttons() == 4 {
-                                let (x_r, y_r) = saved_real_pixel.get_untracked();
-                                let (x_new, y_new) = offset_from_real_pixel_at_vp(
-                                    x_r,
-                                    y_r,
-                                    evt.client_x(),
-                                    evt.client_y(),
-                                );
-                                x.set(x_new);
-                                y.set(y_new);
-                            } else {
-                                in_drag.set(false);
-                            }
-                        }
-                    }
-                    on:wheel=move |evt: leptos::ev::WheelEvent| {
-                        evt.prevent_default();
-                        if evt.ctrl_key() {
-                            let effective_scaling_factor = if evt.delta_y() >= 0. {
-                                0.8
-                            } else {
-                                1.25
-                            };
-                            let x_vp = evt.x();
-                            let y_vp = evt.y() + 80;
-                            x.update(|curr| {
-                                *curr = x_vp
-                                    - (effective_scaling_factor * (x_vp - *curr) as f64) as i32
-                            });
-                            y.update(|curr| {
-                                *curr = y_vp
-                                    - (effective_scaling_factor * (y_vp - *curr) as f64) as i32
-                            });
-                            scale.update(|s| *s *= effective_scaling_factor);
-                        } else {
-                            if evt.shift_key() {
-                                x.update(|x| {
-                                    *x
-                                        += (evt.delta_y() / (scale.get_untracked() as f64).sqrt())
-                                            as i32;
-                                })
-                            } else {
-                                y.update(|y| {
-                                    *y
-                                        += (evt.delta_y() / (scale.get_untracked() as f64).sqrt())
-                                            as i32;
-                                })
-                            }
-                        }
-                    }
+                    on:mousemove=on_move
+                    on:wheel=on_wheel
                 >
-                    <div style:transform=move || format!("translate({}px, {}px)", x.get(), y.get())>
-                        <img
-                            src="https://ntmss.info/images/webfriendly/HBCE/Hebrew_Manuscripts/Firkovich_Collections/II_B_115/SP%20RNL%20EVR%20II%20B%20115a_Vpage_012.jpg"
-                            alt="ms name"
-                            style:scale=move || format!("{}", scale.get())
-                            style:transform-origin="top left"
-                        />
+                    <div
+                        style:transform=move || {
+                            format!(
+                                "translate({}px, {}px) scale({})",
+                                x.get(),
+                                y.get(),
+                                scale.get(),
+                            )
+                        }
+                        style:transform-origin="top left"
+                    >
+                        <img src=format!("{image_base}/original.webp") alt="ms name" />
                     </div>
                 </div>
             </div>

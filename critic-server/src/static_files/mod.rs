@@ -32,3 +32,13 @@ pub fn image_dir_router(data_directory: &str) -> Result<axum::Router, std::io::E
         ))),
     ))
 }
+
+pub fn get_image_dimensions(
+    data_directory: &str,
+    msname: String,
+    pagename: String,
+    which: critic_shared::ImageType,
+) -> Result<(u32, u32), image::ImageError> {
+    let path = format!("{data_directory}{IMAGE_BASE_LOCATION}/{msname}/{pagename}/{which}.webp");
+    image::image_dimensions(path)
+}
