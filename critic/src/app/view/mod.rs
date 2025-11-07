@@ -188,7 +188,9 @@ pub fn MsViewer() -> impl IntoView {
         }
     };
 
-    let regions = RwSignal::new(Vec::<Region>::new());
+    // TODO:
+    // read from DB (actually add DB for this)
+    let regions = Store::new(Regions::default());
     let selected = RwSignal::new(None);
     let overlay_editable = RwSignal::new(false);
 
@@ -260,6 +262,11 @@ struct Point {
     x: u32,
     y: u32,
 }
+impl core::fmt::Display for Point {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{},{}", self.x, self.y)
+    }
+}
 
 #[derive(Debug, Clone, Store)]
 struct Baseline {
@@ -274,6 +281,19 @@ struct Polygon {
     /// closes the polygon between last and first point - i.e. the first point should not be added
     /// as the last point as well
     points: Vec<Point>,
+}
+impl Polygon {
+    /// The points listed in SVG format
+    fn point_list(&self) -> String {
+        let mut res = String::default();
+        for (idx, point) in self.points.iter().enumerate() {
+            res.push_str(&point.to_string());
+            if idx != self.points.len() - 1 {
+                res.push(' ');
+            }
+        }
+        res
+    }
 }
 
 #[derive(Debug, Clone, Store)]
@@ -294,6 +314,17 @@ enum DrawableOverlay {
     Region(Region),
 }
 
+#[derive(Debug, Clone, Store)]
+struct Regions {
+    #[store(key: String = |r| r.region_id.clone())]
+    regions: Vec<Region>,
+}
+impl Default for Regions {
+    fn default() -> Self {
+        Self { regions: vec![] }
+    }
+}
+
 #[component]
 fn MsOverlay(
     /// extent of the coordinate system in x-direction
@@ -301,7 +332,7 @@ fn MsOverlay(
     /// extent of the coordinate system in y-direction
     dim_y: u32,
     /// the regions available, including their baselines
-    regions: RwSignal<Vec<Region>>,
+    regions: Store<Regions>,
     /// the currently selected region or baseline
     selected: RwSignal<Option<DrawableOverlay>>,
     /// is overlay editing currently allowed or not
@@ -315,9 +346,35 @@ fn MsOverlay(
             class="stroke-emerald-400 fill-amber-500 absolute top-0 left-0"
             style:stroke-wdith=format!("{stroke_width}px")
         >
-            <rect width="3600" height="600" x="130" y="180" />
-            <line x1="30" x2="80" y1="120" y2="390" />
-            <circle cx="123" cy="524" r="7" />
+            <For each=move || regions.regions() key=|r| r.clone().region_id().get() let(region)>
+                <Region region=region stroke_width=stroke_width />
+            </For>
         </svg>
+    }
+}
+
+#[component]
+fn Region(
+    region: reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>,
+    stroke_width: u32,
+) -> impl IntoView {
+    view! {
+        <polygon points=region.read().boundary.point_list() stroke-width=stroke_width />
+        <For
+            each=move || region.clone().baselines()
+            key=|baseline| baseline.clone().baseline_id().get()
+            let(baseline)
+        >
+            <BaseLine baseline=baseline stroke_width=stroke_width * 2 />
+        </For>
+    }
+}
+
+#[component]
+fn BaseLine(baseline: reactive_stores::AtKeyed<reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>, Region, String, Vec<Baseline>>, stroke_width: u32) -> impl IntoView {
+    view! {
+        <line x1=baseline.read().point1.x y1=baseline.read().point1.y x2=baseline.read().point2.x y2=baseline.read().point2.y />
+        <circle cx=baseline.read().point1.x cy=baseline.read().point1.y r=stroke_width * 2 />
+        <circle cx=baseline.read().point2.x cy=baseline.read().point2.y r=stroke_width * 2 />
     }
 }
