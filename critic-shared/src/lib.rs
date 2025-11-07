@@ -173,3 +173,46 @@ impl core::fmt::Display for ImageType {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+#[cfg_attr(feature = "ssr", sqlx(type_name = "MODELTYPE"))]
+pub enum ModelType {
+    #[serde(rename="recognition")]
+    Recognition,
+    #[serde(rename="segmentation")]
+    Segmentation,
+}
+impl core::fmt::Display for ModelType {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            ModelType::Recognition => write!(f, "recognition"),
+            ModelType::Segmentation => write!(f, "segmentation"),
+        }
+    }
+}
+
+/// Model Metadata
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct ModelMetadata {
+    /// ID in the DB
+    pub id: i64,
+    /// Is this model for Recognition or Segmentation?
+    pub model_type: ModelType,
+    /// Model name
+    pub name: String,
+    /// If None, do not retrain at all
+    pub retrain_options: Option<RetrainOptions>,
+}
+
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct RetrainOptions {
+    /// Retrain this model every n days
+    pub every_days: u16,
+    /// Keep only the last n trained versions on disk
+    ///
+    /// If None, keep all versions.
+    pub keep_versions: Option<u16>,
+}

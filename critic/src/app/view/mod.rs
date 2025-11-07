@@ -97,6 +97,7 @@ pub fn MsViewer() -> impl IntoView {
             let div_ref: web_sys::HtmlDivElement = view_ref
                 .get_untracked()
                 .expect("statically mounted noderef");
+            // the actual size of the MS viewer that is on screen in px
             let vp_extent_x = div_ref.offset_width();
             let vp_extent_y = div_ref.offset_height();
             let x_max = ((1. - minimal_incidence_factor) * vp_extent_x as f64) as i32;
@@ -371,9 +372,22 @@ fn Region(
 }
 
 #[component]
-fn BaseLine(baseline: reactive_stores::AtKeyed<reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>, Region, String, Vec<Baseline>>, stroke_width: u32) -> impl IntoView {
+fn BaseLine(
+    baseline: reactive_stores::AtKeyed<
+        reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>,
+        Region,
+        String,
+        Vec<Baseline>,
+    >,
+    stroke_width: u32,
+) -> impl IntoView {
     view! {
-        <line x1=baseline.read().point1.x y1=baseline.read().point1.y x2=baseline.read().point2.x y2=baseline.read().point2.y />
+        <line
+            x1=baseline.read().point1.x
+            y1=baseline.read().point1.y
+            x2=baseline.read().point2.x
+            y2=baseline.read().point2.y
+        />
         <circle cx=baseline.read().point1.x cy=baseline.read().point1.y r=stroke_width * 2 />
         <circle cx=baseline.read().point2.x cy=baseline.read().point2.y r=stroke_width * 2 />
     }

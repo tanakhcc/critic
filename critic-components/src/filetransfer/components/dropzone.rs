@@ -6,6 +6,7 @@ use send_wrapper::SendWrapper;
 use web_sys::wasm_bindgen::JsCast;
 use web_sys::{js_sys, Event, File, HtmlInputElement, MouseEvent};
 
+use crate::filetransfer::components::file::FileItem;
 use crate::filetransfer::components::{buttons::Button, file::FileList};
 
 #[component]
@@ -110,6 +111,109 @@ pub fn DropzonePreview(
                             transfer_pending=transfer_pending
                             dropped_setter=set_dropped
                         />
+                    </div>
+                </Show>
+
+                <Show when=move || dropped.get()>
+                    <div class="mt-3">
+                        <Button
+                            label="Transfer"
+                            busy_label="Transferring..."
+                            busy_reader=transfer_pending
+                            on_click=on_transfer.clone()
+                        />
+                    </div>
+                </Show>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+pub fn DropzonePreviewSingle(
+    file: RwSignal<Option<SendWrapper<File>>>,
+    transfer_pending: Memo<bool>,
+    on_transfer: impl Fn(MouseEvent) + 'static + Send + Sync + Clone,
+) -> impl IntoView {
+    let (dropped, set_dropped) = signal(false);
+
+    let drop_zone_el = NodeRef::<Label>::new();
+
+    let UseDropZoneReturn {
+        is_over_drop_zone: _,
+        files: _,
+    } = use_drop_zone_with_options(
+        drop_zone_el,
+        UseDropZoneOptions::default()
+            .on_drop(move |ev| {
+                let new_file = ev.files.into_iter().next().map(SendWrapper::new);
+                file.update(|f| *f = new_file);
+                set_dropped.set(true);
+            })
+            .on_enter(move |_| set_dropped.set(false)),
+    );
+
+    let on_change_file = move |ev: Event| {
+        ev.stop_propagation();
+
+        let input_file_el = ev
+            .target()
+            .unwrap()
+            .dyn_ref::<HtmlInputElement>()
+            .unwrap()
+            .clone();
+
+        let selected_file = input_file_el
+            .files()
+            .map(|f| js_sys::Array::from(&f).to_vec())
+            .unwrap_or_default()
+            .into_iter()
+            .next()
+            .map(web_sys::File::from)
+            .map(SendWrapper::new);
+        file.update(move |f| *f = selected_file);
+        set_dropped.set(true);
+    };
+
+    view! {
+        <div class="w-full max-w-lg p-3 bg-white border border-gray-200 rounded-lg md:p-6 sm:p-2">
+            <div class="drop_zone_file_container">
+                <label
+                    node_ref=drop_zone_el
+                    for="drop_zone_input"
+                    class="flex flex-col items-center justify-center w-full h-28 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-200"
+                >
+                    <DropzoneBar />
+                </label>
+
+                <input
+                    id="drop_zone_input"
+                    class="hidden"
+                    type="file"
+                    multiple
+                    on:change=on_change_file
+                />
+
+                <Show when=move || dropped.get()>
+                    <div class="flow-root mt-3">
+                        {move || {
+                            if let Some(chosen_file) = file.get() {
+                                view! {
+                                    <FileItem
+                                        name=chosen_file.name()
+                                        size=chosen_file.size()
+                                        processing_reader=transfer_pending
+                                        on_remove=move |_| {
+                                            file.set(None);
+                                            set_dropped.set(false);
+                                        }
+                                    />
+                                }
+                                    .into_any()
+                            } else {
+                                view! {}.into_any()
+                            }
+                        }}
                     </div>
                 </Show>
 

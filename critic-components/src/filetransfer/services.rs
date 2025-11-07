@@ -1,6 +1,6 @@
 //! The service actually uploading files (by sending POST requests to the server)
 
-use critic_shared::{FileTransferResponse, MAX_BODY_SIZE};
+use critic_shared::{FileTransferResponse, ModelType, MAX_BODY_SIZE};
 use web_sys::FormData;
 
 pub async fn transfer_batch(files: &[web_sys::File], msname: &str) -> FileTransferResponse {
@@ -89,4 +89,36 @@ pub async fn transfer_files(files: &[web_sys::File], msname: &str) -> FileTransf
     );
     // and return the responses
     response
+}
+
+/// Transfer model to the api endpoint on the server with a POST request
+pub async fn transfer_model(file: web_sys::File, model_type: ModelType) -> FileTransferResponse {
+    let form_data = FormData::new().unwrap();
+    form_data
+        .append_with_blob_and_filename("file", &file, file.name().as_str())
+        .unwrap();
+
+    match reqwasm::http::Request::post(&format!(
+        "{}{}/{model_type}",
+        critic_shared::urls::UPLOAD_BASE_URL,
+        critic_shared::urls::MODEL_UPLOAD_API_ENDPOINT,
+    ))
+    .body(form_data)
+    .send()
+    .await
+    {
+        Ok(res) => match res.json::<FileTransferResponse>().await {
+            Ok(x) => x,
+            Err(e) => FileTransferResponse {
+                err: vec![Some(format!(
+                    "There was a problem deserializing response: {e}."
+                ))],
+            },
+        },
+        Err(e) => FileTransferResponse {
+            err: vec![Some(format!(
+                "There was a problem sending the POST request: {e}."
+            ))],
+        },
+    }
 }

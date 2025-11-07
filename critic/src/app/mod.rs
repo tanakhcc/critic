@@ -160,15 +160,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("view/:msname/:pagename") view=view::MsViewer />
                         <Route path=path!("transcribe") view=TranscribeTodoList />
                         <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor />
-                        <ParentRoute
-                            path=path!("admin")
-                            view=|| {
-                                view! { <Outlet /> }
-                            }
-                        >
-                            <Route path=path!("") view=admin::AdminLanding />
-                            <admin::AdminRouter />
-                        </ParentRoute>
+                        <admin::AdminRouter />
                     </Routes>
                 </main>
             </Router>

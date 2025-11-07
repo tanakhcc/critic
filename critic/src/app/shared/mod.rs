@@ -12,3 +12,8 @@ pub struct MsParams {
 pub struct PageParams {
     pub pagename: Option<String>,
 }
+
+#[derive(Params, Clone, PartialEq)]
+pub struct ModelParams {
+    pub id: Option<i64>,
+}

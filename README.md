@@ -24,6 +24,13 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - Redesign for visual Transcription Editor
 
+## Admin-panel for kraken models
+### upload modelfiles
+#### segmentation
+#### recognition
+### select base model file to use for segmentation
+### select whether to retrain model file every x days
+
 ## segmentation and recognition via kraken
 ### own subcrate for this
 ### uses pyo3 to call into kraken and pass from/to rust
@@ -31,6 +38,9 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - pass image path from rust, get baselines from python
 ### step 2 - recognition
 - pass image path and baselines from rust, get recognized text from python
+## Automatic segmentation in the background
+- set flag on new pages
+- run segmentation model agains them with worker threads
 
 ## redo image editor
 ### one editor for all functions

@@ -39,7 +39,7 @@ pub fn TransferFailed(
             <div class="flex flex-col items-center gap-y-8">
                 <InfoIcon inner_class="h-24 w-24 text-rose-500" />
 
-                <div class="flex flex-col items-center">
+                <div class="flex flex-col items-center text-black">
                     <div>Upload failed</div>
                     <div>Sorry! Something went wrong.</div>
                     {if errs.len() != filenames.len() {
