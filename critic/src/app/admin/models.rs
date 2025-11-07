@@ -38,9 +38,10 @@ async fn add_model(
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
-    let new_id = critic_server::db::add_model_with_default_options(&config.db, &modelname, model_type)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let new_id =
+        critic_server::db::add_model_with_default_options(&config.db, &modelname, model_type)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
     leptos_axum::redirect(&format!("/admin/models/{model_type}/{new_id}"));
     Ok(new_id)
 }
@@ -200,7 +201,9 @@ pub fn Model() -> impl IntoView {
                                     <div
                                         id="model-wrapper"
                                         class="h-full flex flex-col w-3/4 overflow-y-auto"
-                                    ><ModelMeta meta=info/></div>
+                                    >
+                                        <ModelMeta meta=info />
+                                    </div>
                                 },
                             )
                         }
@@ -257,11 +260,16 @@ async fn update_model_retraining_opts(
     };
     // change the model in the db
     let retraining_opts = if let Some(retrain_every_days) = data.every_days {
-        Some(RetrainOptions { every_days: retrain_every_days, keep_versions: data.keep_versions })
+        Some(RetrainOptions {
+            every_days: retrain_every_days,
+            keep_versions: data.keep_versions,
+        })
     } else {
         None
     };
-    if let Err(e) = critic_server::db::update_model(&config.db, data.model_id, &retraining_opts).await {
+    if let Err(e) =
+        critic_server::db::update_model(&config.db, data.model_id, &retraining_opts).await
+    {
         tracing::warn!(
             "Failed to update model metadata for model with id {}",
             data.model_id,
@@ -305,79 +313,87 @@ fn ModelMeta(meta: critic_shared::ModelMetadata) -> impl IntoView {
         <div class="p-6 border-2 border-slate-500">
             // deliberately use the non-reactive old title here
             <h1 class="m-4 p-2 text-3xl text-center">
-                "Model"<span class="font-bold">{meta.name.clone()}</span>
+                "Model "<span class="font-bold">{meta.name.clone()}</span>
             </h1>
             <ActionForm action=srvact>
                 <div class="flex justify-around flex-col">
                     <input type="hidden" name="data[model_id]" value=meta.id />
-                    <div class=format!("border border-b-0 border-slate-500 p-2")>
-                        <label for="data[should_retrain]">Retrain:</label>
-                        <input
-                            id="data[should_retrain]"
-                            name="data[should_retrain]"
-                            class="border border-slate-500 rounded-md"
-                            type="checkbox"
-                            prop:checked=move || should_retrain.get()
-                            on:click=move |_evt| {
-                                should_retrain.update(|sr| *sr = !*sr);
-                                if should_retrain.get() {
-                                    every_days_current_edit.set(Some(every_days_saved.get()));
-                                    keep_versions_current_edit.set(Some(keep_versions_saved.get()));
-                                } else {
-                                    every_days_current_edit.set(None);
-                                    keep_versions_current_edit.set(None);
+                    <div class="border border-slate-500 p-2 grid grid-cols-1">
+                        <div class="grid grid-cols-2">
+                            <label for="data[should_retrain]">Retrain:</label>
+                            <input
+                                id="data[should_retrain]"
+                                name="data[should_retrain]"
+                                class="border border-slate-500 rounded-md"
+                                type="checkbox"
+                                prop:checked=move || should_retrain.get()
+                                on:click=move |_evt| {
+                                    should_retrain.update(|sr| *sr = !*sr);
+                                    if should_retrain.get() {
+                                        every_days_current_edit.set(Some(every_days_saved.get()));
+                                        keep_versions_current_edit
+                                            .set(Some(keep_versions_saved.get()));
+                                    } else {
+                                        every_days_current_edit.set(None);
+                                        keep_versions_current_edit.set(None);
+                                    }
                                 }
-                            }
-                        />
+                            />
+                        </div>
 
-                        {move || if should_retrain.get() {
+                        {move || {
+                            if should_retrain.get() {
                                 Either::Left(
                                     view! {
-                                        <label for="data[every_days]">Retrain every n days:</label>
-                                        <input
-                                            id="data[every_days]"
-                                            name="data[every_days]"
-                                            class="border border-slate-500 rounded-md"
-                                            prop:value=move || {
-                                                every_days_current_edit.get().unwrap_or_default()
-                                            }
-                                            autocomplete="false"
-                                            spellcheck="false"
-                                            placeholder="n"
-                                            on:change:target=move |ev| {
-                                                *every_days_current_edit.write() = Some(
-                                                    ev.target().value().parse::<u16>().unwrap_or(7),
-                                                );
-                                            }
-                                        />
-                                        <label for="data[keep_versions]">
-                                            Keep the last n trained versions:
-                                        </label>
-                                        <input
-                                            id="data[keep_versions]"
-                                            name="data[keep_versions]"
-                                            class="border border-slate-500 rounded-md"
-                                            prop:value=move || {
-                                                // keep_versions_current_edit is a double options: the outer is
-                                                // Some when we have retraining options at all
-                                                // the inner is Some when we want to keep only a
-                                                // finite amount of trained versions
-                                                keep_versions_current_edit.get().unwrap_or_default().map(|v| format!("{v}")).unwrap_or_default()
-                                            }
-                                            autocomplete="false"
-                                            spellcheck="false"
-                                            placeholder="n"
-                                            on:change:target=move |ev| {
-                                                *keep_versions_current_edit.write() = Some(
-                                                    ev
-                                                        .target()
-                                                        .value()
-                                                        .parse::<u16>()
-                                                        .map(|x| Some(x))
-                                                        .unwrap_or(None),
-                                                );
-                                            }
-                                        />
+                                        <div class="grid grid-cols-2">
+                                            <label for="data[every_days]">Retrain every n days:</label>
+                                            <input
+                                                id="data[every_days]"
+                                                name="data[every_days]"
+                                                class="border border-slate-500 rounded-md"
+                                                prop:value=move || {
+                                                    every_days_current_edit.get().unwrap_or_default()
+                                                }
+                                                autocomplete="false"
+                                                spellcheck="false"
+                                                placeholder="n"
+                                                on:change:target=move |ev| {
+                                                    *every_days_current_edit.write() = Some(
+                                                        ev.target().value().parse::<u16>().unwrap_or(7),
+                                                    );
+                                                }
+                                            />
+                                        </div>
+                                        <div class="grid grid-cols-2">
+                                            <label for="data[keep_versions]">
+                                                Keep the last n trained versions:
+                                            </label>
+                                            <input
+                                                id="data[keep_versions]"
+                                                name="data[keep_versions]"
+                                                class="border border-slate-500 rounded-md"
+                                                prop:value=move || {
+                                                    keep_versions_current_edit
+                                                        .get()
+                                                        .unwrap_or_default()
+                                                        .map(|v| format!("{v}"))
+                                                        .unwrap_or_default()
+                                                }
+                                                autocomplete="false"
+                                                spellcheck="false"
+                                                placeholder="n"
+                                                on:change:target=move |ev| {
+                                                    *keep_versions_current_edit.write() = Some(
+                                                        ev
+                                                            .target()
+                                                            .value()
+                                                            .parse::<u16>()
+                                                            .map(|x| Some(x))
+                                                            .unwrap_or(None),
+                                                    );
+                                                }
+                                            />
+                                        </div>
                                     },
                                 )
                             } else {
@@ -388,7 +404,7 @@ fn ModelMeta(meta: critic_shared::ModelMetadata) -> impl IntoView {
                                     },
                                 )
                             }
-                        }
+                        }}
                     </div>
 
                     <div class="flex justify-around mt-6">
@@ -399,9 +415,7 @@ fn ModelMeta(meta: critic_shared::ModelMetadata) -> impl IntoView {
                                 if should_retrain_saved.get() {
                                     should_retrain.set(true);
                                     every_days_current_edit.set(Some(every_days_saved.get()));
-                                    keep_versions_current_edit.set(Some(
-                                        keep_versions_saved.get(),
-                                    ));
+                                    keep_versions_current_edit.set(Some(keep_versions_saved.get()));
                                 } else {
                                     should_retrain.set(false);
                                     every_days_current_edit.set(None);
@@ -420,12 +434,10 @@ fn ModelMeta(meta: critic_shared::ModelMetadata) -> impl IntoView {
                             on:click=move |_| {
                                 if should_retrain.get() {
                                     should_retrain_saved.set(true);
-                                    every_days_saved.set(every_days_current_edit
-                                        .get()
-                                        .unwrap_or_default());
-                                    keep_versions_saved.set(keep_versions_current_edit
-                                        .get()
-                                        .unwrap_or_default());
+                                    every_days_saved
+                                        .set(every_days_current_edit.get().unwrap_or_default());
+                                    keep_versions_saved
+                                        .set(keep_versions_current_edit.get().unwrap_or_default());
                                 } else {
                                     should_retrain_saved.set(false);
                                 }

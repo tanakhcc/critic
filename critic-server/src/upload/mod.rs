@@ -204,14 +204,16 @@ async fn model_upload(
                 let data = field.bytes().await.unwrap();
 
                 // try insert into the DB first
-                let new_id =
-                    match add_model_with_default_options(&config.db, &base_name, model_type).await
+                let new_id = match add_model_with_default_options(
+                    &config.db, &base_name, model_type,
+                )
+                .await
                 {
                     Ok(x) => x,
                     Err(e) => {
-                    tracing::warn!("Failed to insert new model {base_name} into the db: {e}");
-                    results.push_err(format!("Failed to insert new model into the db: {e}."));
-                    continue;
+                        tracing::warn!("Failed to insert new model {base_name} into the db: {e}");
+                        results.push_err(format!("Failed to insert new model into the db: {e}."));
+                        continue;
                     }
                 };
                 // that worked - now deal with the file system

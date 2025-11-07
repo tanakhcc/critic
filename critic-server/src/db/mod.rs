@@ -817,7 +817,10 @@ pub async fn update_model(
     sqlx::query!(
         "UPDATE model set retrain_every_days = $1, retrain_keep_versions = $2 WHERE id = $3",
         retraining_opts.as_ref().map(|ro| ro.every_days as i32),
-        retraining_opts.as_ref().map(|ro| ro.keep_versions.map(|x| x as i32)).flatten(),
+        retraining_opts
+            .as_ref()
+            .map(|ro| ro.keep_versions.map(|x| x as i32))
+            .flatten(),
         id
     )
     .execute(pool)

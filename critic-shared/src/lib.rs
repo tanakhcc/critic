@@ -178,9 +178,9 @@ impl core::fmt::Display for ImageType {
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
 #[cfg_attr(feature = "ssr", sqlx(type_name = "MODELTYPE"))]
 pub enum ModelType {
-    #[serde(rename="recognition")]
+    #[serde(rename = "recognition")]
     Recognition,
-    #[serde(rename="segmentation")]
+    #[serde(rename = "segmentation")]
     Segmentation,
 }
 impl core::fmt::Display for ModelType {

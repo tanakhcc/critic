@@ -67,12 +67,26 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
             </ParentRoute>
             <Route path=path!("models") view=models::ModelLanding />
             <ParentRoute path=path!("models/recognition") view=models::Recognition>
-                <Route path=path!(":id") view=models::Model/>
-                <Route path=path!("") view={|| view!{<p>Upload a model from the left hand side or upload a .mlmodel file.</p>}}/>
+                <Route path=path!(":id") view=models::Model />
+                <Route
+                    path=path!("")
+                    view=|| {
+                        view! {
+                            <p>Upload a model from the left hand side or upload a .mlmodel file.</p>
+                        }
+                    }
+                />
             </ParentRoute>
             <ParentRoute path=path!("models/segmentation") view=models::Segmentation>
-                <Route path=path!(":id") view=models::Model/>
-                <Route path=path!("") view={|| view!{<p>Upload a model from the left hand side or upload a .mlmodel file.</p>}}/>
+                <Route path=path!(":id") view=models::Model />
+                <Route
+                    path=path!("")
+                    view=|| {
+                        view! {
+                            <p>Upload a model from the left hand side or upload a .mlmodel file.</p>
+                        }
+                    }
+                />
             </ParentRoute>
         </ParentRoute>
     }
