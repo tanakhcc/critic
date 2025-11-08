@@ -174,7 +174,7 @@ impl core::fmt::Display for ImageType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
 #[cfg_attr(feature = "ssr", sqlx(type_name = "MODELTYPE"))]
 pub enum ModelType {
@@ -215,4 +215,13 @@ pub struct RetrainOptions {
     ///
     /// If None, keep all versions.
     pub keep_versions: Option<u16>,
+}
+
+/// Language Metadata
+#[cfg_attr(feature = "ssr", derive(FromRow))]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct LanguageMetadata {
+    pub name: String,
+    pub segmentation_model_id: Option<i64>,
+    pub recognition_model_id: Option<i64>,
 }

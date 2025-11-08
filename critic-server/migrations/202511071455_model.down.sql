@@ -1,2 +1,2 @@
-DROP TABLE model;
-DROP TYPE MODELTYPE;
+DROP TABLE recognition_model;
+DROP TABLE segmentation_model;

@@ -7,6 +7,7 @@ use leptos_router::path;
 
 use crate::app::TopLevelPosition;
 
+mod languages;
 mod manuscripts;
 mod models;
 
@@ -28,6 +29,9 @@ pub fn AdminLanding() -> impl IntoView {
                             <li>Edit and upload manuscripts</li>
                             <li>Upload manuscript pages</li>
                         </ul>
+                    </LinkCard>
+                    <LinkCard header="Languages" link_to="/admin/languages">
+                        <p class="ml-12 list-disc text-xl">Manage Manuscript Languages</p>
                     </LinkCard>
                     <LinkCard header="Versification" link_to="/admin/versification">
                         <p class="ml-12 list-disc text-xl">Manage Versification Schemes</p>
@@ -65,25 +69,44 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
                 </ParentRoute>
                 <Route path=path!("") view=manuscripts::ManuscriptLanding />
             </ParentRoute>
+            <ParentRoute path=path!("languages") view=languages::LanguageList>
+                <Route path=path!(":language") view=languages::Language />
+                <Route
+                    path=path!("")
+                    view=|| view! { <p>Select or create a language from the left hand side.</p> }
+                />
+            </ParentRoute>
             <Route path=path!("models") view=models::ModelLanding />
             <ParentRoute path=path!("models/recognition") view=models::Recognition>
-                <Route path=path!(":id") view=models::Model />
+                <Route
+                    path=path!(":id")
+                    view=|| {
+                        view! { <models::Model model_type=critic_shared::ModelType::Recognition /> }
+                    }
+                />
                 <Route
                     path=path!("")
                     view=|| {
                         view! {
-                            <p>Upload a model from the left hand side or upload a .mlmodel file.</p>
+                            <p>Select a model from the left hand side or upload a .mlmodel file.</p>
                         }
                     }
                 />
             </ParentRoute>
             <ParentRoute path=path!("models/segmentation") view=models::Segmentation>
-                <Route path=path!(":id") view=models::Model />
+                <Route
+                    path=path!(":id")
+                    view=|| {
+                        view! {
+                            <models::Model model_type=critic_shared::ModelType::Segmentation />
+                        }
+                    }
+                />
                 <Route
                     path=path!("")
                     view=|| {
                         view! {
-                            <p>Upload a model from the left hand side or upload a .mlmodel file.</p>
+                            <p>Select a model from the left hand side or upload a .mlmodel file.</p>
                         }
                     }
                 />
@@ -91,4 +114,15 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
         </ParentRoute>
     }
     .into_inner()
+}
+
+#[server]
+async fn get_models(
+    model_type: critic_shared::ModelType,
+) -> Result<Vec<critic_shared::ModelMetadata>, ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_server::db::get_models(&config.db, model_type)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
 }

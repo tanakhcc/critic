@@ -24,12 +24,14 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - Redesign for visual Transcription Editor
 
-## Admin-panel for kraken models
-### upload modelfiles
-#### segmentation
-#### recognition
-### select base model file to use for segmentation
-### select whether to retrain model file every x days
+## Admin-panel for languages
+### project default language
+- new MSs will be created with this language
+- new Pages will be created with the MS language
+### list of languages in use in the project
+#### set the default segmentation model for each
+#### set the default recognition model for each
+- will run on per page basis
 
 ## segmentation and recognition via kraken
 ### own subcrate for this
@@ -40,18 +42,22 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - pass image path and baselines from rust, get recognized text from python
 ## Automatic segmentation in the background
 - set flag on new pages
-- run segmentation model agains them with worker threads
+- run segmentation model against them with worker threads
+- When languages (models) for a MS are changed:
+    - create a new layer and run models with output in that layer
 
 ## redo image editor
-### one editor for all functions
+### remove layout layer
+- we may want to force redo the layout analysis when the model changes
+    - add a button in the editor
+- for recognition, we can simply rerun the model at any time, because it is only used for block editor seeding and never overwrites humand effort
 ### shows the image, zoomable and scrollable
-- just have hooks on scroll/zoom that change width/height/position
-- baselines are simply divs that can be changed with ondrag events
 - right margin shows associated objects to a baseline (recognized text, transcriptions, ...)
 ### shows baselines
 #### these can be edited
 - set type (main, marginalia)
-- set start and end
+- set start and end (pixel locations)
+- when this is edited, set a flag in the DB to show that this has been modified by hand
 ### for each baseline, show associated information
 #### type
 #### automatic polygonalization

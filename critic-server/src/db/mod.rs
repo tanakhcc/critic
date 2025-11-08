@@ -3,8 +3,8 @@
 use sqlx::{prelude::FromRow, query_as, Pool, Postgres, QueryBuilder};
 
 use critic_shared::{
-    ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo, RetrainOptions,
-    VersificationScheme,
+    LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
+    RetrainOptions, VersificationScheme,
 };
 
 use crate::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -52,6 +52,9 @@ pub enum DBError {
     CannotPublish(sqlx::Error),
     CannotAddModel(sqlx::Error),
     CannotUpdateModel(sqlx::Error),
+    CannotGetLanguage(sqlx::Error),
+    CannotAddLanguage(sqlx::Error),
+    CannotUpdateLanguage(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -130,6 +133,15 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateModel(e) => {
                 write!(f, "Unable to update model: {e}")
+            }
+            Self::CannotGetLanguage(e) => {
+                write!(f, "Unable to get language: {e}")
+            }
+            Self::CannotAddLanguage(e) => {
+                write!(f, "Unable to add language: {e}")
+            }
+            Self::CannotUpdateLanguage(e) => {
+                write!(f, "Unable to update language: {e}")
             }
         }
     }
@@ -741,56 +753,112 @@ pub async fn get_models(
     pool: &Pool<Postgres>,
     model_type: ModelType,
 ) -> Result<Vec<ModelMetadata>, DBError> {
-    Ok(sqlx::query!(
-        r#"SELECT id, name, model_type as "model_type: ModelType", retrain_every_days, retrain_keep_versions FROM model 
-        WHERE model_type = $1
-        "#,
-        model_type as _,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(DBError::CannotGetModel)?
-    .into_iter()
-    .map(|raw| ModelMetadata{
-        id: raw.id,
-        name: raw.name,
-        model_type: raw.model_type,
-        retrain_options: if let Some(every_days) = raw.retrain_every_days {
-            Some(RetrainOptions {
-                every_days: every_days.try_into().unwrap_or_default(),
-                keep_versions: raw.retrain_keep_versions.map(|as_i32| <i32 as TryInto::<u16>>::try_into(as_i32.clone()).unwrap_or_default())
-            })
-        } else {
-            None
-        },
-    })
-    .collect())
+    match model_type {
+        ModelType::Segmentation => Ok(sqlx::query!(
+            r#"SELECT id, name, retrain_every_days, retrain_keep_versions FROM segmentation_model"#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetModel)?
+        .into_iter()
+        .map(|raw| ModelMetadata {
+            id: raw.id,
+            name: raw.name,
+            model_type: ModelType::Segmentation,
+            retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                Some(RetrainOptions {
+                    every_days: every_days.try_into().unwrap_or_default(),
+                    keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                        <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                    }),
+                })
+            } else {
+                None
+            },
+        })
+        .collect()),
+        ModelType::Recognition => Ok(sqlx::query!(
+            r#"SELECT id, name, retrain_every_days, retrain_keep_versions FROM recognition_model"#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetModel)?
+        .into_iter()
+        .map(|raw| ModelMetadata {
+            id: raw.id,
+            name: raw.name,
+            model_type: ModelType::Recognition,
+            retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                Some(RetrainOptions {
+                    every_days: every_days.try_into().unwrap_or_default(),
+                    keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                        <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                    }),
+                })
+            } else {
+                None
+            },
+        })
+        .collect()),
+    }
 }
 
 /// Get a list of all models of the given type
-pub async fn get_model_by_id(pool: &Pool<Postgres>, id: i64) -> Result<ModelMetadata, DBError> {
-    sqlx::query!(
-        r#"SELECT id, name, model_type as "model_type: ModelType", retrain_every_days, retrain_keep_versions FROM model 
-        WHERE id = $1
-        "#,
-        id,
-    )
-    .fetch_one(pool)
-    .await
-    .map(|raw| ModelMetadata{
-        id: raw.id,
-        name: raw.name,
-        model_type: raw.model_type,
-        retrain_options: if let Some(every_days) = raw.retrain_every_days {
-            Some(RetrainOptions {
-                every_days: every_days.try_into().unwrap_or_default(),
-                keep_versions: raw.retrain_keep_versions.map(|as_i32| <i32 as TryInto::<u16>>::try_into(as_i32.clone()).unwrap_or_default())
-            })
-        } else {
-            None
-        },
-    })
-    .map_err(DBError::CannotGetModel)
+pub async fn get_model_by_id(
+    pool: &Pool<Postgres>,
+    id: i64,
+    model_type: ModelType,
+) -> Result<ModelMetadata, DBError> {
+    match model_type {
+        ModelType::Recognition => sqlx::query!(
+            r#"SELECT id, name, retrain_every_days, retrain_keep_versions FROM recognition_model
+                WHERE id = $1
+                "#,
+            id,
+        )
+        .fetch_one(pool)
+        .await
+        .map(|raw| ModelMetadata {
+            id: raw.id,
+            name: raw.name,
+            model_type: ModelType::Recognition,
+            retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                Some(RetrainOptions {
+                    every_days: every_days.try_into().unwrap_or_default(),
+                    keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                        <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                    }),
+                })
+            } else {
+                None
+            },
+        })
+        .map_err(DBError::CannotGetModel),
+        ModelType::Segmentation => sqlx::query!(
+            r#"SELECT id, name, retrain_every_days, retrain_keep_versions FROM segmentation_model
+                WHERE id = $1
+                "#,
+            id,
+        )
+        .fetch_one(pool)
+        .await
+        .map(|raw| ModelMetadata {
+            id: raw.id,
+            name: raw.name,
+            model_type: ModelType::Segmentation,
+            retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                Some(RetrainOptions {
+                    every_days: every_days.try_into().unwrap_or_default(),
+                    keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                        <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                    }),
+                })
+            } else {
+                None
+            },
+        })
+        .map_err(DBError::CannotGetModel),
+    }
 }
 
 pub async fn add_model_with_default_options(
@@ -798,33 +866,122 @@ pub async fn add_model_with_default_options(
     new_name: &str,
     model_type: ModelType,
 ) -> Result<i64, DBError> {
-    sqlx::query!(
-        r#"INSERT INTO model (name, model_type) VALUES ($1, $2) returning id"#,
-        new_name,
-        model_type as _
-    )
-    .fetch_one(pool)
-    .await
-    .map(|record| record.id)
-    .map_err(DBError::CannotAddModel)
+    match model_type {
+        ModelType::Recognition => sqlx::query!(
+            r#"INSERT INTO recognition_model (name) VALUES ($1) returning id"#,
+            new_name,
+        )
+        .fetch_one(pool)
+        .await
+        .map(|record| record.id)
+        .map_err(DBError::CannotAddModel),
+        ModelType::Segmentation => sqlx::query!(
+            r#"INSERT INTO segmentation_model (name) VALUES ($1) returning id"#,
+            new_name,
+        )
+        .fetch_one(pool)
+        .await
+        .map(|record| record.id)
+        .map_err(DBError::CannotAddModel),
+    }
 }
 
 pub async fn update_model(
     pool: &Pool<Postgres>,
     id: i64,
+    model_type: ModelType,
     retraining_opts: &Option<RetrainOptions>,
 ) -> Result<(), DBError> {
+    match model_type {
+        ModelType::Segmentation => {
+            sqlx::query!(
+                "UPDATE segmentation_model set retrain_every_days = $1, retrain_keep_versions = $2 WHERE id = $3",
+                retraining_opts.as_ref().map(|ro| ro.every_days as i32),
+                retraining_opts
+                    .as_ref()
+                    .map(|ro| ro.keep_versions.map(|x| x as i32))
+                    .flatten(),
+                id
+            )
+            .execute(pool)
+            .await
+            .map(|_| ())
+            .map_err(DBError::CannotUpdateModel)
+        }
+        ModelType::Recognition => {
+            sqlx::query!(
+                "UPDATE recognition_model set retrain_every_days = $1, retrain_keep_versions = $2 WHERE id = $3",
+                retraining_opts.as_ref().map(|ro| ro.every_days as i32),
+                retraining_opts
+                    .as_ref()
+                    .map(|ro| ro.keep_versions.map(|x| x as i32))
+                    .flatten(),
+                id
+            )
+            .execute(pool)
+            .await
+            .map(|_| ())
+            .map_err(DBError::CannotUpdateModel)
+        }
+    }
+}
+
+pub async fn get_languages(pool: &Pool<Postgres>) -> Result<Vec<LanguageMetadata>, DBError> {
+    Ok(sqlx::query!("SELECT * FROM language")
+        .fetch_all(pool)
+        .await
+        .map_err(DBError::CannotGetLanguage)?
+        .into_iter()
+        .map(|row| LanguageMetadata {
+            name: row.name,
+            segmentation_model_id: row.segmentation_model,
+            recognition_model_id: row.recognition_model,
+        })
+        .collect())
+}
+
+pub async fn get_language_by_name(
+    pool: &Pool<Postgres>,
+    language: &str,
+) -> Result<Option<LanguageMetadata>, DBError> {
+    Ok(
+        sqlx::query!("SELECT * FROM language WHERE name = $1", language)
+            .fetch_optional(pool)
+            .await
+            .map_err(DBError::CannotGetLanguage)?
+            .map(|row| LanguageMetadata {
+                name: row.name,
+                segmentation_model_id: row.segmentation_model,
+                recognition_model_id: row.recognition_model,
+            }),
+    )
+}
+
+pub async fn add_language_with_default_options(
+    pool: &Pool<Postgres>,
+    language: &str,
+) -> Result<(), DBError> {
+    sqlx::query!("INSERT INTO language (name) VALUES ($1)", language)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(DBError::CannotAddLanguage)
+}
+
+pub async fn update_language(
+    pool: &Pool<Postgres>,
+    language: &str,
+    segmentation_model_id: Option<i64>,
+    recognition_model_id: Option<i64>,
+) -> Result<(), DBError> {
     sqlx::query!(
-        "UPDATE model set retrain_every_days = $1, retrain_keep_versions = $2 WHERE id = $3",
-        retraining_opts.as_ref().map(|ro| ro.every_days as i32),
-        retraining_opts
-            .as_ref()
-            .map(|ro| ro.keep_versions.map(|x| x as i32))
-            .flatten(),
-        id
+        "UPDATE language SET segmentation_model = $1, recognition_model = $2 WHERE name = $3",
+        segmentation_model_id,
+        recognition_model_id,
+        language
     )
     .execute(pool)
     .await
     .map(|_| ())
-    .map_err(DBError::CannotUpdateModel)
+    .map_err(DBError::CannotUpdateLanguage)
 }

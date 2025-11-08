@@ -10,7 +10,7 @@
 use critic_components::filetransfer::TransferModel;
 use critic_components::link_card::LinkCard;
 use critic_components::DEFAULT_BUTTON_CLASSES;
-use critic_shared::RetrainOptions;
+use critic_shared::{ModelMetadata, ModelType, RetrainOptions};
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
@@ -20,21 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::app::shared::ModelParams;
 
 #[server]
-async fn get_models(
-    model_type: critic_shared::ModelType,
-) -> Result<Vec<critic_shared::ModelMetadata>, ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
-        .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_models(&config.db, model_type)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))
-}
-
-#[server]
-async fn add_model(
-    modelname: String,
-    model_type: critic_shared::ModelType,
-) -> Result<i64, ServerFnError> {
+async fn add_model(modelname: String, model_type: ModelType) -> Result<i64, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
@@ -55,7 +41,7 @@ pub fn ModelLanding() -> impl IntoView {
             </div>
             <div class="flex flex-row justify-center">
                 <div class="grid w-3/4 grid-cols-3 gap-8">
-                    <LinkCard header="Versification" link_to="/admin/models/segmentation">
+                    <LinkCard header="Segmentation" link_to="/admin/models/segmentation">
                         <p class="ml-12 list-disc text-xl">Manage models for layout segmentation</p>
                     </LinkCard>
                     <LinkCard header="Recognition" link_to="/admin/models/recognition">
@@ -70,9 +56,9 @@ pub fn ModelLanding() -> impl IntoView {
 #[component]
 pub fn Segmentation() -> impl IntoView {
     let model_list = OnceResource::new(async {
-        get_models(critic_shared::ModelType::Segmentation)
+        super::get_models(ModelType::Segmentation)
             .await
-            .map_err(|e| ServerFnError::new(format!("Unable to get manuscript information: {e}")))
+            .map_err(|e| ServerFnError::new(format!("Unable to get models: {e}")))
     });
 
     view! {
@@ -82,7 +68,7 @@ pub fn Segmentation() -> impl IntoView {
                 id="model-sidebar-wrapper"
                 class="flex flex-col justify-start w-1/4 overflow-auto border-r-2 border-slate-600"
             >
-                <TransferModel model_type=critic_shared::ModelType::Segmentation />
+                <TransferModel model_type=ModelType::Segmentation />
                 <ErrorBoundary fallback=|errors| {
                     view! {
                         <div>
@@ -108,7 +94,7 @@ pub fn Segmentation() -> impl IntoView {
                                         .get()
                                         .map(|info_res| {
                                             info_res
-                                                .map(|info: Vec<critic_shared::ModelMetadata>| {
+                                                .map(|info: Vec<ModelMetadata>| {
                                                     info.into_iter()
                                                         .map(|model| {
                                                             let model_params = use_params::<ModelParams>();
@@ -152,10 +138,13 @@ pub fn Segmentation() -> impl IntoView {
 }
 
 #[server]
-pub async fn get_model_by_id(id: i64) -> Result<critic_shared::ModelMetadata, ServerFnError> {
+pub async fn get_model_by_id(
+    id: i64,
+    model_type: ModelType,
+) -> Result<ModelMetadata, ServerFnError> {
     let config: std::sync::Arc<critic_server::config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_model_by_id(&config.db, id).await;
+    let res = critic_server::db::get_model_by_id(&config.db, id, model_type).await;
     match res {
         Ok(x) => Ok(x),
         Err(e @ critic_server::db::DBError::CannotGetModel(_)) => {
@@ -170,15 +159,21 @@ pub async fn get_model_by_id(id: i64) -> Result<critic_shared::ModelMetadata, Se
 
 /// Show the content for an individual model
 #[component]
-pub fn Model() -> impl IntoView {
+pub fn Model(model_type: ModelType) -> impl IntoView {
     let params = use_params::<ModelParams>();
 
     // get modelname from url
-    let modelid = move || params.read().as_ref().ok().and_then(|x| x.id.clone());
+    let model_id_type = move || {
+        params
+            .read()
+            .as_ref()
+            .ok()
+            .and_then(|x| Some((x.id.clone(), model_type)))
+    };
     // now get model from the db
-    let model_info = Resource::new(modelid, async |id_opt| {
-        if let Some(id) = id_opt {
-            get_model_by_id(id)
+    let model_info = Resource::new(model_id_type, async |id_opt| {
+        if let Some((Some(id), m_type)) = id_opt {
+            get_model_by_id(id, m_type)
                 .await
                 .map_err(|e| ServerFnError::new(format!("Unable to get model information: {e}")))
         } else {
@@ -216,6 +211,7 @@ pub fn Model() -> impl IntoView {
 #[derive(Debug, Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 struct UpdateModelRetrainingOptsData {
     model_id: i64,
+    model_type: ModelType,
     every_days: Option<u16>,
     keep_versions: Option<u16>,
 }
@@ -267,8 +263,13 @@ async fn update_model_retraining_opts(
     } else {
         None
     };
-    if let Err(e) =
-        critic_server::db::update_model(&config.db, data.model_id, &retraining_opts).await
+    if let Err(e) = critic_server::db::update_model(
+        &config.db,
+        data.model_id,
+        data.model_type,
+        &retraining_opts,
+    )
+    .await
     {
         tracing::warn!(
             "Failed to update model metadata for model with id {}",
@@ -280,7 +281,7 @@ async fn update_model_retraining_opts(
 }
 
 #[component]
-fn ModelMeta(meta: critic_shared::ModelMetadata) -> impl IntoView {
+fn ModelMeta(meta: ModelMetadata) -> impl IntoView {
     let should_retrain = RwSignal::new(meta.retrain_options.is_some());
     let should_retrain_saved = RwSignal::new(should_retrain.get_untracked());
 

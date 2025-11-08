@@ -17,3 +17,8 @@ pub struct PageParams {
 pub struct ModelParams {
     pub id: Option<i64>,
 }
+
+#[derive(Params, Clone, PartialEq)]
+pub struct LanguageParams {
+    pub language: Option<String>,
+}

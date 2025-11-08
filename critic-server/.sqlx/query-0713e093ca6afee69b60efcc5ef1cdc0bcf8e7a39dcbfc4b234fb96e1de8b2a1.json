@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE recognition_model set retrain_every_days = $1, retrain_keep_versions = $2 WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0713e093ca6afee69b60efcc5ef1cdc0bcf8e7a39dcbfc4b234fb96e1de8b2a1"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, retrain_every_days, retrain_keep_versions FROM recognition_model",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "retrain_every_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "retrain_keep_versions",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "09bd3cbac0412e64a96ddf6b08527195298aea4838c894924aad3aad9a08eae9"
+}

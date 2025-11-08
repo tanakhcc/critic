@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, retrain_every_days, retrain_keep_versions FROM segmentation_model\n                WHERE id = $1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "retrain_every_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "retrain_keep_versions",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "1cffa9acc1f191eb661b970918ef66abda2b5e7b674fbabd2d3c2458e1074bb0"
+}
