@@ -73,7 +73,13 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
                 <Route path=path!(":language") view=languages::Language />
                 <Route
                     path=path!("")
-                    view=|| view! { <p>Select or create a language from the left hand side.</p> }
+                    view=|| {
+                        view! {
+                            <p class="p-12 text-2xl">
+                                Select or create a language from the left hand side.
+                            </p>
+                        }
+                    }
                 />
             </ParentRoute>
             <Route path=path!("models") view=models::ModelLanding />
@@ -88,7 +94,9 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
                     path=path!("")
                     view=|| {
                         view! {
-                            <p>Select a model from the left hand side or upload a .mlmodel file.</p>
+                            <p class="p-12 text-2xl">
+                                Select a model from the left hand side or upload a .mlmodel file.
+                            </p>
                         }
                     }
                 />
@@ -106,7 +114,9 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
                     path=path!("")
                     view=|| {
                         view! {
-                            <p>Select a model from the left hand side or upload a .mlmodel file.</p>
+                            <p class="p-12 text-2xl">
+                                Select a model from the left hand side or upload a .mlmodel file.
+                            </p>
                         }
                     }
                 />

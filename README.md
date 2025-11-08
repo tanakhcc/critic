@@ -21,6 +21,11 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # Known Bugs
 - When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
+- same for language and model
+
+# TODO random small features
+## Allow deletion of MSs, Pages, Languages, Models with a very loud warning message that that will delete human work
+
 
 # TODOs - Redesign for visual Transcription Editor
 
@@ -28,10 +33,7 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### project default language
 - new MSs will be created with this language
 - new Pages will be created with the MS language
-### list of languages in use in the project
-#### set the default segmentation model for each
-#### set the default recognition model for each
-- will run on per page basis
+### allow selecting language per MS and per page
 
 ## segmentation and recognition via kraken
 ### own subcrate for this

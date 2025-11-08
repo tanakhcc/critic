@@ -26,6 +26,9 @@ async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerF
 
 #[server]
 async fn add_language(language: String) -> Result<(), ServerFnError> {
+    if language.is_empty() {
+        return Err(ServerFnError::new("Manuscript name must not be empty."));
+    }
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
@@ -50,7 +53,7 @@ pub fn LanguageList() -> impl IntoView {
         Some(Err(e)) => Some(e.to_string()),
         _ => None,
     };
-    let new_language_ref = NodeRef::new();
+    let new_language = RwSignal::new(String::default());
 
     view! {
         <div id="language-wrapper" class="h-full flex flex-row justify-start">
@@ -85,9 +88,8 @@ pub fn LanguageList() -> impl IntoView {
                         class="flex flex-row justify-start"
                         on:submit=move |ev| {
                             ev.prevent_default();
-                            let new_language = new_language_ref.get().expect("input field exists");
                             leptos::task::spawn_local(async move {
-                                let _res = add_language(new_language.value()).await;
+                                let _res = add_language(new_language.get()).await;
                             });
                             new_language_open.update(|x| *x ^= true);
                         }
@@ -95,12 +97,21 @@ pub fn LanguageList() -> impl IntoView {
                         <input
                             class="w-0 grow border-0 ml-4 font-mono text-slate-400 m-2.5"
                             type="text"
-                            node_ref=new_language_ref
                             name="msname"
+                            bind:value=new_language
                         />
                         <button
-                            class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold text-slate-50 bg-slate-600 hover:bg-slate-500"
                             type="submit"
+                            disabled=move || new_language.get().is_empty()
+                            class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold"
+                            class=(
+                                ["bg-slate-600", "hover:bg-slate-500", "text-slate-50"],
+                                move || !new_language.get().is_empty(),
+                            )
+                            class=(
+                                ["bg-rose-400", "text-slate-800"],
+                                move || new_language.get().is_empty(),
+                            )
                         >
                             "Create"
                         </button>

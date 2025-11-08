@@ -30,6 +30,9 @@ async fn get_manuscripts() -> Result<Vec<critic_shared::ManuscriptMeta>, ServerF
 
 #[server]
 async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
+    if msname.is_empty() {
+        return Err(ServerFnError::new("Manuscript name must not be empty."));
+    }
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
@@ -57,8 +60,8 @@ pub fn ManuscriptList() -> impl IntoView {
         Some(Err(e)) => Some(e.to_string()),
         _ => None,
     };
+    let new_msname = RwSignal::new(String::default());
 
-    let new_msname_ref = NodeRef::new();
     view! {
         <div id="ManuscriptList-wrapper" class="h-full flex flex-row justify-start">
             // the left sidebar containing the different manuscripts
@@ -95,9 +98,8 @@ pub fn ManuscriptList() -> impl IntoView {
                         class="flex flex-row justify-start"
                         on:submit=move |ev| {
                             ev.prevent_default();
-                            let new_msname = new_msname_ref.get().expect("input field exists");
                             leptos::task::spawn_local(async move {
-                                let _res = add_manuscript(new_msname.value()).await;
+                                let _res = add_manuscript(new_msname.get()).await;
                             });
                             new_manuscript_open.update(|x| *x ^= true);
                         }
@@ -105,12 +107,21 @@ pub fn ManuscriptList() -> impl IntoView {
                         <input
                             class="w-0 grow border-0 ml-4 font-mono text-slate-400 m-2.5"
                             type="text"
-                            node_ref=new_msname_ref
                             name="msname"
+                            bind:name=new_msname
                         />
                         <button
-                            class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold text-slate-50 bg-slate-600 hover:bg-slate-500"
                             type="submit"
+                            disabled=move || new_msname.get().is_empty()
+                            class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold"
+                            class=(
+                                ["bg-slate-600", "hover:bg-slate-500", "text-slate-50"],
+                                move || !new_msname.get().is_empty(),
+                            )
+                            class=(
+                                ["bg-rose-400", "text-slate-800"],
+                                move || new_msname.get().is_empty(),
+                            )
                         >
                             "Create"
                         </button>
