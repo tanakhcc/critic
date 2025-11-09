@@ -3,6 +3,8 @@ CREATE TABLE page (
 	id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 	--- the manuscript this page belongs to
 	manuscript BIGINT NOT NULL REFERENCES manuscript(id),
+	--- the primary language of this page. Can be NULL to use the primary manuscript language
+	language BIGINT REFERENCES language(id),
 	--- the name of this page (e.g. folio3-recto)
 	name TEXT NOT NULL,
 	--- the first verse on this page

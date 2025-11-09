@@ -191,7 +191,19 @@ async fn get_manuscript_meta(
 ) -> Result<critic_shared::ManuscriptMeta, DBError> {
     sqlx::query_as!(
         critic_shared::ManuscriptMeta,
-        "SELECT * FROM manuscript WHERE title = $1;",
+        "SELECT
+        id,
+        title,
+        institution,
+        collection,
+        hand_desc,
+        script_desc,
+        (SELECT name FROM language
+         WHERE id = COALESCE(
+            manuscript.language,
+            (SELECT language FROM default_language
+             WHERE id = 1))) as language
+        FROM manuscript WHERE title = $1;",
         msname
     )
     .fetch_optional(pool)
@@ -236,14 +248,16 @@ pub async fn get_manuscripts_by_name(
     if let Some(name) = msname {
         sqlx::query_as!(
             critic_shared::ManuscriptMeta,
-            "SELECT * FROM manuscript WHERE title LIKE $1;",
+            // this is a view, so sqlx cannot infer that id and title are NOT NULL
+            r#"SELECT id as "id!", title as "title!", institution, collection, hand_desc, script_desc, language FROM manuscript_with_language WHERE title LIKE $1;"#,
             format!("%{name}%")
         )
         .fetch_all(pool)
         .await
         .map_err(DBError::CannotGetManuscript)
     } else {
-        sqlx::query_as!(critic_shared::ManuscriptMeta, "SELECT * FROM manuscript;",)
+        sqlx::query_as!(critic_shared::ManuscriptMeta,
+            r#"SELECT id as "id!", title as "title!", institution, collection, hand_desc, script_desc, language FROM manuscript_with_language;"#)
             .fetch_all(pool)
             .await
             .map_err(DBError::CannotGetManuscript)
@@ -259,12 +273,12 @@ pub async fn get_manuscripts(
 pub async fn add_manuscript(
     pool: &Pool<Postgres>,
     msname: &str,
-    lang: Option<&str>,
+    language: Option<i64>,
 ) -> Result<(), DBError> {
     sqlx::query!(
-        "INSERT INTO manuscript (title, lang) VALUES ($1, $2);",
+        "INSERT INTO manuscript (title, language) VALUES ($1, $2);",
         msname,
-        lang.unwrap_or_else(|| "unknown")
+        language,
     )
     .execute(pool)
     .await
@@ -636,7 +650,7 @@ struct _EditorIVSeed {
     collection: Option<String>,
     hand_desc: Option<String>,
     script_desc: Option<String>,
-    default_language: String,
+    default_language: Option<String>,
     verse_start: Option<i64>,
     verse_end: Option<i64>,
     transcriptions_by_this_user: Option<i64>,
@@ -657,7 +671,13 @@ pub async fn get_editor_initial_value(
             manuscript.collection,
             manuscript.hand_desc,
             manuscript.script_desc,
-            manuscript.lang as default_language,
+            (SELECT name FROM language
+             WHERE id = COALESCE(
+                 manuscript.language,
+                 page.language,
+                 (SELECT language FROM default_language
+                  WHERE id = 1)))
+             as default_language,
             page.verse_start,
             page.verse_end,
             COUNT(*) FILTER (WHERE transcription.username = $3) as transcriptions_by_this_user
@@ -668,7 +688,7 @@ pub async fn get_editor_initial_value(
         LEFT OUTER JOIN transcription
             ON page.id = transcription.page
         WHERE manuscript.title = $1 AND page.name = $2
-        GROUP BY (manuscript.id, manuscript.institution, manuscript.collection, manuscript.hand_desc, manuscript.script_desc, manuscript.lang, page.verse_start, page.verse_end)
+        GROUP BY (manuscript.id, manuscript.institution, manuscript.collection, manuscript.hand_desc, manuscript.script_desc, manuscript.language, page.verse_start, page.verse_end, page.language)
         ;",
         msname,
         pagename,
@@ -688,7 +708,7 @@ pub async fn get_editor_initial_value(
             collection: seed.collection,
             hand_desc: seed.hand_desc,
             script_desc: seed.script_desc,
-            lang: seed.default_language,
+            language: seed.default_language,
         },
     })
 }

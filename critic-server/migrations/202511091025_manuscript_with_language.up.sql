@@ -1,0 +1,16 @@
+--- Select manuscript with language as Option<String>
+CREATE VIEW manuscript_with_language AS
+SELECT
+    id,
+    title,
+    institution,
+    collection,
+	hand_desc,
+	script_desc,
+	(SELECT name FROM language
+	 WHERE id = COALESCE(
+		manuscript.language,
+		(SELECT language FROM default_language
+		 WHERE id = 1))) as language
+	FROM manuscript;
+

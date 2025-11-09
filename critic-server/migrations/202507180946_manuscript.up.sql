@@ -11,6 +11,6 @@ CREATE TABLE manuscript (
 	hand_desc TEXT,
 	--- description of the script in this manuscript
 	script_desc TEXT,
-	--- default language of this manuscript
-	lang TEXT NOT NULL
+	--- default language of this manuscript, can be NULL to indicate project default language
+	language BIGINT REFERENCES language(id)
 );

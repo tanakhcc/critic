@@ -1,16 +1,16 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM manuscript;",
+  "query": "SELECT id as \"id!\", title as \"title!\", institution, collection, hand_desc, script_desc, language FROM manuscript_with_language;",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "id!",
         "type_info": "Int8"
       },
       {
         "ordinal": 1,
-        "name": "title",
+        "name": "title!",
         "type_info": "Text"
       },
       {
@@ -35,7 +35,7 @@
       },
       {
         "ordinal": 6,
-        "name": "lang",
+        "name": "language",
         "type_info": "Text"
       }
     ],
@@ -43,14 +43,14 @@
       "Left": []
     },
     "nullable": [
-      false,
-      false,
       true,
       true,
       true,
       true,
-      false
+      true,
+      true,
+      true
     ]
   },
-  "hash": "86bedabaefa8f64195cb3c2a2bae6de3cd3a5ad74aafb2ac326fa17a2d9e943d"
+  "hash": "b68942659c0bb5acdd60a0bea9099dfaf7656794e8dab83727bbac0ff05d59db"
 }
