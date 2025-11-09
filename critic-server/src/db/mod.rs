@@ -55,6 +55,8 @@ pub enum DBError {
     CannotGetLanguage(sqlx::Error),
     CannotAddLanguage(sqlx::Error),
     CannotUpdateLanguage(sqlx::Error),
+    CannotUpdateDefaultLanguage(sqlx::Error),
+    CannotGetDefaultLanguage(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -142,6 +144,12 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateLanguage(e) => {
                 write!(f, "Unable to update language: {e}")
+            }
+            Self::CannotUpdateDefaultLanguage(e) => {
+                write!(f, "Unable to update the project default language: {e}")
+            }
+            Self::CannotGetDefaultLanguage(e) => {
+                write!(f, "Unable to get the project default language: {e}")
             }
         }
     }
@@ -953,6 +961,7 @@ pub async fn get_languages(pool: &Pool<Postgres>) -> Result<Vec<LanguageMetadata
         .map_err(DBError::CannotGetLanguage)?
         .into_iter()
         .map(|row| LanguageMetadata {
+            id: row.id,
             name: row.name,
             segmentation_model_id: row.segmentation_model,
             recognition_model_id: row.recognition_model,
@@ -970,6 +979,7 @@ pub async fn get_language_by_name(
             .await
             .map_err(DBError::CannotGetLanguage)?
             .map(|row| LanguageMetadata {
+                id: row.id,
                 name: row.name,
                 segmentation_model_id: row.segmentation_model,
                 recognition_model_id: row.recognition_model,
@@ -1004,4 +1014,34 @@ pub async fn update_language(
     .await
     .map(|_| ())
     .map_err(DBError::CannotUpdateLanguage)
+}
+
+pub async fn update_default_language(
+    pool: &Pool<Postgres>,
+    language_id: Option<i64>,
+) -> Result<(), DBError> {
+    sqlx::query!("UPDATE default_language SET language = $1;", language_id)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(DBError::CannotUpdateDefaultLanguage)
+}
+
+pub async fn get_default_language(
+    pool: &Pool<Postgres>,
+) -> Result<Option<LanguageMetadata>, DBError> {
+    sqlx::query_as!(
+        LanguageMetadata,
+        "SELECT
+            language.id,
+            language.name,
+            language.segmentation_model as segmentation_model_id,
+            language.recognition_model as recognition_model_id
+         FROM language
+         INNER JOIN default_language on language.id = default_language.language
+         LIMIT 1;"
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(DBError::CannotGetDefaultLanguage)
 }

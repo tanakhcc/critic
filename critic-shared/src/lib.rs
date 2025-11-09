@@ -219,6 +219,7 @@ pub struct RetrainOptions {
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct LanguageMetadata {
+    pub id: i64,
     pub name: String,
     pub segmentation_model_id: Option<i64>,
     pub recognition_model_id: Option<i64>,

@@ -19,13 +19,8 @@ Use the `--release` toggle for release.
 You need to set a relatively high `client_max_body_size` (for `nginx`).
 This is currently `150m` for endpoints under `/upload`. Other paths do not need large `client_max_body_size`.
 
-# Known Bugs
-- When changing a manuscript name, a manual page reload is required to refetch the manuscript name from the server - the name in the left-hand MS-list will not be updated until then
-- same for language and model
-
 # TODO random small features
 ## Allow deletion of MSs, Pages, Languages, Models with a very loud warning message that that will delete human work
-
 
 # TODOs - Redesign for visual Transcription Editor
 

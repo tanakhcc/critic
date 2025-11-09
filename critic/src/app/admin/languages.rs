@@ -5,6 +5,7 @@
 //      /:language
 
 use critic_components::DEFAULT_BUTTON_CLASSES;
+use critic_shared::LanguageMetadata;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::use_params;
@@ -36,6 +37,78 @@ async fn add_language(language: String) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+#[server]
+async fn update_default_language(language_id: Option<i64>) -> Result<(), ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    // after adding the new language, redirect to its own page
+    critic_server::db::update_default_language(&config.db, language_id)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
+#[component]
+pub fn DefaultLanguagePicker(
+    default_language: Option<i64>,
+    language_list: impl IntoIterator<Item = LanguageMetadata> + Send + 'static,
+) -> impl IntoView {
+    let srvact = ServerAction::<UpdateDefaultLanguage>::new();
+    let selected_language = RwSignal::new(default_language);
+    let selected_language_saved = RwSignal::new(default_language);
+
+    view! {
+        <div id="default-lang-picker" class="p-2 border-2">
+            <ActionForm action=srvact>
+                <select
+                    id="language_id"
+                    name="language_id"
+                    class="border border-slate-500 rounded-md"
+                    // when no language is chosen (None), we want to write
+                    // the empty string into the value here
+                    prop:value=move || {
+                        selected_language.get().map(|m| format!("{m}")).unwrap_or_default()
+                    }
+                    on:change:target=move |evt| {
+                        selected_language.set(evt.target().value().parse::<i64>().ok());
+                    }
+                >
+                    <option value="">No default Language</option>
+                    {language_list
+                        .into_iter()
+                        .map(|language| {
+                            view! { <option value=language.id>{language.name}</option> }
+                        })
+                        .collect_view()}
+                </select>
+                <div class="flex justify-around mt-6">
+                    <button
+                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                        type="button"
+                        on:click=move |_| {
+                            selected_language.set(selected_language_saved.get_untracked());
+                        }
+                    >
+                        "Cancel"
+                    </button>
+                    <button
+                        type="submit"
+                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                        // if the users saves an edit and does not reload the page, edits again
+                        // and the clicks cancel, the last state already saved to the server
+                        // would be overwritten here
+                        on:click=move |_| {
+                            selected_language_saved.set(selected_language.get_untracked());
+                        }
+                    >
+                        Save changes
+                    </button>
+                </div>
+            </ActionForm>
+        </div>
+    }
+}
+
 #[component]
 pub fn LanguageList() -> impl IntoView {
     let language_list = Resource::new(
@@ -44,6 +117,14 @@ pub fn LanguageList() -> impl IntoView {
             get_languages()
                 .await
                 .map_err(|e| ServerFnError::new(format!("Unable to get languages: {e}")))
+        },
+    );
+    let default_language = Resource::new(
+        move || false,
+        async move |_| {
+            get_default_language()
+                .await
+                .map_err(|e| ServerFnError::new(format!("Unable to get default language: {e}")))
         },
     );
 
@@ -159,7 +240,6 @@ pub fn LanguageList() -> impl IntoView {
                                                             };
                                                             view! {
                                                                 <li class="flex">
-                                                                    // keep query parameter if one is set
                                                                     <a
                                                                         href=format!("/admin/languages/{}", language.name.clone())
                                                                         class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
@@ -181,10 +261,61 @@ pub fn LanguageList() -> impl IntoView {
                 </ErrorBoundary>
             </div>
 
+            <p>There is a fucking div border here you little shit</p>
+
             // the information on the selected language
+            // <ErrorBoundary fallback=|errors| {
+            // view! {
+            // <div>
+            // "Error: failed to get languages"
+            // <ul>
+            // {move || {
+            // errors
+            // .get()
+            // .into_iter()
+            // .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+            // .collect::<Vec<_>>()
+            // }}
+            // </ul>
+            // </div>
+            // }
+            // }>
+
+            <Transition fallback=|| view! { <p>fallback</p> }>
+                <p>content in transition</p>
+            // {move || {
+            // Suspend::new(async move {
+            // let default_lang_res = default_language.await;
+            // let lang_list_res = language_list.await;
+            // default_lang_res
+            // .map(|default_lang| {
+            // lang_list_res
+            // .map(|lang_list| {
+            // view! {
+            // <DefaultLanguagePicker
+            // default_language=default_lang
+            // language_list=lang_list
+            // />
+            // }
+            // })
+            // })
+            // })
+            // }}
+            // </ErrorBoundary>
+            </Transition>
             <Outlet />
         </div>
     }
+}
+
+#[server]
+async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_server::db::get_default_language(&config.db)
+        .await
+        .map(|meta_opt| meta_opt.map(|meta| meta.id))
+        .map_err(|e| ServerFnError::new(e.to_string()))
 }
 
 #[server]
@@ -257,7 +388,7 @@ pub fn Language() -> impl IntoView {
                                     Ok(recognition_models) => {
                                         view! {
                                             <div
-                                                id="language-wrapper"
+                                                id="language-meta-wrapper"
                                                 class="h-full flex flex-col w-3/4 overflow-y-auto"
                                             >
                                                 <LanguageMeta
