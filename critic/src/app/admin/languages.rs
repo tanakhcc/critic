@@ -58,51 +58,61 @@ pub fn DefaultLanguagePicker(
     let selected_language_saved = RwSignal::new(default_language);
 
     view! {
-        <div id="default-lang-picker" class="p-2 border-2">
+        <div id="default-lang-picker" class="p-6 border-2 border-slate-500 border-b-0">
+            <h1 class="m-4 p-2 text-3xl text-center">"Project Default Language"</h1>
             <ActionForm action=srvact>
-                <select
-                    id="language_id"
-                    name="language_id"
-                    class="border border-slate-500 rounded-md"
-                    // when no language is chosen (None), we want to write
-                    // the empty string into the value here
-                    prop:value=move || {
-                        selected_language.get().map(|m| format!("{m}")).unwrap_or_default()
-                    }
-                    on:change:target=move |evt| {
-                        selected_language.set(evt.target().value().parse::<i64>().ok());
-                    }
-                >
-                    <option value="">No default Language</option>
-                    {language_list
-                        .into_iter()
-                        .map(|language| {
-                            view! { <option value=language.id>{language.name}</option> }
-                        })
-                        .collect_view()}
-                </select>
-                <div class="flex justify-around mt-6">
-                    <button
-                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
-                        type="button"
-                        on:click=move |_| {
-                            selected_language.set(selected_language_saved.get_untracked());
-                        }
-                    >
-                        "Cancel"
-                    </button>
-                    <button
-                        type="submit"
-                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
-                        // if the users saves an edit and does not reload the page, edits again
-                        // and the clicks cancel, the last state already saved to the server
-                        // would be overwritten here
-                        on:click=move |_| {
-                            selected_language_saved.set(selected_language.get_untracked());
-                        }
-                    >
-                        Save changes
-                    </button>
+                <div class="flex justify-center">
+                    <div class="max-w-[800px]">
+                        <div class="flex justify-center">
+                            <select
+                                id="language_id"
+                                name="language_id"
+                                class="rounded-md border border-slate-500 text-xl bg-slate-900"
+                                // when no language is chosen (None), we want to write
+                                // the empty string into the value here
+                                prop:value=move || {
+                                    selected_language
+                                        .get()
+                                        .map(|m| format!("{m}"))
+                                        .unwrap_or_default()
+                                }
+                                on:change:target=move |evt| {
+                                    selected_language.set(evt.target().value().parse::<i64>().ok());
+                                }
+                            >
+                                <option value="">No default Language</option>
+                                {language_list
+                                    .into_iter()
+                                    .map(|language| {
+                                        view! { <option value=language.id>{language.name}</option> }
+                                    })
+                                    .collect_view()}
+                            </select>
+                        </div>
+                        <div class="flex justify-around mt-6">
+                            <button
+                                class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                                type="button"
+                                on:click=move |_| {
+                                    selected_language.set(selected_language_saved.get_untracked());
+                                }
+                            >
+                                "Cancel"
+                            </button>
+                            <button
+                                type="submit"
+                                class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                                // if the users saves an edit and does not reload the page, edits again
+                                // and the clicks cancel, the last state already saved to the server
+                                // would be overwritten here
+                                on:click=move |_| {
+                                    selected_language_saved.set(selected_language.get_untracked());
+                                }
+                            >
+                                Save changes
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </ActionForm>
         </div>
@@ -137,85 +147,88 @@ pub fn LanguageList() -> impl IntoView {
     let new_language = RwSignal::new(String::default());
 
     view! {
-        <div id="language-wrapper" class="h-full flex flex-row justify-start">
-            // the left sidebar containing the different languages
-            <div
-                id="language-sidebar-wrapper"
-                class="flex flex-col justify-start w-1/4 overflow-auto border-r-2 border-slate-600"
-            >
-                // the new-language-button and actual list
-                <div id="new-language-error" class="bg-red-200">
-                    {new_language_error}
+        <ErrorBoundary fallback=|errors| {
+            view! {
+                <div>
+                    "Error: failed to get languages"
+                    <ul>
+                        {move || {
+                            errors
+                                .get()
+                                .into_iter()
+                                .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                .collect::<Vec<_>>()
+                        }}
+                    </ul>
                 </div>
-                <div
-                    id="new-language-button"
-                    class=(["flex", "flex-row", "justify-center"], move || !new_language_open.get())
-                    class=("hidden", move || new_language_open.get())
-                >
-                    <button
-                        class=DEFAULT_BUTTON_CLASSES
-                        on:click=move |_| { new_language_open.update(|x| *x ^= true) }
+            }
+        }>
+            <Transition fallback=|| view! { <p>"Loading languages..."</p> }>
+                <div id="language-wrapper" class="h-full flex flex-row justify-start">
+                    // the left sidebar containing the different languages
+                    <div
+                        id="language-sidebar-wrapper"
+                        class="flex flex-col justify-start w-1/4 overflow-auto border-r-2 border-slate-600"
                     >
-                        "New Language"
-                    </button>
-                </div>
-                <div
-                    id="new-language-form"
-                    class=("block", move || new_language_open.get())
-                    class=("hidden", move || !new_language_open.get())
-                    class="m-2 justify-start rounded-4xl border-2 border-slate-600 bg-slate-800 text-sm shadow-md shadow-sky-600"
-                >
-                    <form
-                        class="flex flex-row justify-start"
-                        on:submit=move |ev| {
-                            ev.prevent_default();
-                            leptos::task::spawn_local(async move {
-                                let _res = add_language(new_language.get_untracked()).await;
-                                language_list.refetch();
-                            });
-                            new_language_open.update(|x| *x ^= true);
-                        }
-                    >
-                        <input
-                            class="w-0 grow border-0 ml-4 font-mono text-slate-400 m-2.5"
-                            type="text"
-                            name="msname"
-                            bind:value=new_language
-                        />
-                        <button
-                            type="submit"
-                            disabled=move || new_language.get().is_empty()
-                            class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold"
-                            class=(
-                                ["bg-slate-600", "hover:bg-slate-500", "text-slate-50"],
-                                move || !new_language.get().is_empty(),
-                            )
-                            class=(
-                                ["bg-rose-400", "text-slate-800"],
-                                move || new_language.get().is_empty(),
-                            )
-                        >
-                            "Create"
-                        </button>
-                    </form>
-                </div>
-                <ErrorBoundary fallback=|errors| {
-                    view! {
-                        <div>
-                            "Error: failed to get languages"
-                            <ul>
-                                {move || {
-                                    errors
-                                        .get()
-                                        .into_iter()
-                                        .map(|(_, e)| view! { <li>{e.to_string()}</li> })
-                                        .collect::<Vec<_>>()
-                                }}
-                            </ul>
+                        // the new-language-button and actual list
+                        <div id="new-language-error" class="bg-red-200">
+                            {new_language_error}
                         </div>
-                    }
-                }>
-                    <Transition fallback=|| view! { <p>"Loading languages..."</p> }>
+                        <div
+                            id="new-language-button"
+                            class=(
+                                ["flex", "flex-row", "justify-center"],
+                                move || !new_language_open.get(),
+                            )
+                            class=("hidden", move || new_language_open.get())
+                        >
+                            <button
+                                class=DEFAULT_BUTTON_CLASSES
+                                on:click=move |_| { new_language_open.update(|x| *x ^= true) }
+                            >
+                                "New Language"
+                            </button>
+                        </div>
+                        <div
+                            id="new-language-form"
+                            class=("block", move || new_language_open.get())
+                            class=("hidden", move || !new_language_open.get())
+                            class="m-2 justify-start rounded-4xl border-2 border-slate-600 bg-slate-800 text-sm shadow-md shadow-sky-600"
+                        >
+                            <form
+                                class="flex flex-row justify-start"
+                                on:submit=move |ev| {
+                                    ev.prevent_default();
+                                    leptos::task::spawn_local(async move {
+                                        let _res = add_language(new_language.get_untracked()).await;
+                                        language_list.refetch();
+                                    });
+                                    new_language_open.update(|x| *x ^= true);
+                                }
+                            >
+                                <input
+                                    class="w-0 grow border-0 ml-4 font-mono text-slate-400 m-2.5"
+                                    type="text"
+                                    name="msname"
+                                    bind:value=new_language
+                                />
+                                <button
+                                    type="submit"
+                                    disabled=move || new_language.get().is_empty()
+                                    class="min-w-20 text-md rounded-l-none rounded-2xl text-center font-bold"
+                                    class=(
+                                        ["bg-slate-600", "hover:bg-slate-500", "text-slate-50"],
+                                        move || !new_language.get().is_empty(),
+                                    )
+                                    class=(
+                                        ["bg-rose-400", "text-slate-800"],
+                                        move || new_language.get().is_empty(),
+                                    )
+                                >
+                                    "Create"
+                                </button>
+                            </form>
+                        </div>
                         // list of languages
                         <div
                             id="language-list-wrapper"
@@ -257,54 +270,33 @@ pub fn LanguageList() -> impl IntoView {
                                 }}
                             </ul>
                         </div>
-                    </Transition>
-                </ErrorBoundary>
-            </div>
+                    </div>
 
-            <p>There is a fucking div border here you little shit</p>
-
-            // the information on the selected language
-            // <ErrorBoundary fallback=|errors| {
-            // view! {
-            // <div>
-            // "Error: failed to get languages"
-            // <ul>
-            // {move || {
-            // errors
-            // .get()
-            // .into_iter()
-            // .map(|(_, e)| view! { <li>{e.to_string()}</li> })
-            // .collect::<Vec<_>>()
-            // }}
-            // </ul>
-            // </div>
-            // }
-            // }>
-
-            <Transition fallback=|| view! { <p>fallback</p> }>
-                <p>content in transition</p>
-            // {move || {
-            // Suspend::new(async move {
-            // let default_lang_res = default_language.await;
-            // let lang_list_res = language_list.await;
-            // default_lang_res
-            // .map(|default_lang| {
-            // lang_list_res
-            // .map(|lang_list| {
-            // view! {
-            // <DefaultLanguagePicker
-            // default_language=default_lang
-            // language_list=lang_list
-            // />
-            // }
-            // })
-            // })
-            // })
-            // }}
-            // </ErrorBoundary>
+                    <div id="right-hand-side" class="w-3/4">
+                        {move || {
+                            Suspend::new(async move {
+                                let default_lang_res = default_language.await;
+                                let lang_list_res = language_list.await;
+                                leptos::logging::log!("default language: {default_lang_res:?}");
+                                default_lang_res
+                                    .map(|default_lang| {
+                                        lang_list_res
+                                            .map(|lang_list| {
+                                                view! {
+                                                    <DefaultLanguagePicker
+                                                        default_language=default_lang
+                                                        language_list=lang_list
+                                                    />
+                                                }
+                                            })
+                                    })
+                            })
+                        }}
+                        <Outlet />
+                    </div>
+                </div>
             </Transition>
-            <Outlet />
-        </div>
+        </ErrorBoundary>
     }
 }
 
@@ -312,10 +304,12 @@ pub fn LanguageList() -> impl IntoView {
 async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_default_language(&config.db)
+    let res = critic_server::db::get_default_language(&config.db)
         .await
         .map(|meta_opt| meta_opt.map(|meta| meta.id))
-        .map_err(|e| ServerFnError::new(e.to_string()))
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    leptos::logging::log!("default language from db: {res:?}");
+    Ok(res)
 }
 
 #[server]
@@ -389,7 +383,7 @@ pub fn Language() -> impl IntoView {
                                         view! {
                                             <div
                                                 id="language-meta-wrapper"
-                                                class="h-full flex flex-col w-3/4 overflow-y-auto"
+                                                class="flex flex-col overflow-y-auto"
                                             >
                                                 <LanguageMeta
                                                     meta=language_info
@@ -490,102 +484,105 @@ fn LanguageMeta(
                 "Language "<span class="font-bold">{meta.name.clone()}</span>
             </h1>
             <ActionForm action=srvact>
-                <div class="flex justify-around flex-col">
-                    <input type="hidden" name="data[language]" value=meta.name.clone() />
-                    <div class="border border-slate-500 p-2 grid grid-cols-1">
-                        <div class="grid grid-cols-2">
-                            <label for="data[segmentation_model_id]">Segmentation model:</label>
-                            <select
-                                id="data[segmentation_model_id]"
-                                name="data[segmentation_model_id]"
-                                class="border border-slate-500 rounded-md"
-                                // when no segmentation model is chosen (None), we want to write
-                                // the empty string into the value here
-                                prop:value=move || {
-                                    segmentation_model
-                                        .get()
-                                        .map(|m| format!("{m}"))
-                                        .unwrap_or_default()
-                                }
-                                on:change:target=move |evt| {
-                                    segmentation_model
-                                        .set(evt.target().value().parse::<i64>().ok());
-                                }
-                            >
-                                <option value="" class="text-black">
-                                    No automatic Segmentation
-                                </option>
-                                {move || {
-                                    segmentation_models
-                                        .iter()
-                                        .map(|m| {
-                                            view! {
-                                                <option
-                                                    class="text-black"
-                                                    value=m.id
-                                                    selected=segmentation_model.get_untracked() == Some(m.id)
-                                                >
-                                                    {m.name.clone()}
-                                                </option>
-                                            }
-                                        })
-                                        .collect_view()
-                                }}
-                            </select>
+                <div class="flex justify-center">
+                    <div class="flex justify-around flex-col max-w-[800px]">
+                        <input type="hidden" name="data[language]" value=meta.name.clone() />
+                        <div class="border border-slate-500 p-2 grid grid-cols-1">
+                            <div class="grid grid-cols-2">
+                                <label for="data[segmentation_model_id]">Segmentation model:</label>
+                                <select
+                                    id="data[segmentation_model_id]"
+                                    name="data[segmentation_model_id]"
+                                    class="border border-slate-500 rounded-md"
+                                    // when no segmentation model is chosen (None), we want to write
+                                    // the empty string into the value here
+                                    prop:value=move || {
+                                        segmentation_model
+                                            .get()
+                                            .map(|m| format!("{m}"))
+                                            .unwrap_or_default()
+                                    }
+                                    on:change:target=move |evt| {
+                                        segmentation_model
+                                            .set(evt.target().value().parse::<i64>().ok());
+                                    }
+                                >
+                                    <option value="" class="text-black">
+                                        No automatic Segmentation
+                                    </option>
+                                    {move || {
+                                        segmentation_models
+                                            .iter()
+                                            .map(|m| {
+                                                view! {
+                                                    <option
+                                                        class="text-black"
+                                                        value=m.id
+                                                        selected=segmentation_model.get_untracked() == Some(m.id)
+                                                    >
+                                                        {m.name.clone()}
+                                                    </option>
+                                                }
+                                            })
+                                            .collect_view()
+                                    }}
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2">
+                                <label for="data[recognition_model_id]">Recognition model:</label>
+                                <select
+                                    id="data[recognition_model_id]"
+                                    name="data[recognition_model_id]"
+                                    class="border border-slate-500 rounded-md"
+                                    prop:value=move || {
+                                        recognition_model
+                                            .get()
+                                            .map(|m| format!("{m}"))
+                                            .unwrap_or_default()
+                                    }
+                                    on:change:target=move |evt| {
+                                        recognition_model
+                                            .set(evt.target().value().parse::<i64>().ok());
+                                    }
+                                >
+                                    <option value="">No automatic Recognition</option>
+                                    {move || {
+                                        recognition_models
+                                            .iter()
+                                            .map(|m| {
+                                                view! { <option value=m.id>{m.name.clone()}</option> }
+                                            })
+                                            .collect_view()
+                                    }}
+                                </select>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-2">
-                            <label for="data[recognition_model_id]">Recognition model:</label>
-                            <select
-                                id="data[recognition_model_id]"
-                                name="data[recognition_model_id]"
-                                class="border border-slate-500 rounded-md"
-                                prop:value=move || {
-                                    recognition_model
-                                        .get()
-                                        .map(|m| format!("{m}"))
-                                        .unwrap_or_default()
-                                }
-                                on:change:target=move |evt| {
-                                    recognition_model.set(evt.target().value().parse::<i64>().ok());
-                                }
-                            >
-                                <option value="">No automatic Recognition</option>
-                                {move || {
-                                    recognition_models
-                                        .iter()
-                                        .map(|m| {
-                                            view! { <option value=m.id>{m.name.clone()}</option> }
-                                        })
-                                        .collect_view()
-                                }}
-                            </select>
-                        </div>
-                    </div>
 
-                    <div class="flex justify-around mt-6">
-                        <button
-                            class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
-                            type="button"
-                            on:click=move |_| {
-                                recognition_model.set(recognition_model_saved.get());
-                                segmentation_model.set(segmentation_model_saved.get());
-                            }
-                        >
-                            "Cancel"
-                        </button>
-                        <button
-                            type="submit"
-                            class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
-                            // if the users saves an edit and does not reload the page, edits again
-                            // and the clicks cancel, the last state already saved to the server
-                            // would be overwritten here
-                            on:click=move |_| {
-                                recognition_model_saved.set(recognition_model.get());
-                                segmentation_model_saved.set(segmentation_model.get());
-                            }
-                        >
-                            Save changes
-                        </button>
+                        <div class="flex justify-around mt-6">
+                            <button
+                                class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                                type="button"
+                                on:click=move |_| {
+                                    recognition_model.set(recognition_model_saved.get());
+                                    segmentation_model.set(segmentation_model_saved.get());
+                                }
+                            >
+                                "Cancel"
+                            </button>
+                            <button
+                                type="submit"
+                                class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                                // if the users saves an edit and does not reload the page, edits again
+                                // and the clicks cancel, the last state already saved to the server
+                                // would be overwritten here
+                                on:click=move |_| {
+                                    recognition_model_saved.set(recognition_model.get());
+                                    segmentation_model_saved.set(segmentation_model.get());
+                                }
+                            >
+                                Save changes
+                            </button>
+                        </div>
                     </div>
                 </div>
             </ActionForm>

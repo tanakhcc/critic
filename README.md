@@ -25,7 +25,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # TODOs - Redesign for visual Transcription Editor
 
 ## Admin-panel for languages
-### project default language
 ### allow selecting language per MS and per page
 
 ## segmentation and recognition via kraken

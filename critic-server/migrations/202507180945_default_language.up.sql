@@ -4,3 +4,5 @@ CREATE TABLE default_language (
 	id BIGINT PRIMARY KEY GENERATED ALWAYS AS (1) STORED UNIQUE,
 	language BIGINT REFERENCES language(id)
 );
+
+INSERT INTO default_language (language) VALUES (NULL);
