@@ -31,8 +31,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 ## Admin-panel for languages
 ### project default language
-- new MSs will be created with this language
-- new Pages will be created with the MS language
 ### allow selecting language per MS and per page
 
 ## segmentation and recognition via kraken

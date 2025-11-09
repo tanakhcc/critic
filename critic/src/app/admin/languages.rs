@@ -4,10 +4,7 @@
 // /admin/languages
 //      /:language
 
-use critic_components::link_card::LinkCard;
 use critic_components::DEFAULT_BUTTON_CLASSES;
-use critic_shared::RetrainOptions;
-use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::use_params;
@@ -41,11 +38,14 @@ async fn add_language(language: String) -> Result<(), ServerFnError> {
 
 #[component]
 pub fn LanguageList() -> impl IntoView {
-    let language_list = OnceResource::new(async {
-        get_languages()
-            .await
-            .map_err(|e| ServerFnError::new(format!("Unable to get languages: {e}")))
-    });
+    let language_list = Resource::new(
+        move || false,
+        async move |_| {
+            get_languages()
+                .await
+                .map_err(|e| ServerFnError::new(format!("Unable to get languages: {e}")))
+        },
+    );
 
     let new_language_open = RwSignal::new(false);
     let add_language_srvact = ServerAction::<AddLanguage>::new();
@@ -89,7 +89,8 @@ pub fn LanguageList() -> impl IntoView {
                         on:submit=move |ev| {
                             ev.prevent_default();
                             leptos::task::spawn_local(async move {
-                                let _res = add_language(new_language.get()).await;
+                                let _res = add_language(new_language.get_untracked()).await;
+                                language_list.refetch();
                             });
                             new_language_open.update(|x| *x ^= true);
                         }

@@ -43,15 +43,16 @@ async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
 }
 
 #[component]
-pub fn ManuscriptList() -> impl IntoView {
+pub fn ManuscriptList(force_refetch: ReadSignal<bool>) -> impl IntoView {
     let (query, set_query) = query_signal::<String>("msq");
-
-    // this can be toggled to force a reload for manuscripts
-    let manuscript_list = OnceResource::new(async {
-        get_manuscripts()
-            .await
-            .map_err(|e| ServerFnError::new(format!("Unable to get manuscript information: {e}")))
-    });
+    let manuscript_list = Resource::new(
+        move || force_refetch.get(),
+        async |_| {
+            get_manuscripts().await.map_err(|e| {
+                ServerFnError::new(format!("Unable to get manuscript information: {e}"))
+            })
+        },
+    );
     let new_manuscript_open = RwSignal::new(false);
 
     let add_manuscript_srvact = ServerAction::<AddManuscript>::new();
@@ -99,7 +100,8 @@ pub fn ManuscriptList() -> impl IntoView {
                         on:submit=move |ev| {
                             ev.prevent_default();
                             leptos::task::spawn_local(async move {
-                                let _res = add_manuscript(new_msname.get()).await;
+                                let _res = add_manuscript(new_msname.get_untracked()).await;
+                                manuscript_list.refetch();
                             });
                             new_manuscript_open.update(|x| *x ^= true);
                         }
@@ -293,7 +295,7 @@ pub async fn get_manuscript_by_name(
 
 /// Show the content for an individual manuscript
 #[component]
-pub fn Manuscript() -> impl IntoView {
+pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl IntoView {
     let params = use_params::<MsParams>();
     let page_params = use_params::<PageParams>();
 
@@ -331,7 +333,10 @@ pub fn Manuscript() -> impl IntoView {
                                         id="Manuscript-wrapper"
                                         class="h-full flex flex-col w-3/4 overflow-y-auto"
                                     >
-                                        <ManuscriptMeta meta=info.meta />
+                                        <ManuscriptMeta
+                                            meta=info.meta
+                                            on_name_update=on_name_update
+                                        />
                                         // container for the lower half of the screen
                                         <div class="flex h-0 grow flex-row border-t border-slate-600">
                                             // wrapper around the page upload form - this is show over the
@@ -501,7 +506,6 @@ pub fn MMetaInput(
     }
 }
 
-/// TODO: correctly rename file directory
 #[server]
 async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(), ServerFnError> {
     use critic_server::auth::AuthSession;
@@ -565,17 +569,18 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
             old_title,
             data.title
         );
-        // this is not quite enough - the MS will keep its wrong name in the left-hand
-        // sidebar
-        // But I don't really know how to change that behavior.
-        leptos_axum::redirect(&format!("/admin/manuscripts/{}", data.title));
     };
     Ok(())
 }
 
 /// Show meta-information for an individual manuscript
 #[component]
-fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
+fn ManuscriptMeta(
+    /// the starting meta information
+    meta: critic_shared::ManuscriptMeta,
+    /// Called when the name of this manuscript is updated
+    on_name_update: impl Fn() + Copy + 'static,
+) -> impl IntoView {
     let institution = RwSignal::new(meta.institution.clone());
     let collection = RwSignal::new(meta.collection.clone());
     let hand_desc = RwSignal::new(meta.hand_desc.clone());
@@ -588,6 +593,20 @@ fn ManuscriptMeta(meta: critic_shared::ManuscriptMeta) -> impl IntoView {
     let new_name_save = RwSignal::new(meta.title.clone());
 
     let srvact = ServerAction::<UpdateMsMetadata>::new();
+    // call on_name_update
+    Effect::watch(
+        move || (srvact.pending().get(), srvact.input().get()),
+        move |(pending_right_now, _), last_state, _| {
+            // only when we stopped pending in this tick
+            if !pending_right_now && last_state.is_some_and(|ls| ls.0)
+                // and the name changed with the last input
+                && last_state.is_some_and(|ls| ls.1.as_ref().is_some_and(|input| input.data.title != input.old_title))
+            {
+                on_name_update();
+            };
+        },
+        false,
+    );
 
     view! {
         <div class="p-6 border-2 border-slate-500">

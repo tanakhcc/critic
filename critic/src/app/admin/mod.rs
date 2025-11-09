@@ -54,6 +54,9 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
         use_context::<WriteSignal<TopLevelPosition>>().expect("App provides TopLevelPosition");
     *set_top_level_pos.write() = TopLevelPosition::Admin;
 
+    // when toggled in /admin/manuscripts/<name>, /admin/manuscripts will reload
+    let force_ms_list_refetch = RwSignal::new(false);
+
     view! {
         <ParentRoute
             path=path!("admin")
@@ -62,8 +65,25 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
             }
         >
             <Route path=path!("") view=AdminLanding />
-            <ParentRoute path=path!("manuscripts") view=manuscripts::ManuscriptList>
-                <ParentRoute path=path!(":msname") view=manuscripts::Manuscript>
+            <ParentRoute
+                path=path!("manuscripts")
+                view=move || {
+                    view! {
+                        <manuscripts::ManuscriptList force_refetch=force_ms_list_refetch
+                            .read_only() />
+                    }
+                }
+            >
+                <ParentRoute
+                    path=path!(":msname")
+                    view=move || {
+                        view! {
+                            <manuscripts::Manuscript on_name_update=move || {
+                                force_ms_list_refetch.update(|x| *x ^= true)
+                            } />
+                        }
+                    }
+                >
                     <Route path=path!(":pagename") view=manuscripts::Page />
                     <Route path=path!("") view=manuscripts::PageLanding />
                 </ParentRoute>

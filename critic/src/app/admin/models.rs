@@ -55,11 +55,14 @@ pub fn ModelLanding() -> impl IntoView {
 
 #[component]
 pub fn Segmentation() -> impl IntoView {
-    let model_list = OnceResource::new(async {
-        super::get_models(ModelType::Segmentation)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Unable to get models: {e}")))
-    });
+    let model_list = Resource::new(
+        || false,
+        async move |_| {
+            super::get_models(ModelType::Segmentation)
+                .await
+                .map_err(|e| ServerFnError::new(format!("Unable to get models: {e}")))
+        },
+    );
 
     view! {
         <div id="model-wrapper" class="h-full flex flex-row justify-start">
@@ -68,7 +71,10 @@ pub fn Segmentation() -> impl IntoView {
                 id="model-sidebar-wrapper"
                 class="flex flex-col justify-start w-1/4 overflow-auto border-r-2 border-slate-600"
             >
-                <TransferModel model_type=ModelType::Segmentation />
+                <TransferModel
+                    model_type=ModelType::Segmentation
+                    on_new=move || model_list.refetch()
+                />
                 <ErrorBoundary fallback=|errors| {
                     view! {
                         <div>

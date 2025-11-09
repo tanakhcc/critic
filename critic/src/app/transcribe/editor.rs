@@ -58,8 +58,10 @@ async fn get_initial_ms(
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    // TODO: first get default language from the DB
-    let default_language = initial_seed.meta.lang;
+    let default_language = initial_seed
+        .meta
+        .language
+        .unwrap_or_else(|| "unknown".to_string());
 
     if initial_seed.user_has_started {
         Ok((

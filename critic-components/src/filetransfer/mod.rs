@@ -72,12 +72,19 @@ pub fn TransferPage(msname: String) -> impl IntoView {
 
 /// Transfer (upload) for a new model in the given category
 #[component]
-pub fn TransferModel(model_type: critic_shared::ModelType) -> impl IntoView {
+pub fn TransferModel(
+    model_type: critic_shared::ModelType,
+    on_new: impl Fn() + Copy + 'static,
+) -> impl IntoView {
     let file: RwSignal<Option<SendWrapper<web_sys::File>>> = RwSignal::new(None);
 
     let transfer_action = Action::new_local(move |file: &SendWrapper<File>| {
         let file_to_transfer = file.clone().take();
-        async move { services::transfer_model(file_to_transfer, model_type).await }
+        async move {
+            let res = services::transfer_model(file_to_transfer, model_type).await;
+            on_new();
+            res
+        }
     });
     let transfer_pending = transfer_action.pending();
     let transfer_reply = transfer_action.value();
