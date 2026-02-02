@@ -37,7 +37,8 @@ async fn get_initial_ms(
 ) -> Result<(Vec<Block>, String), ServerFnError> {
     use critic_format::streamed::Block;
     use critic_server::{
-        auth::AuthSession, db::get_editor_initial_value,
+        auth::AuthSession,
+        db::{get_editor_initial_value, get_language_by_id},
         transcription_store::read_transcription_from_disk,
     };
     use leptos_axum::extract;
@@ -58,10 +59,15 @@ async fn get_initial_ms(
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    let default_language = initial_seed
-        .meta
-        .language
-        .unwrap_or_else(|| "unknown".to_string());
+    let default_language = if let Some(lang_id) = initial_seed.meta.language {
+        get_language_by_id(&config.db, lang_id)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .map(|lang_meta| lang_meta.name)
+            .unwrap_or_else(|| "unknown".to_string())
+    } else {
+        "unknown".to_string()
+    };
 
     if initial_seed.user_has_started {
         Ok((

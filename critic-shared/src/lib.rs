@@ -73,7 +73,7 @@ pub struct ManuscriptMeta {
     pub collection: Option<String>,
     pub hand_desc: Option<String>,
     pub script_desc: Option<String>,
-    pub language: Option<String>,
+    pub language: Option<i64>,
 }
 
 /// complete information for a manuscript, including its pages
@@ -93,6 +93,7 @@ pub struct PageMeta {
     pub name: String,
     pub verse_start: Option<i64>,
     pub verse_end: Option<i64>,
+    pub language: Option<i64>,
 }
 
 /// This provides context through the entire app. When ShowHelp(true) is present, some components

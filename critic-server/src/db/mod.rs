@@ -206,11 +206,10 @@ async fn get_manuscript_meta(
         collection,
         hand_desc,
         script_desc,
-        (SELECT name FROM language
-         WHERE id = COALESCE(
+        COALESCE(
             manuscript.language,
             (SELECT language FROM default_language
-             WHERE id = 1))) as language
+             WHERE id = 1)) as language
         FROM manuscript WHERE title = $1;",
         msname
     )
@@ -226,7 +225,12 @@ async fn get_manuscript_page_rows(
 ) -> Result<Vec<PageMeta>, DBError> {
     sqlx::query_as!(
         PageMeta,
-        "SELECT page.id, manuscript.id as manuscript_id, page.name, page.verse_start, page.verse_end
+        "SELECT page.id, manuscript.id as manuscript_id, page.name, page.verse_start, page.verse_end,
+            COALESCE(
+                page.language,
+                manuscript.language,
+                (SELECT language FROM default_language
+                 WHERE id = 1)) as language
             FROM manuscript
             INNER JOIN page on page.manuscript = manuscript.id
             WHERE manuscript.id = $1
@@ -350,6 +354,7 @@ struct _PageMetaWithMsName {
     name: String,
     verse_start: Option<i64>,
     verse_end: Option<i64>,
+    language: Option<i64>,
 }
 impl From<_PageMetaWithMsName> for (String, PageMeta) {
     fn from(value: _PageMetaWithMsName) -> Self {
@@ -361,6 +366,7 @@ impl From<_PageMetaWithMsName> for (String, PageMeta) {
                 name: value.name,
                 verse_start: value.verse_start,
                 verse_end: value.verse_end,
+                language: value.language,
             },
         )
     }
@@ -373,19 +379,33 @@ pub async fn get_page_to_minify(
     pool: &Pool<Postgres>,
     how_many: u8,
 ) -> Result<Vec<(String, PageMeta)>, DBError> {
-    Ok(sqlx::query_as!(_PageMetaWithMsName,
-        "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end
+    Ok(sqlx::query_as!(
+        _PageMetaWithMsName,
+        "SELECT
+            manuscript.title as manuscript_name,
+            page.id,
+            manuscript as manuscript_id,
+            name,
+            verse_start,
+            verse_end,
+            COALESCE(
+                 manuscript.language,
+                 page.language,
+                 (SELECT language FROM default_language
+                  WHERE id = 1))
+             as language
          FROM page
          INNER JOIN manuscript on page.manuscript = manuscript.id
          WHERE minified = false AND minification_failed = false
          LIMIT $1;",
-         how_many as i32)
-        .fetch_all(pool)
-        .await
-        .map_err(DBError::CannotGetMinificationCandidate)?
-        .into_iter()
-        .map(|p_with_msname| p_with_msname.into()).collect()
+        how_many as i32
     )
+    .fetch_all(pool)
+    .await
+    .map_err(DBError::CannotGetMinificationCandidate)?
+    .into_iter()
+    .map(|p_with_msname| p_with_msname.into())
+    .collect())
 }
 
 pub async fn mark_page_minifcation_failed(
@@ -419,12 +439,13 @@ pub async fn mark_page_minified(pool: &Pool<Postgres>, page_id: i64) -> Result<(
 
 pub async fn update_ms_meta(pool: &Pool<Postgres>, data: &ManuscriptMeta) -> Result<(), DBError> {
     sqlx::query!(
-            "UPDATE manuscript SET title = $1, institution = $2, collection = $3, hand_desc = $4, script_desc = $5 WHERE id = $6;",
+            "UPDATE manuscript SET title = $1, institution = $2, collection = $3, hand_desc = $4, script_desc = $5, language = $6 WHERE id = $7;",
             data.title,
             data.institution,
             data.collection,
             data.hand_desc,
             data.script_desc,
+            data.language,
             data.id,
         )
         .execute(pool)
@@ -658,7 +679,7 @@ struct _EditorIVSeed {
     collection: Option<String>,
     hand_desc: Option<String>,
     script_desc: Option<String>,
-    default_language: Option<String>,
+    default_language: Option<i64>,
     verse_start: Option<i64>,
     verse_end: Option<i64>,
     transcriptions_by_this_user: Option<i64>,
@@ -679,12 +700,11 @@ pub async fn get_editor_initial_value(
             manuscript.collection,
             manuscript.hand_desc,
             manuscript.script_desc,
-            (SELECT name FROM language
-             WHERE id = COALESCE(
+            COALESCE(
                  manuscript.language,
                  page.language,
                  (SELECT language FROM default_language
-                  WHERE id = 1)))
+                  WHERE id = 1))
              as default_language,
             page.verse_start,
             page.verse_end,
@@ -975,6 +995,24 @@ pub async fn get_language_by_name(
 ) -> Result<Option<LanguageMetadata>, DBError> {
     Ok(
         sqlx::query!("SELECT * FROM language WHERE name = $1", language)
+            .fetch_optional(pool)
+            .await
+            .map_err(DBError::CannotGetLanguage)?
+            .map(|row| LanguageMetadata {
+                id: row.id,
+                name: row.name,
+                segmentation_model_id: row.segmentation_model,
+                recognition_model_id: row.recognition_model,
+            }),
+    )
+}
+
+pub async fn get_language_by_id(
+    pool: &Pool<Postgres>,
+    language_id: i64,
+) -> Result<Option<LanguageMetadata>, DBError> {
+    Ok(
+        sqlx::query!("SELECT * FROM language WHERE id = $1", language_id)
             .fetch_optional(pool)
             .await
             .map_err(DBError::CannotGetLanguage)?

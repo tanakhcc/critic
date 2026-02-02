@@ -4,7 +4,7 @@
 // /admin/languages
 //      /:language
 
-use critic_components::DEFAULT_BUTTON_CLASSES;
+use critic_components::{language_dropdown::LanguageDropDown, DEFAULT_BUTTON_CLASSES};
 use critic_shared::LanguageMetadata;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::app::shared::LanguageParams;
 
 #[server]
-async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerFnError> {
+pub async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     critic_server::db::get_languages(&config.db)
@@ -63,32 +63,11 @@ pub fn DefaultLanguagePicker(
             <ActionForm action=srvact>
                 <div class="flex justify-center">
                     <div class="max-w-[800px]">
-                        <div class="flex justify-center">
-                            <select
-                                id="language_id"
-                                name="language_id"
-                                class="rounded-md border border-slate-500 text-xl bg-slate-900"
-                                // when no language is chosen (None), we want to write
-                                // the empty string into the value here
-                                prop:value=move || {
-                                    selected_language
-                                        .get()
-                                        .map(|m| format!("{m}"))
-                                        .unwrap_or_default()
-                                }
-                                on:change:target=move |evt| {
-                                    selected_language.set(evt.target().value().parse::<i64>().ok());
-                                }
-                            >
-                                <option value="">No default Language</option>
-                                {language_list
-                                    .into_iter()
-                                    .map(|language| {
-                                        view! { <option value=language.id>{language.name}</option> }
-                                    })
-                                    .collect_view()}
-                            </select>
-                        </div>
+                        <LanguageDropDown
+                            name="language_id"
+                            language_list=language_list
+                            selected_language=selected_language
+                        />
                         <div class="flex justify-around mt-6">
                             <button
                                 class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
@@ -277,7 +256,6 @@ pub fn LanguageList() -> impl IntoView {
                             Suspend::new(async move {
                                 let default_lang_res = default_language.await;
                                 let lang_list_res = language_list.await;
-                                leptos::logging::log!("default language: {default_lang_res:?}");
                                 default_lang_res
                                     .map(|default_lang| {
                                         lang_list_res

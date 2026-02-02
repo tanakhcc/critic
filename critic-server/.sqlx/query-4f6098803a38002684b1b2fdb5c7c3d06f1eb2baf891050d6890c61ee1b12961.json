@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT manuscript.title as manuscript_name, page.id, manuscript as manuscript_id, name, verse_start, verse_end\n         FROM page\n         INNER JOIN manuscript on page.manuscript = manuscript.id\n         WHERE minified = false AND minification_failed = false\n         LIMIT $1;",
+  "query": "SELECT\n            manuscript.title as manuscript_name,\n            page.id,\n            manuscript as manuscript_id,\n            name,\n            verse_start,\n            verse_end,\n            (SELECT COALESCE(\n                 manuscript.language,\n                 page.language,\n                 (SELECT language FROM default_language\n                  WHERE id = 1)))\n             as language\n         FROM page\n         INNER JOIN manuscript on page.manuscript = manuscript.id\n         WHERE minified = false AND minification_failed = false\n         LIMIT $1;",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "ordinal": 5,
         "name": "verse_end",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "language",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -45,8 +50,9 @@
       false,
       false,
       true,
-      true
+      true,
+      null
     ]
   },
-  "hash": "0afe656cba1ac0f6eeee1a83410927fd80461b3c750bacc0a68ff11f352a717d"
+  "hash": "4f6098803a38002684b1b2fdb5c7c3d06f1eb2baf891050d6890c61ee1b12961"
 }

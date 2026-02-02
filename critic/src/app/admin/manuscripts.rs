@@ -8,14 +8,16 @@
 // @msq=search-term-to-find-ms
 
 use critic_components::filetransfer::TransferPage;
+use critic_components::language_dropdown::LanguageDropDown;
 use critic_components::{DEFAULT_BUTTON_CLASSES, TEXTAREA_DEFAULT_COLS, TEXTAREA_DEFAULT_ROWS};
 use critic_shared::urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL};
-use critic_shared::{ManuscriptMeta, PREVIEW_IMAGE_WIDTH};
+use critic_shared::{LanguageMetadata, ManuscriptMeta, PREVIEW_IMAGE_WIDTH};
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::{query_signal, use_params};
 
+use crate::app::admin::languages::get_languages;
 use crate::app::shared::{MsParams, PageParams};
 use crate::app::EmptyError;
 
@@ -313,6 +315,7 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl Int
             ))
         }
     });
+    let language_list = Resource::new(move || false, |_| get_languages());
 
     view! {
         <Transition fallback=|| {
@@ -333,10 +336,20 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl Int
                                         id="Manuscript-wrapper"
                                         class="h-full flex flex-col w-3/4 overflow-y-auto"
                                     >
-                                        <ManuscriptMeta
-                                            meta=info.meta
-                                            on_name_update=on_name_update
-                                        />
+                                        {language_list
+                                            .get()
+                                            .map(|lang_list_res| {
+                                                lang_list_res
+                                                    .map(|lang_list| {
+                                                        view! {
+                                                            <ManuscriptMeta
+                                                                meta=info.meta
+                                                                on_name_update=on_name_update
+                                                                language_list=lang_list
+                                                            />
+                                                        }
+                                                    })
+                                            })}
                                         // container for the lower half of the screen
                                         <div class="flex h-0 grow flex-row border-t border-slate-600">
                                             // wrapper around the page upload form - this is show over the
@@ -451,9 +464,14 @@ pub fn MMetaTextArea(
     signal: RwSignal<Option<String>>,
     /// rendered inside the label
     children: Children,
+    #[prop(optional)] saved: Option<RwSignal<Option<String>>>,
 ) -> impl IntoView {
+    let changed = move || saved.is_some_and(|s| s.get() != signal.get());
     view! {
-        <div class="grid grid-cols-2 border border-b-0 border-slate-500 p-2">
+        <div
+            class="grid grid-cols-2 border border-b-0 border-slate-500 p-2"
+            class=(["text-orange-400"], changed)
+        >
             <label for=name>{children()}</label>
             <textarea
                 id=name
@@ -473,6 +491,40 @@ pub fn MMetaTextArea(
     }
 }
 
+/// Manuscript Meta Language Picker - keeps track of the selected language
+#[component]
+pub fn MetaLanguagePicker(
+    /// the name of this input field
+    name: &'static str,
+    /// this signal is updated when the input changes
+    signal: RwSignal<Option<i64>>,
+    /// rendered inside the label
+    children: Children,
+    /// The list of languages that exist
+    language_list: impl IntoIterator<Item = LanguageMetadata> + Send + 'static,
+    #[prop(optional)] extra_class: Option<&'static str>,
+    #[prop(optional)] saved: Option<RwSignal<Option<i64>>>,
+) -> impl IntoView {
+    let changed = move || saved.is_some_and(|s| s.get() != signal.get());
+    view! {
+        <div
+            class=format!(
+                "grid grid-cols-2 border border-b-0 border-slate-500 p-2 {}",
+                extra_class.unwrap_or_default(),
+            )
+            class=(["text-orange-400"], changed)
+        >
+            <label for=name>{children()}</label>
+            <LanguageDropDown
+                name=name
+                selected_language=signal
+                language_list=language_list
+                default_string="No Primary Language"
+            />
+        </div>
+    }
+}
+
 /// Manuscript Meta Text Area - keeps track of a textarea field in `signal`
 #[component]
 pub fn MMetaInput(
@@ -483,12 +535,17 @@ pub fn MMetaInput(
     /// rendered inside the label
     children: Children,
     #[prop(optional)] extra_class: Option<&'static str>,
+    #[prop(optional)] saved: Option<RwSignal<Option<String>>>,
 ) -> impl IntoView {
+    let changed = move || saved.is_some_and(|s| s.get() != signal.get());
     view! {
-        <div class=format!(
-            "grid grid-cols-2 border border-b-0 border-slate-500 p-2 {}",
-            extra_class.unwrap_or_default(),
-        )>
+        <div
+            class=format!(
+                "grid grid-cols-2 border border-b-0 border-slate-500 p-2 {}",
+                extra_class.unwrap_or_default(),
+            )
+            class=(["text-orange-400"], changed)
+        >
             <label for=name>{children()}</label>
             <input
                 id=name
@@ -580,17 +637,22 @@ fn ManuscriptMeta(
     meta: critic_shared::ManuscriptMeta,
     /// Called when the name of this manuscript is updated
     on_name_update: impl Fn() + Copy + 'static,
+    /// List of all available languages
+    language_list: impl IntoIterator<Item = LanguageMetadata> + Send + 'static,
 ) -> impl IntoView {
     let institution = RwSignal::new(meta.institution.clone());
     let collection = RwSignal::new(meta.collection.clone());
     let hand_desc = RwSignal::new(meta.hand_desc.clone());
     let script_desc = RwSignal::new(meta.script_desc.clone());
     let new_name = RwSignal::new(meta.title.clone());
+    let language = RwSignal::new(meta.language.clone());
+
     let institution_save = RwSignal::new(meta.institution);
     let collection_save = RwSignal::new(meta.collection);
     let hand_desc_save = RwSignal::new(meta.hand_desc);
     let script_desc_save = RwSignal::new(meta.script_desc);
     let new_name_save = RwSignal::new(meta.title.clone());
+    let language_save = RwSignal::new(meta.language.clone());
 
     let srvact = ServerAction::<UpdateMsMetadata>::new();
     // call on_name_update
@@ -621,17 +683,30 @@ fn ManuscriptMeta(
                     <MMetaInput
                         name="data[institution]"
                         signal=institution
+                        saved=institution_save
                         extra_class="rounded-t-lg"
                     >
                         Holding institution:
                     </MMetaInput>
-                    <MMetaInput name="data[collection]" signal=collection>
+                    <MetaLanguagePicker
+                        name="data[language]"
+                        signal=language
+                        saved=language_save
+                        language_list=language_list
+                    >
+                        Primary Language:
+                    </MetaLanguagePicker>
+                    <MMetaInput name="data[collection]" signal=collection saved=collection_save>
                         Collection:
                     </MMetaInput>
-                    <MMetaTextArea name="data[hand_desc]" signal=hand_desc>
+                    <MMetaTextArea name="data[hand_desc]" signal=hand_desc saved=hand_desc_save>
                         Scribal hands in use:
                     </MMetaTextArea>
-                    <MMetaTextArea name="data[script_desc]" signal=script_desc>
+                    <MMetaTextArea
+                        name="data[script_desc]"
+                        signal=script_desc
+                        saved=script_desc_save
+                    >
                         Scripts in use:
                     </MMetaTextArea>
                     <details class="col-span-2 border border-slate-500 rounded-b-lg p-2">
@@ -668,6 +743,7 @@ fn ManuscriptMeta(
                                 *hand_desc.write() = hand_desc_save.get();
                                 *script_desc.write() = script_desc_save.get();
                                 *new_name.write() = new_name_save.get();
+                                *language.write() = language_save.get();
                             }
                         >
                             "Cancel"
@@ -680,10 +756,11 @@ fn ManuscriptMeta(
                             // would be overwritten here
                             on:click=move |_| {
                                 *institution_save.write() = institution.get();
-                                *collection_save.write() = collection_save.get();
+                                *collection_save.write() = collection.get();
                                 *hand_desc_save.write() = hand_desc.get();
                                 *script_desc_save.write() = script_desc.get();
-                                *new_name_save.write() = new_name_save.get();
+                                *new_name_save.write() = new_name.get();
+                                *language_save.write() = language.get();
                             }
                         >
                             Save changes
@@ -692,6 +769,93 @@ fn ManuscriptMeta(
                 </div>
             </ActionForm>
         </div>
+    }
+}
+
+#[component]
+pub fn PageMeta(
+    /// the starting meta information
+    meta: critic_shared::PageMeta,
+    /// Called when the name of this page is updated
+    on_name_update: impl Fn() + Copy + 'static,
+) -> impl IntoView {
+    let new_name = RwSignal::new(meta.name.clone());
+    let new_name_save = RwSignal::new(meta.name.clone());
+    let language = RwSignal::new(meta.language.clone());
+    let language_save = RwSignal::new(meta.language.clone());
+
+    let srvact = ServerAction::<UpdateMsMetadata>::new();
+    // call on_name_update
+    Effect::watch(
+        move || (srvact.pending().get(), srvact.input().get()),
+        move |(pending_right_now, _), last_state, _| {
+            // only when we stopped pending in this tick
+            if !pending_right_now && last_state.is_some_and(|ls| ls.0)
+                // and the name changed with the last input
+                && last_state.is_some_and(|ls| ls.1.as_ref().is_some_and(|input| input.data.title != input.old_title))
+            {
+                on_name_update();
+            };
+        },
+        false,
+    );
+
+    view! {
+        <ActionForm action=srvact>
+            <div class="flex justify-around flex-col">
+                <input type="hidden" name="data[id]" value=meta.id />
+                <input type="hidden" name="old_name" value=meta.name />
+                <details class="col-span-2 border border-slate-500 rounded-b-lg p-2">
+                    <summary>Rename this page</summary>
+                    <div class="border border-slate-500 bg-red-700/40 mb-2">
+                        <div class="p-4 pt-2 pb-2">
+                            <p>
+                                "Warning! Renaming a page will change its permalinks. Other users may find their links to this page breaking. Ideally, you only want to rename pages right after creating them."
+                            </p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2">
+                        <label for="data[title]">New name</label>
+                        <input
+                            id="data[title]"
+                            name="data[title]"
+                            class="border border-slate-500 rounded-md"
+                            prop:value=move || new_name.get()
+                            autocomplete="false"
+                            spellcheck="false"
+                            on:change:target=move |ev| {
+                                *new_name.write() = ev.target().value();
+                            }
+                        />
+                    </div>
+                </details>
+                <div class="flex justify-around mt-6">
+                    <button
+                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                        type="button"
+                        on:click=move |_| {
+                            *language.write() = language_save.get();
+                            *new_name.write() = new_name_save.get();
+                        }
+                    >
+                        "Cancel"
+                    </button>
+                    <button
+                        type="submit"
+                        class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
+                        // if the users saves an edit and does not reload the page, edits again
+                        // and the clicks cancel, the last state already saved to the server
+                        // would be overwritten here
+                        on:click=move |_| {
+                            *language_save.write() = language.get();
+                            *new_name_save.write() = new_name_save.get();
+                        }
+                    >
+                        Save changes
+                    </button>
+                </div>
+            </div>
+        </ActionForm>
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n        id,\n        title,\n        institution,\n        collection,\n        hand_desc,\n        script_desc,\n        (SELECT name FROM language\n         WHERE id = COALESCE(\n            manuscript.language,\n            (SELECT language FROM default_language\n             WHERE id = 1))) as language\n        FROM manuscript WHERE title = $1;",
+  "query": "SELECT\n        id,\n        title,\n        institution,\n        collection,\n        hand_desc,\n        script_desc,\n        (SELECT COALESCE(\n            manuscript.language,\n            (SELECT language FROM default_language\n             WHERE id = 1))) as language\n        FROM manuscript WHERE title = $1;",
   "describe": {
     "columns": [
       {
@@ -36,7 +36,7 @@
       {
         "ordinal": 6,
         "name": "language",
-        "type_info": "Text"
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -54,5 +54,5 @@
       null
     ]
   },
-  "hash": "a7b944268eaed6f76d35febdb7dddb568aee3dca6e059f90ade03e6eb7fb5828"
+  "hash": "806e7bd4d82c58fcd5248b21188b528030266d45f0f6e467a0e3eadf10b39d51"
 }

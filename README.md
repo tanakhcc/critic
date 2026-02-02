@@ -21,13 +21,19 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODO random small features
 ## Allow deletion of MSs, Pages, Languages, Models with a very loud warning message that that will delete human work
+## Nicer optics for the admin panel
+## Help overlays for
+### Models
+### Languages
 
 # TODOs - Redesign for visual Transcription Editor
 
 ## Admin-panel for languages
-### allow selecting language per MS and per page
+### allow selecting language per page, like for MSS
+- this is an easy self contained task
 
 ## segmentation and recognition via kraken
+- this is a self contained task, but a little more involved
 ### own subcrate for this
 ### uses pyo3 to call into kraken and pass from/to rust
 ### step 1 - segmentation
@@ -35,10 +41,10 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### step 2 - recognition
 - pass image path and baselines from rust, get recognized text from python
 ## Automatic segmentation in the background
-- set flag on new pages
+- set flag on new pages (in db)
 - run segmentation model against them with worker threads
 - When languages (models) for a MS are changed:
-    - create a new layer and run models with output in that layer
+    - rerun and override OCR texts only by manually pressing a button in the admin panel
 
 ## redo image editor
 ### remove layout layer
@@ -66,13 +72,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## Automatically (OCR) find out which part of the base text belongs to which line
 If this does not work well, this entire approach will not work
 
-## Image viewer with zoom in/out and scrolling
-
-## Layout Editor
-
-## What do we do with marginalia
-They are not on lines - how do we handle this? I think we just don't layout them and still have them be manual blocks in the editor
-
 ## Visual Transcription Editor
 ### Can we add position information to TEI
 Instead of div/div/div for page/col/line, we would use
@@ -83,23 +82,14 @@ Alle haben `@n`, `@lang` und `@id` (sollte eh von n auf id umsteigen) und `@{coo
 Wir können `<graphic>` nutzen, um das richtige Bild zu verlinken.
 Wir könnten sogar `@type` nutzen, um marginalia (Masorah, ...) speziell zu markieren (type="marginalia", normale Blöcke sind type="column")
 
-## Visual Reconciliation Editor
-
 # TODOs - next
 ## correctly do grapheme clustering - lacuna size calculation does not work for hebrew
-
 ## Add Button for anchor
-
 ## Reuse SVGs instead of pushing them one-by-one
-
 ## set rtl based on language
-
 ## website redesign einarbeiten
-
 ## Should render XMl nicely for the XML editor start value
-
 ## Allow changing MS language in admin interface
-
 ## Overview of required transcriptions
 - should contain a direct link to the image
 

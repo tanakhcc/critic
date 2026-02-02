@@ -4,6 +4,7 @@ pub mod accordion;
 pub mod editor;
 pub mod filetransfer;
 pub mod icons;
+pub mod language_dropdown;
 pub mod link_card;
 pub mod xmleditor;
 
