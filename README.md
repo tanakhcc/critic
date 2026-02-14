@@ -28,10 +28,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - Redesign for visual Transcription Editor
 
-## Admin-panel for languages
-### allow selecting language per page, like for MSS
-- this is an easy self contained task
-
 ## segmentation and recognition via kraken
 - this is a self contained task, but a little more involved
 ### own subcrate for this

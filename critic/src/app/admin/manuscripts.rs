@@ -1018,7 +1018,7 @@ pub fn Page() -> impl IntoView {
                                                     language_saved.set(selected_language.get_untracked());
                                                 }
                                             >
-                                                Set
+                                                Set Language for this Manuscript
                                             </button>
                                         </div>
                                     </ActionForm>
