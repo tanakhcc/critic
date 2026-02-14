@@ -46,6 +46,7 @@ pub enum DBError {
     CannotGetPage(sqlx::Error),
     PageAlreadyExists,
     CannotUpdateManuscript(sqlx::Error),
+    CannotUpdatePage(sqlx::Error),
     CannotGetPagesByQuery(sqlx::Error),
     CannotGetEditorInitialValue(sqlx::Error),
     CannotInsertTranscription(sqlx::Error),
@@ -111,6 +112,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateManuscript(e) => {
                 write!(f, "Unable to update manuscript metadata: {e}")
+            }
+            Self::CannotUpdatePage(e) => {
+                write!(f, "Unable to update page metadata: {e}")
             }
             Self::CannotGetPagesByQuery(e) => {
                 write!(f, "Unable to get pages from query: {e}")
@@ -1082,4 +1086,31 @@ pub async fn get_default_language(
     .fetch_optional(pool)
     .await
     .map_err(DBError::CannotGetDefaultLanguage)
+}
+
+/// Set the language for a page
+pub async fn update_page_language(
+    pool: &Pool<Postgres>,
+    language_id: Option<i64>,
+    ms_name: &str,
+    page_name: &str,
+) -> Result<(), DBError> {
+    sqlx::query!("UPDATE page SET language = $1 FROM manuscript WHERE page.manuscript = manuscript.id AND manuscript.title = $2 AND page.name = $3;", language_id, ms_name, page_name)
+        .execute(pool)
+        .await
+        .map(|_| ())
+        .map_err(DBError::CannotUpdatePage)
+}
+
+/// Get the language for a page
+pub async fn get_page_language(
+    pool: &Pool<Postgres>,
+    ms_name: &str,
+    page_name: &str,
+) -> Result<Option<i64>, DBError> {
+    sqlx::query!("SELECT page.language FROM page INNER JOIN manuscript ON manuscript.id = page.manuscript WHERE manuscript.title = $1 AND page.name = $2;", ms_name, page_name)
+        .fetch_one(pool)
+        .await
+        .map(|row| row.language)
+        .map_err(DBError::CannotGetLanguage)
 }

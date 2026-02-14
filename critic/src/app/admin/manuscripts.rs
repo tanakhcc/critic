@@ -171,26 +171,32 @@ pub fn ManuscriptList(force_refetch: ReadSignal<bool>) -> impl IntoView {
                     />
                 </div>
 
-                <ErrorBoundary fallback=|errors| {
-                    view! {
-                        <div>
-                            "Error: failed to get manuscripts"
-                            <ul>
-                                {move || {
-                                    errors
-                                        .get()
-                                        .into_iter()
-                                        .map(|(_, e)| view! { <li>{e.to_string()}</li> })
-                                        .collect::<Vec<_>>()
-                                }}
-                            </ul>
-                        </div>
-                    }
-                }>
-                    <Transition fallback=|| view! { <p>"Loading manuscripts..."</p> }>
-                        // list of manuscripts
-                        <div id="ms-list-wrapper" class="flex flex-col justify-start h-0 grow">
-                            <ul>
+                // list of manuscripts
+                <div id="ms-list-wrapper" class="flex flex-col justify-start h-0 grow">
+                    <ul>
+                        <Transition fallback=|| {
+                            view! {
+                                <p id="ms-list-wrapper-transition-fallback">
+                                    "Loading manuscripts..."
+                                </p>
+                            }
+                        }>
+                            <ErrorBoundary fallback=|errors| {
+                                view! {
+                                    <div>
+                                        "Error: failed to get manuscripts"
+                                        <ul>
+                                            {move || {
+                                                errors
+                                                    .get()
+                                                    .into_iter()
+                                                    .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                                    .collect::<Vec<_>>()
+                                            }}
+                                        </ul>
+                                    </div>
+                                }
+                            }>
                                 {move || {
                                     manuscript_list
                                         .get()
@@ -264,10 +270,10 @@ pub fn ManuscriptList(force_refetch: ReadSignal<bool>) -> impl IntoView {
                                                 })
                                         })
                                 }}
-                            </ul>
-                        </div>
-                    </Transition>
-                </ErrorBoundary>
+                            </ErrorBoundary>
+                        </Transition>
+                    </ul>
+                </div>
             </div>
 
             // the information on the selected manuscript
@@ -297,7 +303,7 @@ pub async fn get_manuscript_by_name(
 
 /// Show the content for an individual manuscript
 #[component]
-pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl IntoView {
+pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + Sync + 'static) -> impl IntoView {
     let params = use_params::<MsParams>();
     let page_params = use_params::<PageParams>();
 
@@ -316,87 +322,117 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl Int
         }
     });
     let language_list = Resource::new(move || false, |_| get_languages());
+    let show_page_upload = RwSignal::new(false);
 
     view! {
-        <Transition fallback=|| {
-            view! { "Loading manuscript information..." }
+        <ErrorBoundary fallback=|errors| {
+            view! {
+                <div>
+                    "Error: failed to get manuscript information:"
+                    <ul>
+                        {move || {
+                            errors
+                                .get()
+                                .into_iter()
+                                .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                .collect::<Vec<_>>()
+                        }}
+                    </ul>
+                </div>
+            }
         }>
-            {move || {
-                manuscript_info
-                    .get()
-                    .map(|info_res| match info_res {
-                        Err(e) => Either::Left(view! { <div>{e.to_string()}</div> }),
-                        Ok(info) => {
-                            let show_page_upload = RwSignal::new(false);
-                            let msname = info.meta.title.clone();
-                            let ms_name = msname.clone();
-                            Either::Right(
-                                view! {
-                                    <div
-                                        id="Manuscript-wrapper"
-                                        class="h-full flex flex-col w-3/4 overflow-y-auto"
+            <div id="Manuscript-wrapper" class="h-full flex flex-col w-3/4 overflow-y-auto">
+                <Transition fallback=|| {
+                    view! { <p>"Loading Manuscript information..."</p> }
+                }>
+                    {move || Suspend::new(async move {
+                        let lang_list_res = language_list.await;
+                        match lang_list_res {
+                            Ok(lang_list) => {
+                                let info_res = manuscript_info.await;
+                                match info_res {
+                                    Ok(info) => {
+                                        view! {
+                                            <ManuscriptMeta
+                                                meta=info.meta
+                                                on_name_update=on_name_update
+                                                language_list=lang_list
+                                            />
+                                        }
+                                            .into_any()
+                                    }
+                                    Err(e) => {
+                                        view! {
+                                            <p>
+                                                "Error: failed to get manuscript info:"{e.to_string()}
+                                            </p>
+                                        }
+                                            .into_any()
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                view! { <p>"Error: failed to get languages:"{e.to_string()}</p> }
+                                    .into_any()
+                            }
+                        }
+                    })}
+                </Transition>
+                // container for the lower half of the screen
+                <div class="flex h-0 grow flex-row border-t border-slate-600">
+                    // wrapper around the page upload form - this is show over the
+                    // entire page-list and page info part of the page
+                    <Show when=move || show_page_upload.get() fallback=|| {}>
+                        <div class="z-20 absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
+                            <div class="relative inset-1/12 w-10/12">
+                                <div class="bg-slate-500 rounded-lg">
+                                    <TransferPage msname=msname().unwrap_or_default().clone() />
+                                </div>
+                                <div class="flex justify-around">
+                                    <button
+                                        class="text-slate-50 bg-slate-700 hover:bg-slate-800 rounded-lg text-center p-3 mt-1"
+                                        on:click=move |_| {
+                                            show_page_upload.update(|x| *x = false);
+                                            manuscript_info.refetch();
+                                        }
                                     >
-                                        {language_list
+                                        Done
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </Show>
+                    <div
+                        id="manuscript-pageinfo-wrapper"
+                        class="flex justify-start min-h-96 max-h-full"
+                    >
+                        // container for the left half of the lower half
+                        <div
+                            id="manuscript-pagelist-wrapper"
+                            class="flex h-full w-44 flex-col justify-start border-r-2 border-slate-600"
+                        >
+                            <div class="flex justify-center">
+                                <button
+                                    class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 shadow-sm shadow-sky-600 hover:bg-slate-500"
+                                    on:click=move |_| {
+                                        show_page_upload.update(|x| *x ^= true);
+                                    }
+                                >
+                                    "Add Pages"
+                                </button>
+                            </div>
+                            // List of the different pages
+                            <ul class="h-0 grow overflow-y-auto no-scrollbar">
+                                <Transition fallback=|| {
+                                    view! { <p>"Loading Manuscript information..."</p> }
+                                }>
+                                    {move || {
+                                        manuscript_info
                                             .get()
-                                            .map(|lang_list_res| {
-                                                lang_list_res
-                                                    .map(|lang_list| {
-                                                        view! {
-                                                            <ManuscriptMeta
-                                                                meta=info.meta
-                                                                on_name_update=on_name_update
-                                                                language_list=lang_list
-                                                            />
-                                                        }
-                                                    })
-                                            })}
-                                        // container for the lower half of the screen
-                                        <div class="flex h-0 grow flex-row border-t border-slate-600">
-                                            // wrapper around the page upload form - this is show over the
-                                            // entire page-list and page info part of the page
-                                            <Show when=move || show_page_upload.get() fallback=|| {}>
-                                                <div class="z-20 absolute inset-0 bg-stone-100/60 backdrop-blur-[4px]">
-                                                    <div class="relative inset-1/12 w-10/12">
-                                                        <div class="bg-slate-500 rounded-lg">
-                                                            <TransferPage msname=ms_name.clone() />
-                                                        </div>
-                                                        <div class="flex justify-around">
-                                                            <button
-                                                                class="text-slate-50 bg-slate-700 hover:bg-slate-800 rounded-lg text-center p-3 mt-1"
-                                                                on:click=move |_| {
-                                                                    show_page_upload.update(|x| *x = false);
-                                                                    manuscript_info.refetch();
-                                                                }
-                                                            >
-                                                                Done
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </Show>
-                                            <div
-                                                id="manuscript-pageinfo-wrapper"
-                                                class="flex justify-start min-h-96 max-h-full"
-                                            >
-                                                // container for the left half of the lower half
-                                                <div
-                                                    id="manuscript-pagelist-wrapper"
-                                                    class="flex h-full w-44 flex-col justify-start border-r-2 border-slate-600"
-                                                >
-                                                    <div class="flex justify-center">
-                                                        <button
-                                                            class="text-md m-2 rounded-2xl bg-slate-600 p-2 text-center font-bold text-slate-50 shadow-sm shadow-sky-600 hover:bg-slate-500"
-                                                            on:click=move |_| {
-                                                                show_page_upload.update(|x| *x ^= true);
-                                                            }
-                                                        >
-                                                            "Add Pages"
-                                                        </button>
-                                                    </div>
-                                                    // list over all pages
-                                                    <ul class="h-0 grow overflow-y-auto no-scrollbar">
-                                                        {info
-                                                            .pages
+                                            .map(|info_res| {
+                                                info_res
+                                                    .map(|info| {
+                                                        info.pages
                                                             .into_iter()
                                                             .map(|page| {
                                                                 let page_name = page.name.clone();
@@ -414,8 +450,9 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl Int
                                                                             class=(["shadow-slate-300", "text-sky-300"], is_selected())
                                                                             class=(["shadow-sky-600"], !is_selected())
                                                                             href=format!(
-                                                                                "/admin/manuscripts/{msname}/{}",
-                                                                                page.name.clone(),
+                                                                                "/admin/manuscripts/{}/{}",
+                                                                                info.meta.title,
+                                                                                page.name,
                                                                             )
                                                                         >
                                                                             {page.name.clone()}
@@ -437,21 +474,21 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + 'static) -> impl Int
                                                                     </li>
                                                                 }
                                                             })
-                                                            .collect_view()}
-                                                    </ul>
-                                                </div>
+                                                            .collect_view()
+                                                    })
+                                            })
+                                    }}
+                                </Transition>
+                            </ul>
+                        </div>
 
-                                            </div>
-                                            // the buttons and preview for the selected page if any
-                                            <Outlet />
-                                        </div>
-                                    </div>
-                                },
-                            )
-                        }
-                    })
-            }}
-        </Transition>
+                    </div>
+                    // the buttons and preview for the selected page if any
+                    <Outlet />
+                </div>
+
+            </div>
+        </ErrorBoundary>
     }
 }
 
@@ -859,11 +896,43 @@ pub fn PageMeta(
     }
 }
 
+/// Update the language set for a page on the server
+#[server]
+async fn update_page_language(
+    language_id: Option<i64>,
+    ms_name: String,
+    page_name: String,
+) -> Result<(), ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    // after adding the new language, redirect to its own page
+    critic_server::db::update_page_language(&config.db, language_id, &ms_name, &page_name)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
+#[server]
+pub async fn get_page_language(
+    ms_name: String,
+    page_name: String,
+) -> Result<Option<i64>, ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_server::db::get_page_language(&config.db, &ms_name, &page_name)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
+}
+
 /// show information for a complete page
+///
+/// TODO: this creates a hydration error when reloading while this outlet is shown
 #[component]
 pub fn Page() -> impl IntoView {
     let ms_params = use_params::<MsParams>();
     let page_params = use_params::<PageParams>();
+    let save_language = ServerAction::<UpdatePageLanguage>::new();
+    let language_list = Resource::new(|| (), |()| get_languages());
 
     view! {
         <ErrorBoundary fallback=|_errors| {
@@ -877,6 +946,29 @@ pub fn Page() -> impl IntoView {
                     let image_base = format!(
                         "{STATIC_BASE_URL}{IMAGE_BASE_LOCATION}/{msname}/{pagename}",
                     );
+                    let selected_language = RwSignal::new(None::<i64>);
+                    let language_saved = RwSignal::new(None::<i64>);
+                    let msname_c = msname.clone();
+                    let pagename_c = pagename.clone();
+                    let set_initial_selected_lang = Action::new(move |()| {
+                        let msname_c2 = msname_c.clone();
+                        let pagename_c2 = pagename_c.clone();
+                        async move {
+                            let page_language = get_page_language(msname_c2, pagename_c2)
+                                .await
+                                .unwrap_or_default();
+                            selected_language.set(page_language);
+                            language_saved.set(page_language);
+                        }
+                    });
+                    set_initial_selected_lang.dispatch(());
+                    let language_changed = move || {
+                        language_saved
+                            .get()
+                            .is_some_and(|s| s != selected_language.get().unwrap_or_default())
+                    };
+                    let msname_c = msname.clone();
+                    let pagename_c = pagename.clone();
                     Ok(
                         view! {
                             <div class="flex w-0 flex-col grow justify-start">
@@ -884,13 +976,58 @@ pub fn Page() -> impl IntoView {
                                     "Page "<span class="font-bold">{pagename.clone()}</span>
                                 </h2>
                                 <div class="grid grid-cols-2 grid-rows-2 justify-start">
+                                    <ActionForm action=save_language>
+                                        <input type="hidden" name="ms_name" value=msname_c />
+                                        <input type="hidden" name="page_name" value=pagename_c />
+                                        <div class=(["text-orange-400"], language_changed)>
+                                            <Transition fallback=|| {
+                                                view! { <p>Loading Languages</p> }
+                                            }>
+                                                {move || {
+                                                    language_list
+                                                        .get()
+                                                        .map(|language_res| {
+                                                            language_res
+                                                                .map(|languages| {
+                                                                    view! {
+                                                                        <LanguageDropDown
+                                                                            name="language_id"
+                                                                            selected_language=selected_language
+                                                                            language_list=languages
+                                                                            default_string="Inherit Language from MS"
+                                                                        />
+                                                                    }
+                                                                        .into_any()
+                                                                })
+                                                                .unwrap_or(
+                                                                    view! { <p>"Failed to load languages"</p> }.into_any(),
+                                                                )
+                                                        })
+                                                        .unwrap_or(
+                                                            view! {
+                                                                <p>"Did not get a response from the resource call"</p>
+                                                            }
+                                                                .into_any(),
+                                                        )
+                                                }}
+                                            </Transition>
+                                            <button
+                                                type="submit"
+                                                class=DEFAULT_BUTTON_CLASSES
+                                                on:click=move |_| {
+                                                    language_saved.set(selected_language.get_untracked());
+                                                }
+                                            >
+                                                Set
+                                            </button>
+                                        </div>
+                                    </ActionForm>
                                     <a
                                         class=DEFAULT_BUTTON_CLASSES
-                                        href=format!("/index/{msname}/{pagename}")
+                                        href=format!("/edit/{msname}/{pagename}")
                                     >
-                                        Index
+                                        Transcribe this page
                                     </a>
-                                    <button class=DEFAULT_BUTTON_CLASSES>Edit - TODO</button>
                                     <a
                                         class=DEFAULT_BUTTON_CLASSES
                                         href=format!("{image_base}/original.webp")
@@ -901,8 +1038,7 @@ pub fn Page() -> impl IntoView {
                                     <a
                                         class=DEFAULT_BUTTON_CLASSES
                                         href=format!("{image_base}/original.webp")
-                                        // TODO fix this
-                                        download="Babylonicus Petropolitanus_Babylonicus_Petropolitanus-007.webp"
+                                        download=format!("{msname}_{pagename}.webp")
                                     >
                                         Download Original
                                     </a>

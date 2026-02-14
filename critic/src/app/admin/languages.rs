@@ -142,7 +142,12 @@ pub fn LanguageList() -> impl IntoView {
                 </div>
             }
         }>
-            <Transition fallback=|| view! { <p>"Loading languages..."</p> }>
+            <Transition fallback=|| {
+                view! {
+                    <p>"Loading languages..."</p>
+                    <Outlet />
+                }
+            }>
                 <div id="language-wrapper" class="h-full flex flex-row justify-start">
                     // the left sidebar containing the different languages
                     <div
