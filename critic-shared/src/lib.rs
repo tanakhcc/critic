@@ -1,5 +1,7 @@
 //! Types and functions shared by App and Server
 
+use reactive_stores::Store;
+
 pub mod urls;
 
 use serde::{Deserialize, Serialize};
@@ -224,4 +226,68 @@ pub struct LanguageMetadata {
     pub name: String,
     pub segmentation_model_id: Option<i64>,
     pub recognition_model_id: Option<i64>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Store)]
+pub struct Point {
+    pub x: u32,
+    pub y: u32,
+}
+impl core::fmt::Display for Point {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{},{}", self.x, self.y)
+    }
+}
+
+#[derive(Debug, Clone, Store)]
+pub struct Baseline {
+    /// uses the same id scheme as kraken, which is why this is a string
+    pub baseline_id: String,
+    pub point1: Point,
+    pub point2: Point,
+    /// actual content - this will be the plain text we got from the base text of a single block
+    /// containing the literal ocr result
+    pub content: Vec<critic_format::streamed::Block>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Polygon {
+    /// closes the polygon between last and first point - i.e. the first point should not be added
+    /// as the last point as well
+    pub points: Vec<Point>,
+}
+impl Polygon {
+    /// The points listed in SVG format
+    pub fn point_list(&self) -> String {
+        let mut res = String::default();
+        for (idx, point) in self.points.iter().enumerate() {
+            res.push_str(&point.to_string());
+            if idx != self.points.len() - 1 {
+                res.push(' ');
+            }
+        }
+        res
+    }
+}
+#[derive(Debug, Clone, Store)]
+pub struct Region {
+    /// uses the same id scheme as kraken, which is why this is a string
+    pub region_id: String,
+    /// polygon bounding this region
+    pub boundary: Polygon,
+    /// Baselines belonging to this Region
+    #[store(key: String = |baseline| baseline.baseline_id.clone())]
+    pub baselines: Vec<Baseline>,
+    // other useful things: text_type
+}
+
+#[derive(Debug, Clone, Store)]
+pub struct SegmentedPage {
+    #[store(key: String = |r| r.region_id.clone())]
+    pub regions: Vec<Region>,
+}
+impl Default for SegmentedPage {
+    fn default() -> Self {
+        Self { regions: vec![] }
+    }
 }

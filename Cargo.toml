@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["critic", "critic-shared", "critic-server", "critic-components"]
+members = ["critic", "critic-shared", "critic-server", "critic-components", "critic-index"]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]

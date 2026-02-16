@@ -2,7 +2,11 @@
 /// baselines, transcriptions, reconciliations.
 use leptos_router::hooks::use_params;
 
-use critic_shared::urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL};
+use critic_shared::{
+    urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL},
+    Baseline, BaselineStoreFields, Region, RegionStoreFields, SegmentedPage,
+    SegmentedPageStoreFields,
+};
 use leptos::prelude::*;
 use leptos_use::use_event_listener;
 use reactive_stores::Store;
@@ -191,7 +195,7 @@ pub fn MsViewer() -> impl IntoView {
 
     // TODO:
     // read from DB (actually add DB for this)
-    let regions = Store::new(Regions::default());
+    let regions = Store::new(SegmentedPage::default());
     let selected = RwSignal::new(None);
     let overlay_editable = RwSignal::new(false);
 
@@ -258,72 +262,10 @@ pub fn MsViewer() -> impl IntoView {
     })
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Store)]
-struct Point {
-    x: u32,
-    y: u32,
-}
-impl core::fmt::Display for Point {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{},{}", self.x, self.y)
-    }
-}
-
-#[derive(Debug, Clone, Store)]
-struct Baseline {
-    /// uses the same id scheme as kraken, which is why this is a string
-    baseline_id: String,
-    point1: Point,
-    point2: Point,
-}
-
-#[derive(Debug, Clone)]
-struct Polygon {
-    /// closes the polygon between last and first point - i.e. the first point should not be added
-    /// as the last point as well
-    points: Vec<Point>,
-}
-impl Polygon {
-    /// The points listed in SVG format
-    fn point_list(&self) -> String {
-        let mut res = String::default();
-        for (idx, point) in self.points.iter().enumerate() {
-            res.push_str(&point.to_string());
-            if idx != self.points.len() - 1 {
-                res.push(' ');
-            }
-        }
-        res
-    }
-}
-
-#[derive(Debug, Clone, Store)]
-struct Region {
-    /// uses the same id scheme as kraken, which is why this is a string
-    region_id: String,
-    /// polygon bounding this region
-    boundary: Polygon,
-    /// Baselines belonging to this Region
-    #[store(key: String = |baseline| baseline.baseline_id.clone())]
-    baselines: Vec<Baseline>,
-    // other useful things: text_type
-}
-
 #[derive(Debug, Clone)]
 enum DrawableOverlay {
     Baseline(Baseline),
     Region(Region),
-}
-
-#[derive(Debug, Clone, Store)]
-struct Regions {
-    #[store(key: String = |r| r.region_id.clone())]
-    regions: Vec<Region>,
-}
-impl Default for Regions {
-    fn default() -> Self {
-        Self { regions: vec![] }
-    }
 }
 
 #[component]
@@ -333,7 +275,7 @@ fn MsOverlay(
     /// extent of the coordinate system in y-direction
     dim_y: u32,
     /// the regions available, including their baselines
-    regions: Store<Regions>,
+    regions: Store<SegmentedPage>,
     /// the currently selected region or baseline
     selected: RwSignal<Option<DrawableOverlay>>,
     /// is overlay editing currently allowed or not
@@ -356,7 +298,7 @@ fn MsOverlay(
 
 #[component]
 fn Region(
-    region: reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>,
+    region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, String, Vec<Region>>,
     stroke_width: u32,
 ) -> impl IntoView {
     view! {
@@ -374,7 +316,7 @@ fn Region(
 #[component]
 fn BaseLine(
     baseline: reactive_stores::AtKeyed<
-        reactive_stores::AtKeyed<Store<Regions>, Regions, String, Vec<Region>>,
+        reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, String, Vec<Region>>,
         Region,
         String,
         Vec<Baseline>,

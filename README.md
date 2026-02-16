@@ -1,23 +1,37 @@
 # critic
 This is a webapp to enable digital textual criticism.
 
-# HOW TO BUILD
-## tailwind 4.1.11
+## How to use
+Build critic (or use the dockerfile) and run it agains a database.
+- setup OAuth against your github organization
+
+Ingest these basic building blocks:
+- languages (via the web-UI)
+- the versification scheme and base corpus (at the moment, this has to be done directly through the db)
+- the models (via the web-UI)
+
+Then, your normal project administrators can upload manuscripts, edit their metadata.
+And all users can start transcribing.
+
+## How to build
+
+### tailwind 4.1.11
 use in critic subdirectory (the main app code)
 ```
 ./tailwindcss -i style/input.css -o style/output.css --watch
 ```
 
-## cargo leptos serve
+### cargo leptos serve
 Use in the main directory (the workspace dir)
 ```
 cargo leptos serve
 ```
 Use the `--release` toggle for release.
 
-# Reverse Proxying critic
+## Reverse Proxying critic
 You need to set a relatively high `client_max_body_size` (for `nginx`).
 This is currently `150m` for endpoints under `/upload`. Other paths do not need large `client_max_body_size`.
+
 
 # TODO random small features
 ## Allow deletion of MSs, Pages, Languages, Models with a very loud warning message that that will delete human work
@@ -27,6 +41,59 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### Languages
 
 # TODOs - Redesign for visual Transcription Editor
+## admin ui
+### add text field for equality alphabet in language
+
+## base corpus search
+### ingest the corpus from CRITIC TEI XML
+#### MAPM import script
+https://github.com/marcstober/miqra-data/blob/master/miqra-json-simple/MAM-ChamMeg.json has the data in a usable format, separated by verse
+- depends on the verse ordering to be finalized
+
+### Write primitives
+#### Verse ordering
+##### function that defines a partial order on verses of one versification scheme
+- we need a subcrate for every versification scheme we want to use - how should this be done??
+- alternatively, the user has to keep track of this and the versification scheme
+  is just an opaque sorted index
+
+#### cleanse marked corpus
+- takes streamed formatted text and turns it into
+    1. The cleansed pure text (no diacritics, no anchors, pure basetext)
+    2. A indexmap [(idx in pure text, block-idx+string-idx in formatted text)]
+#### fulltext index generation
+- takes a block of critic-tei-xml
+- breaks it into appropriate blocks
+- inserts the xml form into the db
+- cleanses them and inserts the clean form into the FTS index
+    - contains the block ID in the document
+
+#### search for a line in FTS
+- create the query "ALLOF(FUZZY(w) for w in line)" and run it against the index
+
+#### last and next blocks
+- requires verse ordering to find the last and next block
+
+#### Forward-completion
+GIVEN:
+- a match of one line to a base corpus block
+    - given as
+        - block id and clean-idx in that block (start)
+        - block id and clean-idx in that same block (end)
+- a `vec<lines>`
+FIND:
+- matches for the other lines (they potentially span multiple blocks)
+ALGORITHM:
+- if the block is not exhausted, fuzzy match word-for-word backwards (and forwards) through the lines
+    - ideally, this simply matches
+    - when it does not match, early return with None
+    - when the block becomes exhausted before the backward(forward) search ends, load the next block with the last primitive
+
+#### find basetext for lines on a page
+- iterate over lines, FTS them
+- on the first match, stop; Forward-complete the remainder of the page
+    - if this fails: continue FTS on the next line
+- if no line fits (or some fit FTS, but Forward-completion does not work: cannot find this page content)
 
 ## segmentation and recognition via kraken
 - this is a self contained task, but a little more involved

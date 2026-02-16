@@ -5,7 +5,9 @@ CREATE TABLE verse_map (
 	--- the versification scheme for this map
 	versification_scheme BIGINT NOT NULL REFERENCES versification_scheme(id),
 	--- the verse number in the scheme, e.g. Gen 5:17
-	verse_nr TEXT NOT NULL,
+	verse_nr TEXT,
+	--- a monotonously increasing (but not necessarily exhaustively used) ID for this verse in this versification scheme
+	verse_monotone_id INT NOT NULL,
 	--- each verse may only be mapped to one verse number in each scheme
 	UNIQUE(verse_id, versification_scheme)
 );

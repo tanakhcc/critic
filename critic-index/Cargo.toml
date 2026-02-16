@@ -1,0 +1,13 @@
+[package]
+name = "critic-index"
+version = "0.1.0"
+edition = "2024"
+license = "MIT-0"
+description = "Lower level parts of the segmentation, ocr and indexing for critic."
+authors = ["Jonathan Schleucher"]
+
+[dependencies]
+serde = { version = "1.0.217", features = ["derive"] }
+critic-format = { path = "../../critic-format" }
+critic-shared = { path = "../critic-shared" }
+pyo3 = { version = "0.26.0", features = ["auto-initialize"] }

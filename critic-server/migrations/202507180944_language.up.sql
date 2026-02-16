@@ -4,6 +4,11 @@ CREATE TABLE language (
 	--- the name of this language - it is the actual language code used in xml
 	--- e.g. hbo-Hebr-x-Babli
 	name TEXT NOT NULL UNIQUE,
+	--- the model used for character recognition
 	recognition_model BIGINT REFERENCES recognition_model(id),
-	segmentation_model BIGINT REFERENCES segmentation_model(id)
+	--- the model used for baseline segmentation
+	segmentation_model BIGINT REFERENCES segmentation_model(id),
+	--- Only characters in this alphabet are considered when we try to find out whether two
+	--- texts are equal
+	equality_alphabet TEXT
 );
