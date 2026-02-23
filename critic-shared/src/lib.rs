@@ -226,6 +226,7 @@ pub struct LanguageMetadata {
     pub name: String,
     pub segmentation_model_id: Option<i64>,
     pub recognition_model_id: Option<i64>,
+    pub equality_alphabet: Option<String>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Store)]

@@ -989,6 +989,7 @@ pub async fn get_languages(pool: &Pool<Postgres>) -> Result<Vec<LanguageMetadata
             name: row.name,
             segmentation_model_id: row.segmentation_model,
             recognition_model_id: row.recognition_model,
+            equality_alphabet: row.equality_alphabet,
         })
         .collect())
 }
@@ -1007,6 +1008,7 @@ pub async fn get_language_by_name(
                 name: row.name,
                 segmentation_model_id: row.segmentation_model,
                 recognition_model_id: row.recognition_model,
+                equality_alphabet: row.equality_alphabet,
             }),
     )
 }
@@ -1025,6 +1027,7 @@ pub async fn get_language_by_id(
                 name: row.name,
                 segmentation_model_id: row.segmentation_model,
                 recognition_model_id: row.recognition_model,
+                equality_alphabet: row.equality_alphabet,
             }),
     )
 }
@@ -1045,11 +1048,13 @@ pub async fn update_language(
     language: &str,
     segmentation_model_id: Option<i64>,
     recognition_model_id: Option<i64>,
+    equality_alphabet: Option<String>,
 ) -> Result<(), DBError> {
     sqlx::query!(
-        "UPDATE language SET segmentation_model = $1, recognition_model = $2 WHERE name = $3",
+        "UPDATE language SET segmentation_model = $1, recognition_model = $2, equality_alphabet = $3 WHERE name = $4",
         segmentation_model_id,
         recognition_model_id,
+        equality_alphabet,
         language
     )
     .execute(pool)
@@ -1078,7 +1083,8 @@ pub async fn get_default_language(
             language.id,
             language.name,
             language.segmentation_model as segmentation_model_id,
-            language.recognition_model as recognition_model_id
+            language.recognition_model as recognition_model_id,
+            language.equality_alphabet as equality_alphabet
          FROM language
          INNER JOIN default_language on language.id = default_language.language
          LIMIT 1;"

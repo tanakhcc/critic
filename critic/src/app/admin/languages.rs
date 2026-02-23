@@ -4,14 +4,18 @@
 // /admin/languages
 //      /:language
 
-use critic_components::{language_dropdown::LanguageDropDown, DEFAULT_BUTTON_CLASSES};
+use critic_components::{
+    language_dropdown::LanguageDropDown, DEFAULT_BUTTON_CLASSES, TEXTAREA_DEFAULT_COLS,
+    TEXTAREA_DEFAULT_ROWS,
+};
 use critic_shared::LanguageMetadata;
+use itertools::Itertools;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
 use leptos_router::hooks::use_params;
 use serde::{Deserialize, Serialize};
 
-use crate::app::shared::LanguageParams;
+use crate::app::{admin::manuscripts::MMetaTextArea, shared::LanguageParams};
 
 #[server]
 pub async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerFnError> {
@@ -56,6 +60,7 @@ pub fn DefaultLanguagePicker(
     let srvact = ServerAction::<UpdateDefaultLanguage>::new();
     let selected_language = RwSignal::new(default_language);
     let selected_language_saved = RwSignal::new(default_language);
+    let changed = move || selected_language_saved.get() != selected_language.get();
 
     view! {
         <div id="default-lang-picker" class="p-6 border-2 border-slate-500 border-b-0">
@@ -63,11 +68,13 @@ pub fn DefaultLanguagePicker(
             <ActionForm action=srvact>
                 <div class="flex justify-center">
                     <div class="max-w-[800px]">
-                        <LanguageDropDown
-                            name="language_id"
-                            language_list=language_list
-                            selected_language=selected_language
-                        />
+                        <div class=(["text-orange-400"], changed)>
+                            <LanguageDropDown
+                                name="language_id"
+                                language_list=language_list
+                                selected_language=selected_language
+                            />
+                        </div>
                         <div class="flex justify-around mt-6">
                             <button
                                 class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
@@ -291,7 +298,6 @@ async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
         .await
         .map(|meta_opt| meta_opt.map(|meta| meta.id))
         .map_err(|e| ServerFnError::new(e.to_string()))?;
-    leptos::logging::log!("default language from db: {res:?}");
     Ok(res)
 }
 
@@ -392,9 +398,9 @@ struct UpdateLanguageModelData {
     language: String,
     segmentation_model_id: Option<i64>,
     recognition_model_id: Option<i64>,
+    equality_alphabet: Option<String>,
 }
 
-/// Set the language retraining options for `language_id` to `retraining_opts`.
 #[server]
 async fn update_language_models(data: UpdateLanguageModelData) -> Result<(), ServerFnError> {
     use critic_server::auth::AuthSession;
@@ -435,6 +441,7 @@ async fn update_language_models(data: UpdateLanguageModelData) -> Result<(), Ser
         &data.language,
         data.segmentation_model_id,
         data.recognition_model_id,
+        data.equality_alphabet,
     )
     .await
     {
@@ -447,6 +454,11 @@ async fn update_language_models(data: UpdateLanguageModelData) -> Result<(), Ser
     Ok(())
 }
 
+/// Clean up a user provided equality alphabet
+fn clean_equality_alphabet(input: String) -> String {
+    input.chars().unique().sorted_unstable().collect()
+}
+
 #[component]
 fn LanguageMeta(
     meta: critic_shared::LanguageMetadata,
@@ -457,6 +469,8 @@ fn LanguageMeta(
     let segmentation_model_saved = RwSignal::new(segmentation_model.get_untracked());
     let recognition_model = RwSignal::new(meta.recognition_model_id);
     let recognition_model_saved = RwSignal::new(recognition_model.get_untracked());
+    let equality_alphabet = RwSignal::new(meta.equality_alphabet);
+    let equality_alphabet_saved = RwSignal::new(equality_alphabet.get_untracked());
 
     let srvact = ServerAction::<UpdateLanguageModels>::new();
 
@@ -471,7 +485,15 @@ fn LanguageMeta(
                     <div class="flex justify-around flex-col max-w-[800px]">
                         <input type="hidden" name="data[language]" value=meta.name.clone() />
                         <div class="border border-slate-500 p-2 grid grid-cols-1">
-                            <div class="grid grid-cols-2">
+                            <MMetaTextArea
+                                name="data[equality_alphabet]"
+                                signal=equality_alphabet
+                                saved=equality_alphabet_saved
+                                normalize=clean_equality_alphabet
+                            >
+                                Characters used for Equality Check:
+                            </MMetaTextArea>
+                            <div class="grid grid-cols-2 border border-b-0 border-slate-500 p-2">
                                 <label for="data[segmentation_model_id]">Segmentation model:</label>
                                 <select
                                     id="data[segmentation_model_id]"
@@ -511,7 +533,7 @@ fn LanguageMeta(
                                     }}
                                 </select>
                             </div>
-                            <div class="grid grid-cols-2">
+                            <div class="grid grid-cols-2 border border-slate-500 p-2">
                                 <label for="data[recognition_model_id]">Recognition model:</label>
                                 <select
                                     id="data[recognition_model_id]"
@@ -548,6 +570,7 @@ fn LanguageMeta(
                                 on:click=move |_| {
                                     recognition_model.set(recognition_model_saved.get());
                                     segmentation_model.set(segmentation_model_saved.get());
+                                    equality_alphabet.set(equality_alphabet_saved.get());
                                 }
                             >
                                 "Cancel"
@@ -561,6 +584,7 @@ fn LanguageMeta(
                                 on:click=move |_| {
                                     recognition_model_saved.set(recognition_model.get());
                                     segmentation_model_saved.set(segmentation_model.get());
+                                    equality_alphabet_saved.set(equality_alphabet.get());
                                 }
                             >
                                 Save changes

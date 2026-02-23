@@ -13,6 +13,25 @@ Ingest these basic building blocks:
 Then, your normal project administrators can upload manuscripts, edit their metadata.
 And all users can start transcribing.
 
+## Further Notes on Setup and the basic structure
+### Indexing
+The uploaded images are run through kraken with the models you supply.
+First, the lines are identified. After humans have an opportunity to edit these lines,
+the lines are used to recognize text on them.
+This yields some recognized text. We then search this recognized text in the entire base corpus.
+
+#### Base Corpus
+The base corpus currently has to be ingested directly into the DB.
+TODO: add the ingestion scripts used for MAPM in this repo.
+
+#### Versification Schemes
+Since different manuscripts may have their verse breaks (if any) in different places, there may be different versification schemes.
+Each such scheme consists of a list of tuples (id, name) for each verse. For the hebrew bible, this may be `(1, 'Genesis 1:1')` and so on.
+While ingesting it is important that the verse-ids are generated in the correct order, and you may choose to give their representation some meaning, e.g.
+`<book-nr>-<chapter-nr>-<verse-nr>` or the like. This is not required, but the ids MUST be monotonously increasing in the natural text order.
+This constraint is important because it facilitates the full text search used while indexing.
+
+
 ## How to build
 
 ### tailwind 4.1.11
@@ -41,9 +60,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### Languages
 
 # TODOs - Redesign for visual Transcription Editor
-## admin ui
-### add text field for equality alphabet in language
-
 ## base corpus search
 ### ingest the corpus from CRITIC TEI XML
 #### MAPM import script
@@ -51,18 +67,17 @@ https://github.com/marcstober/miqra-data/blob/master/miqra-json-simple/MAM-ChamM
 - depends on the verse ordering to be finalized
 
 ### Write primitives
-#### Verse ordering
-##### function that defines a partial order on verses of one versification scheme
-- we need a subcrate for every versification scheme we want to use - how should this be done??
-- alternatively, the user has to keep track of this and the versification scheme
-  is just an opaque sorted index
+#### Break a block off from the begining of a larger chunk of critic-tei-xml in streamed form
+- break only at anchors if that makes sense
+- break into no more then X words (10 verses)
 
 #### cleanse marked corpus
 - takes streamed formatted text and turns it into
-    1. The cleansed pure text (no diacritics, no anchors, pure basetext)
+    1. The cleansed pure text (only equality alphabet, no anchors, pure basetext)
     2. A indexmap [(idx in pure text, block-idx+string-idx in formatted text)]
+
 #### fulltext index generation
-- takes a block of critic-tei-xml
+- takes a chunk (arbitrary length, e.g. an entire book) of critic-tei-xml
 - breaks it into appropriate blocks
 - inserts the xml form into the db
 - cleanses them and inserts the clean form into the FTS index
@@ -93,27 +108,19 @@ ALGORITHM:
 - iterate over lines, FTS them
 - on the first match, stop; Forward-complete the remainder of the page
     - if this fails: continue FTS on the next line
-- if no line fits (or some fit FTS, but Forward-completion does not work: cannot find this page content)
+- if no line fits (or some fit FTS, but Forward-completion does not work):
+    - instead just return the raw ocr text found
 
-## segmentation and recognition via kraken
-- this is a self contained task, but a little more involved
-### own subcrate for this
-### uses pyo3 to call into kraken and pass from/to rust
-### step 1 - segmentation
-- pass image path from rust, get baselines from python
-### step 2 - recognition
-- pass image path and baselines from rust, get recognized text from python
-## Automatic segmentation in the background
-- set flag on new pages (in db)
-- run segmentation model against them with worker threads
-- When languages (models) for a MS are changed:
-    - rerun and override OCR texts only by manually pressing a button in the admin panel
+#### run basetext finding in the background
+- endless loop; use the example from minification
+- select a page that should segment or ocr
+    - run it
 
 ## redo image editor
 ### remove layout layer
 - we may want to force redo the layout analysis when the model changes
     - add a button in the editor
-- for recognition, we can simply rerun the model at any time, because it is only used for block editor seeding and never overwrites humand effort
+- for recognition, we can simply rerun the model at any time, because it is only used for block editor seeding and never overwrites human effort
 ### shows the image, zoomable and scrollable
 - right margin shows associated objects to a baseline (recognized text, transcriptions, ...)
 ### shows baselines

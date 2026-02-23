@@ -6,7 +6,10 @@ pub mod segment;
 pub enum IndexError {
     /// something went wrong while calling to kraken
     Kraken(pyo3::PyErr),
+    /// something went wrong while casting between python types
     Cast(String),
+    /// The return type from kraken.blla.segment should contains `.regions['text']`.
+    /// When 'text' is not found, this error is raised.
     NoTextInRegion,
 }
 impl From<pyo3::PyErr> for IndexError {

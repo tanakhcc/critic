@@ -492,6 +492,24 @@ pub fn Manuscript(on_name_update: impl Fn() + Copy + Send + Sync + 'static) -> i
     }
 }
 
+pub struct NormalizeFn(Box<dyn Fn(String) -> String + 'static>);
+impl<F> From<F> for NormalizeFn
+where
+    F: Fn(String) -> String + 'static,
+{
+    fn from(value: F) -> Self {
+        Self(Box::new(value))
+    }
+}
+impl NormalizeFn {
+    pub fn into_inner(self) -> Box<dyn Fn(String) -> String + 'static> {
+        self.0
+    }
+    pub fn inner(&self) -> &Box<dyn Fn(String) -> String + 'static> {
+        &self.0
+    }
+}
+
 /// Manuscript Meta Text Area - keeps track of a textarea field in `signal`
 #[component]
 pub fn MMetaTextArea(
@@ -501,6 +519,9 @@ pub fn MMetaTextArea(
     signal: RwSignal<Option<String>>,
     /// rendered inside the label
     children: Children,
+    /// function used to normalize the input value
+    #[prop(optional, into)]
+    normalize: Option<NormalizeFn>,
     #[prop(optional)] saved: Option<RwSignal<Option<String>>>,
 ) -> impl IntoView {
     let changed = move || saved.is_some_and(|s| s.get() != signal.get());
@@ -520,7 +541,10 @@ pub fn MMetaTextArea(
                 rows=TEXTAREA_DEFAULT_ROWS
                 cols=TEXTAREA_DEFAULT_COLS
                 on:change:target=move |ev| {
-                    let x = ev.target().value();
+                    let mut x = ev.target().value();
+                    if let Some(n) = &normalize {
+                        x = n.inner()(x);
+                    }
                     *signal.write() = (!x.is_empty()).then_some(x);
                 }
             />
