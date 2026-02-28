@@ -61,16 +61,7 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - Redesign for visual Transcription Editor
 ## base corpus search
-### ingest the corpus from CRITIC TEI XML
-#### MAPM import script
-https://github.com/marcstober/miqra-data/blob/master/miqra-json-simple/MAM-ChamMeg.json has the data in a usable format, separated by verse
-- depends on the verse ordering to be finalized
-
 ### Write primitives
-#### Break a block off from the begining of a larger chunk of critic-tei-xml in streamed form
-- break only at anchors if that makes sense
-- break into no more then X words (10 verses)
-
 #### cleanse marked corpus
 - takes streamed formatted text and turns it into
     1. The cleansed pure text (only equality alphabet, no anchors, pure basetext)
