@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE page SET language = $1 FROM manuscript WHERE page.manuscript = manuscript.id AND manuscript.title = $2 AND page.name = $3;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d17054e6246709c02b80314fac9def49aa9cb147c847e91bcd924ce4b8d015b7"
+}

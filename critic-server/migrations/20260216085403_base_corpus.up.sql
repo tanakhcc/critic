@@ -10,12 +10,14 @@ CREATE TABLE base_corpus (
 	id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 	--- the language of this block
 	language BIGINT REFERENCES language(id),
-	--- this is the critic-tei-xml of this block, which should deserialize to `Vec<streamed::InlineBlock>`
+	--- this is the critic-tei-xml of this block, which should deserialize to `Vec<streamed::Block>`
 	content TEXT NOT NULL,
 	--- versification scheme used in this block
 	versification_scheme BIGINT REFERENCES versification_scheme(id),
 	--- first verse in this block
 	verse_start BIGINT REFERENCES verse(id),
 	--- last verse in this block
-	verse_end BIGINT REFERENCES verse(id)
+	verse_end BIGINT REFERENCES verse(id),
+	--- this chunk has been added to the index
+	indexed BOOL NOT NULL DEFAULT FALSE
 );

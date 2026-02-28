@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM language WHERE name = $1",
+  "query": "SELECT * FROM language WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -31,7 +31,7 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Int8"
       ]
     },
     "nullable": [
@@ -42,5 +42,5 @@
       true
     ]
   },
-  "hash": "a600c7c8e95ef76039e0e2ee1e12e09e1f9a5f092d126726c9ad61617fd1d495"
+  "hash": "c4f1ff05400e419ddcd6cf76521ea55eca1be25ed6b6ee2a89d8ad556a969def"
 }

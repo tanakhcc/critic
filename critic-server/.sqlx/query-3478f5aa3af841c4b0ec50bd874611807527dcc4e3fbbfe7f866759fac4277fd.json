@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT page.id, manuscript.id as manuscript_id, page.name, page.verse_start, page.verse_end,\n            (SELECT COALESCE(\n                page.language,\n                manuscript.language,\n                (SELECT language FROM default_language\n                 WHERE id = 1))) as language\n            FROM manuscript\n            INNER JOIN page on page.manuscript = manuscript.id\n            WHERE manuscript.id = $1\n            ;",
+  "query": "SELECT page.id, manuscript.id as manuscript_id, page.name, page.verse_start, page.verse_end,\n            COALESCE(\n                page.language,\n                manuscript.language,\n                (SELECT language FROM default_language\n                 WHERE id = 1)) as language\n            FROM manuscript\n            INNER JOIN page on page.manuscript = manuscript.id\n            WHERE manuscript.id = $1\n            ;",
   "describe": {
     "columns": [
       {
@@ -48,5 +48,5 @@
       null
     ]
   },
-  "hash": "227ead890fa261dcdf5e83e03c4678fd61950db7aeb2f0ba31b5a4e0443697f2"
+  "hash": "3478f5aa3af841c4b0ec50bd874611807527dcc4e3fbbfe7f866759fac4277fd"
 }

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE language SET segmentation_model = $1, recognition_model = $2, equality_alphabet = $3 WHERE name = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5ca49bafa0e3c69067ab4b971ff9184adbc8c34b7c1cf5bb35230292bcc5166d"
+}

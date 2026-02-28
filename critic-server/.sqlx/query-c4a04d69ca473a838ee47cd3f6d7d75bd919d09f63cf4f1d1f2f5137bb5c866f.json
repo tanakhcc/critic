@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT page.language FROM page INNER JOIN manuscript ON manuscript.id = page.manuscript WHERE manuscript.title = $1 AND page.name = $2;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "language",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c4a04d69ca473a838ee47cd3f6d7d75bd919d09f63cf4f1d1f2f5137bb5c866f"
+}
