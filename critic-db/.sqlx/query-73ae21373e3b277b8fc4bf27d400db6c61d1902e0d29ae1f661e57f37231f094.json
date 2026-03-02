@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE should_ocr;",
+  "query": "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE minified AND should_ocr;",
   "describe": {
     "columns": [
       {
@@ -28,5 +28,5 @@
       false
     ]
   },
-  "hash": "59134bf49a342a3d646615cbcf39231046120cb92ac954c26ddbc188e039b91a"
+  "hash": "73ae21373e3b277b8fc4bf27d400db6c61d1902e0d29ae1f661e57f37231f094"
 }

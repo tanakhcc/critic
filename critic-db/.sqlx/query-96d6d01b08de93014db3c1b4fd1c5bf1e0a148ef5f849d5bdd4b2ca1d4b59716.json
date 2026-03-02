@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT segmentation_model.id, segmentation_model.name, segmentation_model.retrain_every_days, segmentation_model.retrain_keep_versions\n                 FROM language\n                 INNER JOIN segmentation_model ON segmentation_model.id = language.segmentation_model\n                 WHERE language.id = (\n                    SELECT\n                        COALESCE(page.language,\n                                manuscript.language,\n                                (SELECT language\n                                    FROM default_language WHERE id = 1))\n                    FROM page\n                    INNER JOIN manuscript on manuscript.id = page.manuscript\n                    WHERE page.name = $1);",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "retrain_every_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "retrain_keep_versions",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "96d6d01b08de93014db3c1b4fd1c5bf1e0a148ef5f849d5bdd4b2ca1d4b59716"
+}

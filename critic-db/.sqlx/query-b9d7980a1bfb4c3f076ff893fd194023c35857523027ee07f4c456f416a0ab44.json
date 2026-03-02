@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT baseline FROM ocr WHERE page = $1",
+  "query": "SELECT baseline FROM line INNER JOIN region ON line.region = region.id WHERE page = $1",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "52887de5e81862fb6c330f6154d85c106eded712e1368a080aa0518a1318cd5c"
+  "hash": "b9d7980a1bfb4c3f076ff893fd194023c35857523027ee07f4c456f416a0ab44"
 }

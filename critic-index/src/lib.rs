@@ -3,11 +3,53 @@
 use std::sync::Arc;
 
 use critic_config::Config;
-use critic_shared::InShutdown;
+use critic_db::{DBError, get_next_kraken_task};
+use critic_shared::{InShutdown, Point};
+use ocr::handle_ocr_task;
+use pyo3::FromPyObject;
+use segment::handle_baseline_task;
 use tantivy::IndexReader;
 
 pub mod fts;
+pub mod ocr;
 pub mod segment;
+
+/// A text direction usable in kraken
+pub enum TextDirection {
+    HorizontalRL,
+    HorizontalLR,
+}
+impl core::fmt::Display for TextDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            Self::HorizontalRL => {
+                write!(f, "horizontal-rl")
+            }
+            Self::HorizontalLR => {
+                write!(f, "horizontal-lr")
+            }
+        }
+    }
+}
+
+#[derive(Debug, FromPyObject)]
+struct KrakenBaseline {
+    id: String,
+    baseline: Vec<Vec<i32>>,
+    boundary: Vec<Vec<i32>>,
+}
+
+#[derive(Debug, FromPyObject)]
+struct KrakenRegion {
+    id: String,
+    boundary: Vec<Vec<i32>>,
+}
+
+#[derive(Debug)]
+struct OcrRecord {
+    prediction: String,
+    baseline: (Point, Point),
+}
 
 #[derive(Debug)]
 pub enum IndexError {
@@ -18,10 +60,17 @@ pub enum IndexError {
     /// The return type from kraken.blla.segment should contains `.regions['text']`.
     /// When 'text' is not found, this error is raised.
     NoTextInRegion,
+    /// Something went wrong while talking to the DB
+    DB(DBError),
 }
 impl From<pyo3::PyErr> for IndexError {
     fn from(value: pyo3::PyErr) -> Self {
         IndexError::Kraken(value)
+    }
+}
+impl From<DBError> for IndexError {
+    fn from(value: DBError) -> Self {
+        IndexError::DB(value)
     }
 }
 impl core::fmt::Display for IndexError {
@@ -39,10 +88,74 @@ impl core::fmt::Display for IndexError {
                     "Found no text entry in region dict returned from blla.segment."
                 )
             }
+            IndexError::DB(e) => {
+                write!(f, "Problem while communicating with the DB: {e}")
+            }
         }
     }
 }
 impl core::error::Error for IndexError {}
+
+/// Continuously runs the next available kraken task in the db.
+///
+/// This is biased to try OCR tasks before basline segmentation tasks.
+pub async fn run_kraken(
+    config: Arc<Config>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<InShutdown>,
+    index_reader: IndexReader,
+) {
+    loop {
+        let task = match get_next_kraken_task(&config.db).await {
+            Ok(Some(x)) => x,
+            Ok(None) => {
+                tokio::select! {
+                    _ = shutdown_rx.changed() => {
+                        tracing::debug!("Shutting down kraken runner.");
+                        return;
+                    }
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
+                        continue;
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed getting the next kraken task: {e}. Waiting for 1s.");
+                tokio::select! {
+                    _ = shutdown_rx.changed() => {
+                        tracing::debug!("Shutting down kraken runner.");
+                        return;
+                    }
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
+                        continue;
+                    }
+                }
+            }
+        };
+        match task {
+            critic_db::KrakenTask::Ocr(task) => {
+                match handle_ocr_task(&config, &task, index_reader.searcher()).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to baseline and index the page {} - {}: {e}",
+                            task.manuscript,
+                            task.page
+                        );
+                    }
+                }
+            }
+            critic_db::KrakenTask::Baseline(task) => {
+                if let Err(e) = handle_baseline_task(&config, &task).await {
+                    tracing::warn!(
+                        "Failed to automatically baseline the page {} - {}: {e}",
+                        task.manuscript,
+                        task.page
+                    );
+                }
+            }
+        }
+    }
+}
 
 /// Continuously indexes pages.
 ///
@@ -73,5 +186,5 @@ pub async fn run_indexing(
             }
         }
     };
-    tracing::info!("I would now start indexing pages");
+    run_kraken(config, shutdown_rx, index_reader).await
 }

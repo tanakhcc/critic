@@ -158,14 +158,9 @@ impl AuthnBackend for GithubOauthBackend {
     }
 
     async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
-        sqlx::query_as!(
-            AuthenticatedUser,
-            "select * from user_session where id = $1",
-            user_id,
-        )
-        .fetch_optional(&self.db)
-        .await
-        .map_err(|e| Self::Error::DB(DBError::CannotGetUsersession(e)))
+        critic_db::get_user(&self.db, user_id)
+            .await
+            .map_err(Self::Error::DB)
     }
 }
 

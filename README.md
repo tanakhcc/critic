@@ -59,13 +59,22 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### Models
 ### Languages
 
-# TODOs - Redesign for visual Transcription Editor
-## base corpus search
-### Write primitives
+## Languages need to have their textdirection saved in the DB
+we need it for segmentation and OCR
+add another field in the DB, and the frontend to set it (with a dropdown for RTL and LTR)
 
-#### fulltext index generation
-- takes the base corpus chunks from the db
-- writes them into the index
+
+# TODOs - Redesign for visual Transcription Editor
+## add venv for requirements to run kraken
+
+## ocr
+### complete db insertion for baselines and regions
+### complete segment and ocr primitives
+### get the segmentation and ocr without FTS working completely
+
+## base corpus search
+
+### Write primitives
 
 #### search for a line in FTS
 - create the query "ALLOF(FUZZY(w) for w in line)" and run it against the index

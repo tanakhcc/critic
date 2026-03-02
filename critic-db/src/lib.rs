@@ -4,7 +4,7 @@ use sqlx::{Pool, Postgres, QueryBuilder, prelude::FromRow, query_as};
 
 use critic_shared::{
     LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
-    Point, RetrainOptions, VersificationScheme,
+    Point, RetrainOptions, SegmentedPage, VersificationScheme,
 };
 
 use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -173,6 +173,20 @@ impl core::fmt::Display for DBError {
     }
 }
 impl std::error::Error for DBError {}
+
+pub async fn get_user(
+    pool: &Pool<Postgres>,
+    user_id: &i32,
+) -> Result<Option<AuthenticatedUser>, DBError> {
+    sqlx::query_as!(
+        AuthenticatedUser,
+        "select * from user_session where id = $1",
+        user_id,
+    )
+    .fetch_optional(&*pool)
+    .await
+    .map_err(|e| DBError::CannotGetUsersession(e))
+}
 
 pub async fn insert_or_update_user_session(
     pool: &Pool<Postgres>,
@@ -1246,15 +1260,15 @@ pub async fn set_chunks_indexed(pool: &Pool<Postgres>, chunks: &[i64]) -> Result
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineTask {
-    manuscript: String,
-    page: String,
+    pub manuscript: String,
+    pub page: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OcrTask {
-    manuscript: String,
-    page: String,
-    baselines: Vec<(Point, Point)>,
+    pub manuscript: String,
+    pub page: String,
+    pub baselines: Vec<(Point, Point)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1264,7 +1278,7 @@ pub enum KrakenTask {
 }
 
 pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<KrakenTask>, DBError> {
-    match sqlx::query!("SELECT manuscript.title, page.name FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE should_baseline;")
+    match sqlx::query!("SELECT manuscript.title, page.name FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE minified AND should_baseline;")
         .fetch_optional(&*pool)
         .await
         .map_err(DBError::CannotGetPage)?
@@ -1272,7 +1286,7 @@ pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<Kraken
         {
             None => {
                 match sqlx::query!(
-                        "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE should_ocr;"
+                        "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE minified AND should_ocr;"
                     )
                     .fetch_optional(&*pool)
                     .await
@@ -1286,7 +1300,7 @@ pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<Kraken
                         let page = x.name;
                         let page_id = x.id;
                         let baselines = sqlx::query!(
-                            "SELECT baseline FROM ocr WHERE page = $1",
+                            "SELECT baseline FROM line INNER JOIN region ON line.region = region.id WHERE page = $1",
                             page_id,
                         )
                             .fetch_all(&*pool).await.map_err(DBError::CannotGetOcr)?.into_iter().map(|r|
@@ -1302,4 +1316,100 @@ pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<Kraken
                 Ok(Some(KrakenTask::Baseline(x)))
             }
         }
+}
+
+/// Get the model to use when dealing with a specified page.
+///
+/// Note that this does not return an actual file, only the metadata from which you can calculate
+/// the correct base path to get the mlmodel to use (or an older model)
+pub async fn get_model_for_page(
+    pool: &Pool<Postgres>,
+    pagename: &str,
+    model_type: ModelType,
+) -> Result<ModelMetadata, DBError> {
+    match model_type {
+        ModelType::Segmentation => {
+            sqlx::query!(
+                "SELECT segmentation_model.id, segmentation_model.name, segmentation_model.retrain_every_days, segmentation_model.retrain_keep_versions
+                 FROM language
+                 INNER JOIN segmentation_model ON segmentation_model.id = language.segmentation_model
+                 WHERE language.id = (
+                    SELECT
+                        COALESCE(page.language,
+                                manuscript.language,
+                                (SELECT language
+                                    FROM default_language WHERE id = 1))
+                    FROM page
+                    INNER JOIN manuscript on manuscript.id = page.manuscript
+                    WHERE page.name = $1);",
+                pagename,
+                )
+                .fetch_one(&*pool)
+                .await
+                .map(|raw| ModelMetadata {
+                    id: raw.id,
+                    name: raw.name,
+                    model_type: ModelType::Segmentation,
+                    retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                        Some(RetrainOptions {
+                            every_days: every_days.try_into().unwrap_or_default(),
+                            keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                                <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                            }),
+                        })
+                    } else {
+                        None
+                    },
+                })
+                .map_err(DBError::CannotGetModel)
+            }
+        ModelType::Recognition => {
+            sqlx::query!(
+                "SELECT recognition_model.id, recognition_model.name, recognition_model.retrain_every_days, recognition_model.retrain_keep_versions
+                 FROM language
+                 INNER JOIN recognition_model ON recognition_model.id = language.recognition_model
+                 WHERE language.id = (
+                    SELECT
+                        COALESCE(page.language,
+                                manuscript.language,
+                                (SELECT language
+                                    FROM default_language WHERE id = 1))
+                    FROM page
+                    INNER JOIN manuscript on manuscript.id = page.manuscript
+                    WHERE page.name = $1);",
+                pagename,
+                )
+                .fetch_one(&*pool)
+                .await
+                .map(|raw| ModelMetadata {
+                    id: raw.id,
+                    name: raw.name,
+                    model_type: ModelType::Recognition,
+                    retrain_options: if let Some(every_days) = raw.retrain_every_days {
+                        Some(RetrainOptions {
+                            every_days: every_days.try_into().unwrap_or_default(),
+                            keep_versions: raw.retrain_keep_versions.map(|as_i32| {
+                                <i32 as TryInto<u16>>::try_into(as_i32.clone()).unwrap_or_default()
+                            }),
+                        })
+                    } else {
+                        None
+                    },
+                })
+                .map_err(DBError::CannotGetModel)
+            }
+    }
+}
+
+pub async fn insert_segmentation(
+    pool: &Pool<Postgres>,
+    manuscript_name: &str,
+    page_name: &str,
+    segmentation: SegmentedPage,
+) -> Result<(), DBError> {
+    for region in segmentation.regions.into_iter() {
+        // insert the region
+        // insert the baselines
+    }
+    todo!()
 }

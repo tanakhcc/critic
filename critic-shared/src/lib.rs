@@ -16,6 +16,7 @@ pub enum InShutdown {
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::FromRow;
+use urls::MODEL_BASE_LOCATION;
 
 /// The extensions that we allow for page images
 pub const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg"];
@@ -215,6 +216,18 @@ pub struct ModelMetadata {
     /// If None, do not retrain at all
     pub retrain_options: Option<RetrainOptions>,
 }
+impl ModelMetadata {
+    /// The FS directory this model can be found in.
+    ///
+    /// This is relative to the data directory saved in the global config.
+    /// This does not contain the basename of any individual file.
+    pub fn directory(&self) -> String {
+        format!(
+            "{MODEL_BASE_LOCATION}/{}/{}_{}",
+            self.model_type, self.name, self.id
+        )
+    }
+}
 
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -242,6 +255,11 @@ pub struct LanguageMetadata {
 pub struct Point {
     pub x: u32,
     pub y: u32,
+}
+impl Point {
+    pub fn from(p: (u32, u32)) -> Self {
+        Self { x: p.0, y: p.1 }
+    }
 }
 impl core::fmt::Display for Point {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {

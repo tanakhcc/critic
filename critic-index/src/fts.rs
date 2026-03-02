@@ -186,26 +186,26 @@ pub async fn create_fts_store(
             }
             next_result = index_next_chunks(&config, number_of_chunks.into(), &mut writer, &schema) => {
                 match next_result {
-            Ok(indexed_chunks) => {
-                tracing::debug!("Indexed {indexed_chunks} new chunks of the base corpus.");
-                if indexed_chunks >= number_of_chunks.into() {
-                    continue;
-                } else {
-                    return index.reader().map_err(FtsError::Reader);
-                }
-            }
-            Err(e) => {
-                tracing::warn!("Indexing new base corpus chunks failed: {e}. Waiting 1000ms.");
-                tokio::select! {
-                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000)) => {}
-                    _ = shutdown_rx.changed() => {
-                        tracing::debug!("Shutting down FTS ingester now.");
-                        return Err(FtsError::Aborted);
+                    Ok(indexed_chunks) => {
+                        tracing::debug!("Indexed {indexed_chunks} new chunks of the base corpus.");
+                        if indexed_chunks >= number_of_chunks.into() {
+                            continue;
+                        } else {
+                            return index.reader().map_err(FtsError::Reader);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Indexing new base corpus chunks failed: {e}. Waiting 1000ms.");
+                        tokio::select! {
+                            _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000)) => {}
+                            _ = shutdown_rx.changed() => {
+                                tracing::debug!("Shutting down FTS ingester now.");
+                                return Err(FtsError::Aborted);
+                            }
+                        }
                     }
                 }
             }
-                }
-        }
         }
     }
 }
