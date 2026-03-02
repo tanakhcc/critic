@@ -174,14 +174,19 @@ fn default_worker_threads() -> u8 {
 /// The main config object that will be available across the Serverside application
 #[derive(Debug)]
 pub struct Config {
-    // DB pool to use
+    /// DB pool to use
     pub db: Pool<Postgres>,
+    /// Addess to listen to HTTP connections on
     pub site_addr: SocketAddr,
+    /// tracing level filter
     pub log_level: LevelFilter,
+    /// Client to use to connect to oauth endpoint on github
     pub oauth_client: OauthClient,
     /// used as server part for determining where to communicate to github
     pub github: GithubConfig,
+    /// Location of the data directory to use
     pub data_directory: String,
+    /// Number of worker threads to use
     pub worker_threads: u8,
 }
 impl Config {

@@ -4,6 +4,15 @@ use reactive_stores::Store;
 
 pub mod urls;
 
+/// Is the entire app currently trying to shut down?
+///
+/// This will be synced via a global [`tokio::sync::watch`].
+#[cfg(feature = "ssr")]
+pub enum InShutdown {
+    Yes,
+    No,
+}
+
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use sqlx::FromRow;

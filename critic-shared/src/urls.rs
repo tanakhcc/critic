@@ -9,6 +9,9 @@ pub const IMAGE_BASE_LOCATION: &str = "/images";
 pub const TRANSCRIPTION_BASE_LOCATION: &str = "/transcriptions";
 /// URL and filesystem-location to put machinelearning models into
 pub const MODEL_BASE_LOCATION: &str = "/models";
+/// filesystem-location to put the FTS index into
+pub const FTS_INDEX_BASE_LOCATION: &str = "/fts-index";
+
 /// Base url for static content like files etc.
 pub const STATIC_BASE_URL: &str = "/static";
 /// The base url for uploading anything

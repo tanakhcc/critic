@@ -3,9 +3,12 @@
 #![recursion_limit = "256"]
 
 #[cfg(feature = "ssr")]
+use critic_shared::InShutdown;
+
+#[cfg(feature = "ssr")]
 async fn shutdown_signal(
     handle: axum_server::Handle,
-    mut watcher: tokio::sync::watch::Receiver<critic_server::signal_handler::InShutdown>,
+    mut watcher: tokio::sync::watch::Receiver<InShutdown>,
 ) {
     tokio::select! {
         _ = watcher.changed() => {
@@ -18,8 +21,8 @@ async fn shutdown_signal(
 #[cfg(feature = "ssr")]
 pub async fn run_web_server(
     config: std::sync::Arc<critic_config::Config>,
-    watcher: tokio::sync::watch::Receiver<critic_server::signal_handler::InShutdown>,
-    shutdown_tx: tokio::sync::watch::Sender<critic_server::signal_handler::InShutdown>,
+    watcher: tokio::sync::watch::Receiver<InShutdown>,
+    shutdown_tx: tokio::sync::watch::Sender<InShutdown>,
 ) {
     // Generate the list of routes in your Leptos App
 
@@ -30,9 +33,7 @@ pub async fn run_web_server(
         AuthManagerLayerBuilder,
     };
     use critic::app::*;
-    use critic_server::{
-        auth::GithubOauthBackend, signal_handler::InShutdown, upload::upload_router,
-    };
+    use critic_server::{auth::GithubOauthBackend, upload::upload_router};
     use critic_shared::urls::{STATIC_BASE_URL, UPLOAD_BASE_URL};
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -119,7 +120,7 @@ pub async fn run_web_server(
 async fn main() {
     use std::sync::Arc;
 
-    use critic_server::{minification::run_minification, signal_handler::InShutdown};
+    use critic_server::minification::run_minification;
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
     let config = match critic_config::Config::try_create().await {
@@ -165,11 +166,32 @@ async fn main() {
         tx.subscribe(),
         tx.clone(),
     ));
-    let minification_service = tokio::task::spawn(run_minification(config_arc, tx.subscribe()));
+    let minification_service =
+        tokio::task::spawn(run_minification(config_arc.clone(), tx.subscribe()));
+
+    // oneshot to pass the index reader to the search task once the ingestion task finishes
+    let (fts_reader_tx, fts_reader_rx) = tokio::sync::oneshot::channel();
+    let fts_ingestion_handle = tokio::spawn(critic_index::fts::create_fts_store_with_notification(
+        config_arc.clone(),
+        fts_reader_tx,
+        tx.clone(),
+        tx.subscribe(),
+    ));
+    let indexer_handle = tokio::spawn(critic_index::run_indexing(
+        config_arc.clone(),
+        fts_reader_rx,
+        tx.subscribe(),
+        tx.clone(),
+    ));
 
     // Join the different services
-    let (signal_res, web_res, minification_res) =
-        tokio::join!(signal_handle, web_server, minification_service);
+    let (signal_res, web_res, minification_res, fts_ingestion_res, indexer_res) = tokio::join!(
+        signal_handle,
+        web_server,
+        minification_service,
+        fts_ingestion_handle,
+        indexer_handle,
+    );
     match signal_res {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
@@ -184,6 +206,14 @@ async fn main() {
     };
     if let Err(e) = minification_res {
         tracing::error!("Error joining the minificaiton service: {e}");
+    };
+    if let Err(e) = fts_ingestion_res {
+        tracing::error!(
+            "Error joining the service ingesting the base corpus into the FTS index: {e}"
+        );
+    };
+    if let Err(e) = indexer_res {
+        tracing::error!("Error joining the service automatically indexing pages: {e}");
     };
 }
 

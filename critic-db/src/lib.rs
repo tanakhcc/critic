@@ -60,6 +60,8 @@ pub enum DBError {
     CannotUpdateLanguage(sqlx::Error),
     CannotUpdateDefaultLanguage(sqlx::Error),
     CannotGetDefaultLanguage(sqlx::Error),
+    CannotGetUnindexedChunks(sqlx::Error),
+    CannotUpdateChunks(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -156,6 +158,12 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetDefaultLanguage(e) => {
                 write!(f, "Unable to get the project default language: {e}")
+            }
+            Self::CannotGetUnindexedChunks(e) => {
+                write!(f, "Unable to get next unindexed chunks: {e}")
+            }
+            Self::CannotUpdateChunks(e) => {
+                write!(f, "Unable to update chunks: {e}")
             }
         }
     }
@@ -1121,4 +1129,113 @@ pub async fn get_page_language(
         .await
         .map(|row| row.language)
         .map_err(DBError::CannotGetLanguage)
+}
+
+/// A chunk of the base corpus, representing one row in the DB
+///
+/// Note that we expect the base corpus to be ingested into the DB by an external tool.
+/// You can consider [this example for the MapM
+/// data](https://github.com/curatorsigma/mapm-to-critic).
+#[derive(Debug, FromRow)]
+pub struct BaseCorpusChunk {
+    pub id: i64,
+    /// The language used in this chunk
+    pub language: i64,
+    /// the critic-tei-xml for this chunk
+    pub content: String,
+    /// The versification scheme that is relevant for this chunk
+    pub versification_scheme: i64,
+    /// the first verse (given versification-scheme-agnostic) in this chunk
+    pub verse_start: i64,
+    /// the last verse (given versification-scheme-agnostic) in this chunk
+    pub verse_end: i64,
+}
+impl From<_BaseCorpusChunkWithEqualityAlphabet> for (BaseCorpusChunk, String) {
+    fn from(value: _BaseCorpusChunkWithEqualityAlphabet) -> Self {
+        (
+            BaseCorpusChunk {
+                id: value.id,
+                language: value.language,
+                content: value.content,
+                versification_scheme: value.versification_scheme,
+                verse_start: value.verse_start,
+                verse_end: value.verse_end,
+            },
+            value.equality_alphabet,
+        )
+    }
+}
+
+/// A chunk of the base corpus, representing one row in the DB
+///
+/// Note that we expect the base corpus to be ingested into the DB by an external tool.
+/// You can consider [this example for the MapM
+/// data](https://github.com/curatorsigma/mapm-to-critic).
+#[derive(Debug, FromRow)]
+struct _BaseCorpusChunkWithEqualityAlphabet {
+    id: i64,
+    language: i64,
+    content: String,
+    versification_scheme: i64,
+    verse_start: i64,
+    verse_end: i64,
+    equality_alphabet: String,
+}
+
+pub async fn get_unindexed_chunks(
+    pool: &Pool<Postgres>,
+    number_of_chunks: i64,
+) -> Result<Vec<BaseCorpusChunk>, DBError> {
+    sqlx::query_as!(
+        BaseCorpusChunk,
+        r#"SELECT
+            id as "id!",
+            language as "language!",
+            content as "content!",
+            versification_scheme as "versification_scheme!",
+            verse_start as "verse_start!",
+            verse_end as "verse_end!"
+        FROM base_corpus
+        WHERE indexed = false LIMIT $1;"#,
+        number_of_chunks,
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(DBError::CannotGetUnindexedChunks)
+}
+
+pub async fn get_unindexed_chunks_with_equality_alphabet(
+    pool: &Pool<Postgres>,
+    number_of_chunks: i64,
+) -> Result<Vec<(BaseCorpusChunk, String)>, DBError> {
+    sqlx::query_as!(
+        _BaseCorpusChunkWithEqualityAlphabet,
+        r#"SELECT
+            base_corpus.id as "id!",
+            language as "language!",
+            language.equality_alphabet as "equality_alphabet!",
+            content as "content!",
+            versification_scheme as "versification_scheme!",
+            verse_start as "verse_start!",
+            verse_end as "verse_end!"
+        FROM base_corpus
+        INNER JOIN language ON language.id = base_corpus.language
+        WHERE indexed = false LIMIT $1;"#,
+        number_of_chunks,
+    )
+    .fetch_all(&*pool)
+    .await
+    .map(|v| v.into_iter().map(|c| c.into()).collect::<Vec<_>>())
+    .map_err(DBError::CannotGetUnindexedChunks)
+}
+
+pub async fn set_chunks_indexed(pool: &Pool<Postgres>, chunks: &[i64]) -> Result<(), DBError> {
+    sqlx::query!(
+        "UPDATE base_corpus SET indexed = true WHERE id = ANY($1);",
+        chunks
+    )
+    .execute(&*pool)
+    .await
+    .map(|_| ())
+    .map_err(DBError::CannotUpdateChunks)
 }

@@ -1,5 +1,12 @@
 //! Lower level implementations for segmentation, ocr and indexing in critic.
 
+use std::sync::Arc;
+
+use critic_config::Config;
+use critic_shared::InShutdown;
+use tantivy::IndexReader;
+
+pub mod fts;
 pub mod segment;
 
 #[derive(Debug)]
@@ -36,3 +43,35 @@ impl core::fmt::Display for IndexError {
     }
 }
 impl core::error::Error for IndexError {}
+
+/// Continuously indexes pages.
+///
+/// Pulls pages to index from the db that require OCR to be run.
+/// - tries to index the page
+/// - writes the best-guess basetext into the db
+pub async fn run_indexing(
+    config: Arc<Config>,
+    fts_reader_rx: tokio::sync::oneshot::Receiver<IndexReader>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<InShutdown>,
+    shutdown_tx: tokio::sync::watch::Sender<InShutdown>,
+) {
+    let index_reader = tokio::select! {
+        _ = shutdown_rx.changed() => {
+            tracing::debug!("Shutting down continuous indexing service now.");
+            return;
+        }
+        res = fts_reader_rx => {
+            match res {
+                Ok(x) => x,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to receive the FTS reader in the indexing thread: {e}. Aborting."
+                    );
+                    shutdown_tx.send_replace(InShutdown::Yes);
+                    return;
+                }
+            }
+        }
+    };
+    tracing::info!("I would now start indexing pages");
+}

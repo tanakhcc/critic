@@ -62,22 +62,16 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # TODOs - Redesign for visual Transcription Editor
 ## base corpus search
 ### Write primitives
-#### cleanse marked corpus
-- takes streamed formatted text and turns it into
-    1. The cleansed pure text (only equality alphabet, no anchors, pure basetext)
-    2. A indexmap [(idx in pure text, block-idx+string-idx in formatted text)]
 
 #### fulltext index generation
-- takes a chunk (arbitrary length, e.g. an entire book) of critic-tei-xml
-- breaks it into appropriate blocks
-- inserts the xml form into the db
-- cleanses them and inserts the clean form into the FTS index
-    - contains the block ID in the document
+- takes the base corpus chunks from the db
+- writes them into the index
 
 #### search for a line in FTS
 - create the query "ALLOF(FUZZY(w) for w in line)" and run it against the index
 
 #### last and next blocks
+- select from DB
 - requires verse ordering to find the last and next block
 
 #### Forward-completion

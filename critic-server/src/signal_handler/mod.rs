@@ -1,10 +1,4 @@
-/// Is the entire app currently trying to shut down?
-///
-/// This will be synced via a global [`tokio::sync::watch`].
-pub enum InShutdown {
-    Yes,
-    No,
-}
+use critic_shared::InShutdown;
 
 pub async fn signal_handler(
     mut watcher: tokio::sync::watch::Receiver<InShutdown>,

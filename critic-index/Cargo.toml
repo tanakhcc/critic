@@ -8,6 +8,12 @@ authors = ["Jonathan Schleucher"]
 
 [dependencies]
 serde = { version = "1.0.217", features = ["derive"] }
+critic-config = { path = "../critic-config" }
+critic-db = { path = "../critic-db" }
 critic-format = { path = "../../critic-format" }
 critic-shared = { path = "../critic-shared" }
 pyo3 = { version = "0.26.0", features = ["auto-initialize"] }
+quick-xml = { version = "0.38.0", features = ["serialize"]}
+tantivy = "0.25.0"
+tokio = { version = "1.46.1", default-features = false, features = ["time"] }
+tracing = { version = "0.1.40" }
