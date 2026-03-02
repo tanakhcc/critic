@@ -17,7 +17,7 @@ async fn shutdown_signal(
 
 #[cfg(feature = "ssr")]
 pub async fn run_web_server(
-    config: std::sync::Arc<critic_server::config::Config>,
+    config: std::sync::Arc<critic_config::Config>,
     watcher: tokio::sync::watch::Receiver<critic_server::signal_handler::InShutdown>,
     shutdown_tx: tokio::sync::watch::Sender<critic_server::signal_handler::InShutdown>,
 ) {
@@ -45,22 +45,28 @@ pub async fn run_web_server(
     // leptos_routes_with_exclusions (exclude protected and login layer) - this generates all other
     // leptos routes
     let config_capsule = config.clone();
+    let leptos_options = LeptosOptions::builder()
+        .output_name("critic")
+        .site_root("target/site")
+        .site_pkg_dir("pkg")
+        .site_addr(config.site_addr)
+        .build();
     let app_core = Router::new()
         .leptos_routes_with_context(
-            &config.leptos_options,
+            &leptos_options,
             routes,
             move || {
-                provide_context::<std::sync::Arc<critic_server::config::Config>>(
+                provide_context::<std::sync::Arc<critic_config::Config>>(
                     config_capsule.clone(),
                 );
             },
             {
-                let leptos_options = config.leptos_options.clone();
+                let leptos_options = leptos_options.clone();
                 move || shell(leptos_options.clone())
             },
         )
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(config.leptos_options.clone());
+        .with_state(leptos_options.clone());
 
     // create the auth layer on top of our application core
     let session_store = MemoryStore::default();
@@ -93,10 +99,10 @@ pub async fn run_web_server(
     let shutdown_future = shutdown_signal(shutdown_handle.clone(), watcher.clone());
 
     // serve the main app on HTTP
-    let web_server_future = axum_server::bind(config.leptos_options.site_addr)
+    let web_server_future = axum_server::bind(config.site_addr)
         .handle(shutdown_handle.clone())
         .serve(app.clone().into_make_service());
-    tracing::info!("listening on http://{}", &config.leptos_options.site_addr);
+    tracing::info!("listening on http://{}", &config.site_addr);
     // wait until either some other component shuts down or the webserver shuts down
     tokio::select! {
         r = web_server_future => {
@@ -118,7 +124,7 @@ async fn main() {
     use critic_server::{minification::run_minification, signal_handler::InShutdown};
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*, EnvFilter};
 
-    let config = match critic_server::config::Config::try_create().await {
+    let config = match critic_config::Config::try_create().await {
         Ok(x) => x,
         Err(e) => {
             panic!("Error reading config: {e}.");

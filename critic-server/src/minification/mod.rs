@@ -16,8 +16,8 @@ use critic_shared::{urls::IMAGE_BASE_LOCATION, PageMeta, PREVIEW_IMAGE_WIDTH};
 use image::{imageops::resize, GenericImageView, ImageReader};
 use rayon::prelude::*;
 
+use critic_config::Config;
 use crate::{
-    config::Config,
     db::{get_page_to_minify, mark_page_minifcation_failed, mark_page_minified},
     signal_handler::InShutdown,
 };

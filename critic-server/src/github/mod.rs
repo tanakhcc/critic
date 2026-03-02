@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use reqwest::{header::USER_AGENT, StatusCode};
 
-use crate::{auth::AuthenticatedUser, config::Config};
+use critic_config::Config;
+use crate::auth::AuthenticatedUser;
 
 #[derive(Debug)]
 pub enum GithubApiError {

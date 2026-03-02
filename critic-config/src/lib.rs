@@ -1,8 +1,7 @@
 //! Parse Config from config file
 
-use std::{fs::read_to_string, path::Path, str::FromStr};
+use std::{fs::read_to_string, net::SocketAddr, path::Path, str::FromStr};
 
-use leptos::config::LeptosOptions;
 use serde::Deserialize;
 use sqlx::{Pool, Postgres};
 use tracing::{error, level_filters::LevelFilter};
@@ -177,7 +176,7 @@ fn default_worker_threads() -> u8 {
 pub struct Config {
     // DB pool to use
     pub db: Pool<Postgres>,
-    pub leptos_options: LeptosOptions,
+    pub site_addr: SocketAddr,
     pub log_level: LevelFilter,
     pub oauth_client: OauthClient,
     /// used as server part for determining where to communicate to github
@@ -207,19 +206,13 @@ impl Config {
         let addr = std::net::SocketAddr::from_str(&value.web.site_addr)
             .expect("Should be able to parse socket addr");
 
-        let leptos_options = LeptosOptions::builder()
-            .output_name("critic")
-            .site_root("target/site")
-            .site_pkg_dir("pkg")
-            .site_addr(addr)
-            .build();
         let log_level = tracing_subscriber::filter::LevelFilter::from_str(
             &value.log_level.unwrap_or("INFO".to_string()),
         )?;
 
         Ok(Self {
             db,
-            leptos_options,
+            site_addr: addr,
             log_level,
             oauth_client: OauthConfig::try_from_config_data(value.oauth, &value.web.public_addr)?
                 .into(),

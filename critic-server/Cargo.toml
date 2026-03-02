@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
 axum-login = { version = "0.17.0" }
+critic-config = { path="../critic-config/" }
 critic-format = { path="../../critic-format/" }
 critic-shared = { path="../critic-shared/", features = ["ssr"] }
 serde = { version = "1.0.219", features = ["derive"] }

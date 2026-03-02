@@ -14,7 +14,7 @@ pub async fn get_pages_by_query(
 ) -> Result<Vec<PageTodo>, ServerFnError> {
     use critic_server::auth::AuthSession;
     use leptos_axum::extract;
-    let config: std::sync::Arc<critic_server::config::Config> =
+    let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     let auth_session = match extract::<AuthSession>().await {

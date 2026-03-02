@@ -13,9 +13,9 @@ use critic_shared::{
 };
 use reqwest::StatusCode;
 
+use critic_config::Config;
 use crate::{
     auth::AuthSession,
-    config::Config,
     db::{add_model_with_default_options, add_page},
     github::user_is_member,
 };

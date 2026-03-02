@@ -1,0 +1,15 @@
+[package]
+name = "critic-config"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+oauth2 = { version = "5.0.0" }
+serde = { version = "1.0.219", features = ["derive"] }
+sqlx = { version = "0.8.2", default-features = false, features = ["migrate", "time", "sqlite", "postgres", "runtime-tokio-rustls", "macros"] }
+toml = { version = "0.8.23" }
+tracing = { version = "0.1.40", features = ["attributes"] }
+tracing-subscriber = { version = "0.3.18", features = ["time", "fmt", "env-filter"] }

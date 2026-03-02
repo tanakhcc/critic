@@ -150,7 +150,7 @@ pub fn AdminRouter() -> impl MatchNestedRoutes + Copy {
 async fn get_models(
     model_type: critic_shared::ModelType,
 ) -> Result<Vec<critic_shared::ModelMetadata>, ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     critic_server::db::get_models(&config.db, model_type)
         .await

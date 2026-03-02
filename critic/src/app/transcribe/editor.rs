@@ -53,7 +53,7 @@ async fn get_initial_ms(
     let Some(user) = auth_session.user else {
         return Err(ServerFnError::new("No usersession available"));
     };
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     let initial_seed = get_editor_initial_value(&config.db, &msname, &pagename, &user.username)
         .await
@@ -109,7 +109,7 @@ pub async fn save_transcription(
     let Some(user) = auth_session.user else {
         return Err(ServerFnError::new("No usersession available"));
     };
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     write_transcription_to_disk(
@@ -140,7 +140,7 @@ pub async fn publish_transcription(msname: String, pagename: String) -> Result<(
     let Some(user) = auth_session.user else {
         return Err(ServerFnError::new("No usersession available"));
     };
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     critic_server::db::publish_transcription(&config.db, &msname, &pagename, &user.username)

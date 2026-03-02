@@ -7,6 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+critic-config = { path = "../critic-config/", optional = true }
 critic-format = { path = "../../critic-format/" }
 critic-shared = { path = "../critic-shared/" }
 critic-server = { path = "../critic-server/", optional = true }
@@ -39,6 +40,7 @@ ssr = [
     "leptos-use/ssr",
     "critic-shared/ssr",
     "dep:quick-xml",
+    "dep:critic-config",
     "dep:critic-server",
     "dep:leptos_axum",
     "dep:tracing",

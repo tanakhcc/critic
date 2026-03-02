@@ -20,7 +20,7 @@ async fn get_image_dimensions(
     which: critic_shared::ImageType,
 ) -> Result<(u32, u32), ServerFnError> {
     use leptos::prelude::use_context;
-    let config: std::sync::Arc<critic_server::config::Config> =
+    let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
     critic_server::static_files::get_image_dimensions(
         &config.data_directory,

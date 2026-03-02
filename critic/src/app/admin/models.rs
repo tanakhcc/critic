@@ -21,7 +21,7 @@ use crate::app::shared::ModelParams;
 
 #[server]
 async fn add_model(modelname: String, model_type: ModelType) -> Result<i64, ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
     let new_id =
@@ -148,7 +148,7 @@ pub async fn get_model_by_id(
     id: i64,
     model_type: ModelType,
 ) -> Result<ModelMetadata, ServerFnError> {
-    let config: std::sync::Arc<critic_server::config::Config> =
+    let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
     let res = critic_server::db::get_model_by_id(&config.db, id, model_type).await;
     match res {
@@ -239,7 +239,7 @@ async fn update_model_retraining_opts(
             return Err(ServerFnError::new(msg));
         }
     };
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     let Some(user) = auth_session.user else {

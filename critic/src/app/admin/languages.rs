@@ -19,7 +19,7 @@ use crate::app::{admin::manuscripts::MMetaTextArea, shared::LanguageParams};
 
 #[server]
 pub async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     critic_server::db::get_languages(&config.db)
         .await
@@ -31,7 +31,7 @@ async fn add_language(language: String) -> Result<(), ServerFnError> {
     if language.is_empty() {
         return Err(ServerFnError::new("Manuscript name must not be empty."));
     }
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
     critic_server::db::add_language_with_default_options(&config.db, &language)
@@ -43,7 +43,7 @@ async fn add_language(language: String) -> Result<(), ServerFnError> {
 
 #[server]
 async fn update_default_language(language_id: Option<i64>) -> Result<(), ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
     critic_server::db::update_default_language(&config.db, language_id)
@@ -292,7 +292,7 @@ pub fn LanguageList() -> impl IntoView {
 
 #[server]
 async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     let res = critic_server::db::get_default_language(&config.db)
         .await
@@ -305,7 +305,7 @@ async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
 pub async fn get_language_by_name(
     name: String,
 ) -> Result<critic_shared::LanguageMetadata, ServerFnError> {
-    let config: std::sync::Arc<critic_server::config::Config> =
+    let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
     let res = critic_server::db::get_language_by_name(&config.db, &name).await;
     match res {
@@ -415,7 +415,7 @@ async fn update_language_models(data: UpdateLanguageModelData) -> Result<(), Ser
             return Err(ServerFnError::new(msg));
         }
     };
-    let config = use_context::<std::sync::Arc<critic_server::config::Config>>()
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     let Some(user) = auth_session.user else {

@@ -8,10 +8,8 @@ use oauth2::{
 };
 use serde::Deserialize;
 
-use crate::{
-    config::Config,
-    db::{self, DBError},
-};
+use critic_config::Config;
+use crate::db::{self, DBError};
 
 // some basic types used across the app
 /// The JSON object returned from githubs get-user endpoint
@@ -176,7 +174,7 @@ impl std::error::Error for BackendError {}
 #[derive(Debug, Clone)]
 pub struct GithubOauthBackend {
     db: sqlx::Pool<sqlx::Postgres>,
-    client: crate::config::OauthClient,
+    client: critic_config::OauthClient,
 }
 
 impl GithubOauthBackend {
