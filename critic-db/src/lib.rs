@@ -1,13 +1,15 @@
 //! Communication with the postgres database
 
-use sqlx::{prelude::FromRow, query_as, Pool, Postgres, QueryBuilder};
+use sqlx::{Pool, Postgres, QueryBuilder, prelude::FromRow, query_as};
 
 use critic_shared::{
     LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
     RetrainOptions, VersificationScheme,
 };
 
-use crate::auth::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
+use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
+
+pub mod auth_types;
 
 // include tests
 #[cfg(test)]

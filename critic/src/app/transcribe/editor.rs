@@ -35,12 +35,9 @@ async fn get_initial_ms(
     msname: String,
     pagename: String,
 ) -> Result<(Vec<Block>, String), ServerFnError> {
+    use critic_db::{get_editor_initial_value, get_language_by_id};
     use critic_format::streamed::Block;
-    use critic_server::{
-        auth::AuthSession,
-        db::{get_editor_initial_value, get_language_by_id},
-        transcription_store::read_transcription_from_disk,
-    };
+    use critic_server::{auth::AuthSession, transcription_store::read_transcription_from_disk};
     use leptos_axum::extract;
     let auth_session = match extract::<AuthSession>().await {
         Ok(x) => x,
@@ -120,7 +117,7 @@ pub async fn save_transcription(
         &user.username,
     )?;
     // save the fact that this transcription exists to the DB
-    critic_server::db::add_transcription(&config.db, &msname, &pagename, &user.username).await?;
+    critic_db::add_transcription(&config.db, &msname, &pagename, &user.username).await?;
     Ok(())
 }
 
@@ -143,7 +140,7 @@ pub async fn publish_transcription(msname: String, pagename: String) -> Result<(
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
-    critic_server::db::publish_transcription(&config.db, &msname, &pagename, &user.username)
+    critic_db::publish_transcription(&config.db, &msname, &pagename, &user.username)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())

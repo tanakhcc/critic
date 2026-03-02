@@ -152,7 +152,7 @@ async fn get_models(
 ) -> Result<Vec<critic_shared::ModelMetadata>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_models(&config.db, model_type)
+    critic_db::get_models(&config.db, model_type)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }

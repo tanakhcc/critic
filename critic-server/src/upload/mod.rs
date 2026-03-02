@@ -13,12 +13,9 @@ use critic_shared::{
 };
 use reqwest::StatusCode;
 
+use crate::{auth::AuthSession, github::user_is_member};
 use critic_config::Config;
-use crate::{
-    auth::AuthSession,
-    db::{add_model_with_default_options, add_page},
-    github::user_is_member,
-};
+use critic_db::{add_model_with_default_options, add_page};
 
 /// The router handling all file uploads
 pub fn upload_router() -> axum::Router {

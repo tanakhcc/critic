@@ -16,11 +16,9 @@ use critic_shared::{urls::IMAGE_BASE_LOCATION, PageMeta, PREVIEW_IMAGE_WIDTH};
 use image::{imageops::resize, GenericImageView, ImageReader};
 use rayon::prelude::*;
 
+use crate::signal_handler::InShutdown;
 use critic_config::Config;
-use crate::{
-    db::{get_page_to_minify, mark_page_minifcation_failed, mark_page_minified},
-    signal_handler::InShutdown,
-};
+use critic_db::{get_page_to_minify, mark_page_minifcation_failed, mark_page_minified};
 
 /// Problems that can occur during minification
 #[derive(Debug)]

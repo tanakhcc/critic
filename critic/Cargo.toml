@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 critic-config = { path="../critic-config/", optional = true }
+critic-db = { path="../critic-db/", optional = true }
 critic-format = { path="../../critic-format/" }
 critic-shared = { path="../critic-shared/" }
 critic-server = { path="../critic-server/", optional = true }
@@ -56,6 +57,7 @@ ssr = [
     "dep:axum-server",
     "dep:axum-login",
     "dep:critic-config",
+    "dep:critic-db",
     "dep:critic-server",
     "dep:tokio",
     "dep:leptos_axum",

@@ -25,7 +25,7 @@ use crate::app::EmptyError;
 async fn get_manuscripts() -> Result<Vec<critic_shared::ManuscriptMeta>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_manuscripts(&config.db)
+    critic_db::get_manuscripts(&config.db)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }
@@ -39,7 +39,7 @@ async fn add_manuscript(msname: String) -> Result<(), ServerFnError> {
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
     leptos_axum::redirect(&format!("/admin/manuscripts/{msname}"));
-    critic_server::db::add_manuscript(&config.db, &msname, None)
+    critic_db::add_manuscript(&config.db, &msname, None)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }
@@ -288,10 +288,10 @@ pub async fn get_manuscript_by_name(
 ) -> Result<critic_shared::Manuscript, ServerFnError> {
     let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_manuscript(&config.db, &msname).await;
+    let res = critic_db::get_manuscript(&config.db, &msname).await;
     match res {
         Ok(x) => Ok(x),
-        Err(e @ critic_server::db::DBError::ManuscriptDoesNotExist(_)) => {
+        Err(e @ critic_db::DBError::ManuscriptDoesNotExist(_)) => {
             Err(ServerFnError::new(e.to_string()))
         }
         Err(e) => {
@@ -661,7 +661,7 @@ async fn update_ms_metadata(data: ManuscriptMeta, old_title: String) -> Result<(
         }
     };
     // change the MS in the db
-    if let Err(e) = critic_server::db::update_ms_meta(&config.db, &data).await {
+    if let Err(e) = critic_db::update_ms_meta(&config.db, &data).await {
         tracing::warn!(
             "Failed to update manuscript metadata for ms with id {}",
             data.id
@@ -930,7 +930,7 @@ async fn update_page_language(
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
-    critic_server::db::update_page_language(&config.db, language_id, &ms_name, &page_name)
+    critic_db::update_page_language(&config.db, language_id, &ms_name, &page_name)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())
@@ -943,7 +943,7 @@ pub async fn get_page_language(
 ) -> Result<Option<i64>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_page_language(&config.db, &ms_name, &page_name)
+    critic_db::get_page_language(&config.db, &ms_name, &page_name)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }

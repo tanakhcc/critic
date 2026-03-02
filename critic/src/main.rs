@@ -56,9 +56,7 @@ pub async fn run_web_server(
             &leptos_options,
             routes,
             move || {
-                provide_context::<std::sync::Arc<critic_config::Config>>(
-                    config_capsule.clone(),
-                );
+                provide_context::<std::sync::Arc<critic_config::Config>>(config_capsule.clone());
             },
             {
                 let leptos_options = leptos_options.clone();
@@ -136,7 +134,7 @@ async fn main() {
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
-    critic_server::db::migrate(&config_arc.db).await;
+    critic_db::migrate(&config_arc.db).await;
 
     let my_crate_filter = EnvFilter::new("critic");
     let subscriber = tracing_subscriber::registry().with(my_crate_filter).with(

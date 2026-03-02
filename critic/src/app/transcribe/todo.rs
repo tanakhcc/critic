@@ -29,13 +29,9 @@ pub async fn get_pages_by_query(
         return Err(ServerFnError::new("No usersession available"));
     };
 
-    let res = critic_server::db::get_pages_by_query(
-        &config.db,
-        &query,
-        &user.username,
-        page.unwrap_or_default(),
-    )
-    .await;
+    let res =
+        critic_db::get_pages_by_query(&config.db, &query, &user.username, page.unwrap_or_default())
+            .await;
     match res {
         Ok(x) => Ok(x),
         Err(e) => {

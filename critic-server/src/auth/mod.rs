@@ -1,7 +1,11 @@
 //! All types and endpoints for authenticating users
 
 use axum::http::header::{AUTHORIZATION, USER_AGENT};
-use axum_login::{AuthUser, AuthnBackend, UserId};
+use axum_login::{AuthnBackend, UserId};
+use critic_db::{
+    auth_types::{AuthenticatedUser, NormalizeTokenResponseError, UserInfo},
+    insert_or_update_user_session,
+};
 use oauth2::{
     url::Url, AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
     TokenResponse,
@@ -9,114 +13,10 @@ use oauth2::{
 use serde::Deserialize;
 
 use critic_config::Config;
-use crate::db::{self, DBError};
-
-// some basic types used across the app
-/// The JSON object returned from githubs get-user endpoint
-#[derive(Debug, Deserialize)]
-pub struct UserInfo {
-    /// ID of the user in github - we use the same ID in the internal DB here
-    pub id: i32,
-    /// username of the user in github - we use the same here
-    pub login: String,
-}
-impl From<AuthenticatedUser> for UserInfo {
-    fn from(value: AuthenticatedUser) -> Self {
-        Self {
-            id: value.id,
-            login: value.username,
-        }
-    }
-}
-
-/// The full User with oauth2 credentials
-#[derive(Deserialize, Clone, sqlx::prelude::FromRow)]
-pub struct AuthenticatedUser {
-    pub id: i32,
-    pub username: String,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub expires_at: time::OffsetDateTime,
-}
-impl std::fmt::Debug for AuthenticatedUser {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AuthenticatedUser")
-            .field("id", &self.id)
-            .field("username", &self.username)
-            .field("access_token", &"[redacted]")
-            .field("refresh_token", &"[redacted]")
-            .field("expires_at", &self.expires_at)
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-pub enum NormalizeTokenResponseError {
-    NoRefresh,
-    NoExpiresIn,
-}
-impl core::fmt::Display for NormalizeTokenResponseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        match self {
-            Self::NoRefresh => {
-                write!(f, "No refresh token was given")
-            }
-            Self::NoExpiresIn => {
-                write!(f, "No expires_in time was given")
-            }
-        }
-    }
-}
-impl std::error::Error for NormalizeTokenResponseError {}
-#[derive(Debug)]
-pub struct NormalizedTokenResponse {
-    pub access_token: String,
-    pub refresh_token: String,
-    pub expires_at: time::OffsetDateTime,
-}
-impl
-    TryFrom<
-        oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
-    > for NormalizedTokenResponse
-{
-    type Error = NormalizeTokenResponseError;
-
-    fn try_from(
-        value: oauth2::StandardTokenResponse<
-            oauth2::EmptyExtraTokenFields,
-            oauth2::basic::BasicTokenType,
-        >,
-    ) -> Result<Self, Self::Error> {
-        let expires_at = time::OffsetDateTime::now_utc()
-            + value
-                .expires_in()
-                .ok_or(NormalizeTokenResponseError::NoExpiresIn)?;
-        Ok(Self {
-            access_token: value.access_token().clone().into_secret(),
-            refresh_token: value
-                .refresh_token()
-                .ok_or(NormalizeTokenResponseError::NoRefresh)?
-                .clone()
-                .into_secret(),
-            expires_at,
-        })
-    }
-}
+use critic_db::{self, DBError};
 
 /// has all the backend APIs for auth flows
 pub mod backend;
-
-impl AuthUser for AuthenticatedUser {
-    type Id = i32;
-
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn session_auth_hash(&self) -> &[u8] {
-        self.access_token.as_bytes()
-    }
-}
 
 /// Known secrets for this Oauth2 Flow before getting authorization_token
 #[derive(Debug, Clone, Deserialize)]
@@ -247,7 +147,7 @@ impl AuthnBackend for GithubOauthBackend {
             .map_err(Self::Error::Github)?;
 
         // Persist user in our database so we can use `get_user`.
-        let user = db::insert_or_update_user_session(
+        let user = insert_or_update_user_session(
             &self.db,
             user_info,
             token_res.try_into().map_err(BackendError::TokenResponse)?,

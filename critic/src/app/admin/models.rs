@@ -24,10 +24,9 @@ async fn add_model(modelname: String, model_type: ModelType) -> Result<i64, Serv
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new manuscript, redirect to its own page
-    let new_id =
-        critic_server::db::add_model_with_default_options(&config.db, &modelname, model_type)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let new_id = critic_db::add_model_with_default_options(&config.db, &modelname, model_type)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
     leptos_axum::redirect(&format!("/admin/models/{model_type}/{new_id}"));
     Ok(new_id)
 }
@@ -150,12 +149,10 @@ pub async fn get_model_by_id(
 ) -> Result<ModelMetadata, ServerFnError> {
     let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_model_by_id(&config.db, id, model_type).await;
+    let res = critic_db::get_model_by_id(&config.db, id, model_type).await;
     match res {
         Ok(x) => Ok(x),
-        Err(e @ critic_server::db::DBError::CannotGetModel(_)) => {
-            Err(ServerFnError::new(e.to_string()))
-        }
+        Err(e @ critic_db::DBError::CannotGetModel(_)) => Err(ServerFnError::new(e.to_string())),
         Err(e) => {
             tracing::warn!("Failed loading model meta: {e}");
             Err(ServerFnError::new(e.to_string()))
@@ -269,13 +266,8 @@ async fn update_model_retraining_opts(
     } else {
         None
     };
-    if let Err(e) = critic_server::db::update_model(
-        &config.db,
-        data.model_id,
-        data.model_type,
-        &retraining_opts,
-    )
-    .await
+    if let Err(e) =
+        critic_db::update_model(&config.db, data.model_id, data.model_type, &retraining_opts).await
     {
         tracing::warn!(
             "Failed to update model metadata for model with id {}",

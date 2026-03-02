@@ -21,7 +21,7 @@ use crate::app::{admin::manuscripts::MMetaTextArea, shared::LanguageParams};
 pub async fn get_languages() -> Result<Vec<critic_shared::LanguageMetadata>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_server::db::get_languages(&config.db)
+    critic_db::get_languages(&config.db)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))
 }
@@ -34,7 +34,7 @@ async fn add_language(language: String) -> Result<(), ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
-    critic_server::db::add_language_with_default_options(&config.db, &language)
+    critic_db::add_language_with_default_options(&config.db, &language)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
     leptos_axum::redirect(&format!("/admin/languages/{language}"));
@@ -46,7 +46,7 @@ async fn update_default_language(language_id: Option<i64>) -> Result<(), ServerF
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
     // after adding the new language, redirect to its own page
-    critic_server::db::update_default_language(&config.db, language_id)
+    critic_db::update_default_language(&config.db, language_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())
@@ -294,7 +294,7 @@ pub fn LanguageList() -> impl IntoView {
 async fn get_default_language() -> Result<Option<i64>, ServerFnError> {
     let config = use_context::<std::sync::Arc<critic_config::Config>>()
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_default_language(&config.db)
+    let res = critic_db::get_default_language(&config.db)
         .await
         .map(|meta_opt| meta_opt.map(|meta| meta.id))
         .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -307,16 +307,14 @@ pub async fn get_language_by_name(
 ) -> Result<critic_shared::LanguageMetadata, ServerFnError> {
     let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let res = critic_server::db::get_language_by_name(&config.db, &name).await;
+    let res = critic_db::get_language_by_name(&config.db, &name).await;
     match res {
         Ok(Some(x)) => Ok(x),
         Ok(None) => Err(ServerFnError::new(format!(
             "Language {} does not exist in the db",
             name
         ))),
-        Err(e @ critic_server::db::DBError::CannotGetLanguage(_)) => {
-            Err(ServerFnError::new(e.to_string()))
-        }
+        Err(e @ critic_db::DBError::CannotGetLanguage(_)) => Err(ServerFnError::new(e.to_string())),
         Err(e) => {
             tracing::warn!("Failed loading language meta: {e}");
             Err(ServerFnError::new(e.to_string()))
@@ -436,7 +434,7 @@ async fn update_language_models(data: UpdateLanguageModelData) -> Result<(), Ser
             return Err(ServerFnError::new(e.to_string()));
         }
     };
-    if let Err(e) = critic_server::db::update_language(
+    if let Err(e) = critic_db::update_language(
         &config.db,
         &data.language,
         data.segmentation_model_id,
