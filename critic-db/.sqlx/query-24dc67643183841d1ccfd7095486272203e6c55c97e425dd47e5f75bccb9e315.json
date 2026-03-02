@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            id as \"id!\",\n            language as \"language!\",\n            content as \"content!\",\n            versification_scheme as \"versification_scheme!\",\n            verse_start as \"verse_start!\",\n            verse_end as \"verse_end!\"\n        FROM base_corpus\n        WHERE indexed = false LIMIT $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "language!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "versification_scheme!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "verse_start!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "verse_end!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "24dc67643183841d1ccfd7095486272203e6c55c97e425dd47e5f75bccb9e315"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT baseline FROM ocr WHERE page = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "baseline",
+        "type_info": "Lseg"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "52887de5e81862fb6c330f6154d85c106eded712e1368a080aa0518a1318cd5c"
+}

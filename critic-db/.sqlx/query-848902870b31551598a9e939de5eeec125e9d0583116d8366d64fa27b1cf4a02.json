@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE base_corpus SET indexed = true WHERE id = ANY($1);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "848902870b31551598a9e939de5eeec125e9d0583116d8366d64fa27b1cf4a02"
+}

@@ -4,7 +4,7 @@ use sqlx::{Pool, Postgres, QueryBuilder, prelude::FromRow, query_as};
 
 use critic_shared::{
     LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
-    RetrainOptions, VersificationScheme,
+    Point, RetrainOptions, VersificationScheme,
 };
 
 use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -62,6 +62,7 @@ pub enum DBError {
     CannotGetDefaultLanguage(sqlx::Error),
     CannotGetUnindexedChunks(sqlx::Error),
     CannotUpdateChunks(sqlx::Error),
+    CannotGetOcr(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -164,6 +165,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateChunks(e) => {
                 write!(f, "Unable to update chunks: {e}")
+            }
+            Self::CannotGetOcr(e) => {
+                write!(f, "Unable to get OCR record: {e}")
             }
         }
     }
@@ -1238,4 +1242,64 @@ pub async fn set_chunks_indexed(pool: &Pool<Postgres>, chunks: &[i64]) -> Result
     .await
     .map(|_| ())
     .map_err(DBError::CannotUpdateChunks)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BaselineTask {
+    manuscript: String,
+    page: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OcrTask {
+    manuscript: String,
+    page: String,
+    baselines: Vec<(Point, Point)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KrakenTask {
+    Baseline(BaselineTask),
+    Ocr(OcrTask),
+}
+
+pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<KrakenTask>, DBError> {
+    match sqlx::query!("SELECT manuscript.title, page.name FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE should_baseline;")
+        .fetch_optional(&*pool)
+        .await
+        .map_err(DBError::CannotGetPage)?
+        .map(|r| BaselineTask{ manuscript: r.title, page: r.name, })
+        {
+            None => {
+                match sqlx::query!(
+                        "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE should_ocr;"
+                    )
+                    .fetch_optional(&*pool)
+                    .await
+                    .map_err(DBError::CannotGetPage)?
+                {
+                    None => {
+                        Ok(None)
+                    }
+                    Some(x) => {
+                        let manuscript = x.title;
+                        let page = x.name;
+                        let page_id = x.id;
+                        let baselines = sqlx::query!(
+                            "SELECT baseline FROM ocr WHERE page = $1",
+                            page_id,
+                        )
+                            .fetch_all(&*pool).await.map_err(DBError::CannotGetOcr)?.into_iter().map(|r|
+                                (
+                                    Point { x: r.baseline.start_x.round() as u32, y: r.baseline.start_y.round() as u32 },
+                                    Point { x: r.baseline.end_x.round() as u32, y: r.baseline.end_y.round() as u32 },
+                                )).collect::<Vec<_>>();
+                        Ok(Some(KrakenTask::Ocr(OcrTask { manuscript, page, baselines })))
+                    }
+                }
+            }
+            Some(x) =>{
+                Ok(Some(KrakenTask::Baseline(x)))
+            }
+        }
 }
