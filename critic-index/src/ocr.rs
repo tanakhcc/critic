@@ -39,7 +39,6 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
         let kwargs = PyDict::new(py);
         kwargs.set_item("text_direction", text_direction.to_string())?;
 
-        tracing::trace!("Starting OCR for {:?}", image_path.as_ref());
         let ocr = ocr.call_method("ocr", args, Some(&kwargs))?;
         let records: &Bound<'_, PyList> =
             ocr.cast().map_err(|e| IndexError::Cast(e.to_string()))?;
