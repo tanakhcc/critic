@@ -22,7 +22,7 @@ This yields some recognized text. We then search this recognized text in the ent
 
 #### Base Corpus
 The base corpus currently has to be ingested directly into the DB.
-TODO: add the ingestion scripts used for MAPM in this repo.
+As an example, you can look at [this ingestion script for the MapM data](https://github.com/tamakhcc/mapm-to-critic).
 
 #### Versification Schemes
 Since different manuscripts may have their verse breaks (if any) in different places, there may be different versification schemes.
@@ -59,14 +59,7 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### Models
 ### Languages
 
-## Languages need to have their textdirection saved in the DB
-we need it for segmentation and OCR
-add another field in the DB, and the frontend to set it (with a dropdown for RTL and LTR)
-
-
 # TODOs - Redesign for visual Transcription Editor
-## add venv for requirements to run kraken
-
 ## ocr
 ### complete db insertion for baselines and regions
 ### complete segment and ocr primitives
@@ -104,11 +97,6 @@ ALGORITHM:
     - if this fails: continue FTS on the next line
 - if no line fits (or some fit FTS, but Forward-completion does not work):
     - instead just return the raw ocr text found
-
-#### run basetext finding in the background
-- endless loop; use the example from minification
-- select a page that should segment or ocr
-    - run it
 
 ## redo image editor
 ### remove layout layer
