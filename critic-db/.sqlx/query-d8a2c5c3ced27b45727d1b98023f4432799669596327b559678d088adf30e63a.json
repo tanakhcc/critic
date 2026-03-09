@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO region (page, polygon)\n            VALUES (\n                (SELECT page.id\n                 FROM page\n                 INNER JOIN manuscript ON page.manuscript = manuscript.id\n                 WHERE page.name = $1 AND manuscript.title = $2),\n                $3) RETURNING id;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Polygon"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d8a2c5c3ced27b45727d1b98023f4432799669596327b559678d088adf30e63a"
+}

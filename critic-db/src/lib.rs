@@ -1,10 +1,15 @@
 //! Communication with the postgres database
 
-use sqlx::{Pool, Postgres, QueryBuilder, prelude::FromRow, query_as};
+use sqlx::{
+    Pool, Postgres, QueryBuilder,
+    postgres::types::{PgLSeg, PgPoint, PgPolygon},
+    prelude::FromRow,
+    query_as,
+};
 
 use critic_shared::{
     LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
-    Point, RetrainOptions, SegmentedPage, VersificationScheme,
+    Point, RetrainOptions, SegmentedPage, TextDirection, VersificationScheme,
 };
 
 use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -63,6 +68,8 @@ pub enum DBError {
     CannotGetUnindexedChunks(sqlx::Error),
     CannotUpdateChunks(sqlx::Error),
     CannotGetOcr(sqlx::Error),
+    CannotInsertRegion(sqlx::Error),
+    CannotInsertBaselines(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -168,6 +175,12 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetOcr(e) => {
                 write!(f, "Unable to get OCR record: {e}")
+            }
+            Self::CannotInsertRegion(e) => {
+                write!(f, "Unable to insert region: {e}")
+            }
+            Self::CannotInsertBaselines(e) => {
+                write!(f, "Unable to insert baselines: {e}")
             }
         }
     }
@@ -1007,57 +1020,91 @@ pub async fn update_model(
 }
 
 pub async fn get_languages(pool: &Pool<Postgres>) -> Result<Vec<LanguageMetadata>, DBError> {
-    Ok(sqlx::query!("SELECT * FROM language")
-        .fetch_all(pool)
-        .await
-        .map_err(DBError::CannotGetLanguage)?
-        .into_iter()
-        .map(|row| LanguageMetadata {
-            id: row.id,
-            name: row.name,
-            segmentation_model_id: row.segmentation_model,
-            recognition_model_id: row.recognition_model,
-            equality_alphabet: row.equality_alphabet,
-        })
-        .collect())
+    Ok(sqlx::query_as!(
+        LanguageMetadata,
+        r#"SELECT
+            id,
+            name,
+            segmentation_model as segmentation_model_id,
+            recognition_model as recognition_model_id,
+            equality_alphabet,
+            text_direction as "text_direction: TextDirection"
+            FROM language"#
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(DBError::CannotGetLanguage)?
+    .into_iter()
+    .collect())
 }
 
 pub async fn get_language_by_name(
     pool: &Pool<Postgres>,
     language: &str,
 ) -> Result<Option<LanguageMetadata>, DBError> {
-    Ok(
-        sqlx::query!("SELECT * FROM language WHERE name = $1", language)
-            .fetch_optional(pool)
-            .await
-            .map_err(DBError::CannotGetLanguage)?
-            .map(|row| LanguageMetadata {
-                id: row.id,
-                name: row.name,
-                segmentation_model_id: row.segmentation_model,
-                recognition_model_id: row.recognition_model,
-                equality_alphabet: row.equality_alphabet,
-            }),
+    Ok(sqlx::query_as!(
+        LanguageMetadata,
+        r#"SELECT
+                id,
+                name,
+                segmentation_model as segmentation_model_id,
+                recognition_model as recognition_model_id,
+                equality_alphabet,
+                text_direction as "text_direction: TextDirection"
+                FROM language WHERE name = $1"#,
+        language
     )
+    .fetch_optional(pool)
+    .await
+    .map_err(DBError::CannotGetLanguage)?)
 }
 
 pub async fn get_language_by_id(
     pool: &Pool<Postgres>,
     language_id: i64,
 ) -> Result<Option<LanguageMetadata>, DBError> {
-    Ok(
-        sqlx::query!("SELECT * FROM language WHERE id = $1", language_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(DBError::CannotGetLanguage)?
-            .map(|row| LanguageMetadata {
-                id: row.id,
-                name: row.name,
-                segmentation_model_id: row.segmentation_model,
-                recognition_model_id: row.recognition_model,
-                equality_alphabet: row.equality_alphabet,
-            }),
+    Ok(sqlx::query_as!(
+        LanguageMetadata,
+        r#"SELECT
+                id,
+                name,
+                segmentation_model as segmentation_model_id,
+                recognition_model as recognition_model_id,
+                equality_alphabet,
+                text_direction as "text_direction: TextDirection"
+            FROM language WHERE id = $1"#,
+        language_id
     )
+    .fetch_optional(pool)
+    .await
+    .map_err(DBError::CannotGetLanguage)?)
+}
+
+pub async fn get_language_for_page(
+    pool: &Pool<Postgres>,
+    page_name: &str,
+) -> Result<LanguageMetadata, DBError> {
+    Ok(sqlx::query_as!(
+        LanguageMetadata,
+        r#"SELECT
+                id,
+                name,
+                segmentation_model as segmentation_model_id,
+                recognition_model as recognition_model_id,
+                equality_alphabet,
+                text_direction as "text_direction: TextDirection"
+            FROM language WHERE language.id = (
+                SELECT COALESCE(
+                        page.language,
+                        manuscript.language,
+                        (SELECT language FROM default_language WHERE id = 1)
+                    )
+                FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE page.name = $1);"#,
+        page_name,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(DBError::CannotGetLanguage)?)
 }
 
 pub async fn add_language_with_default_options(
@@ -1107,15 +1154,16 @@ pub async fn get_default_language(
 ) -> Result<Option<LanguageMetadata>, DBError> {
     sqlx::query_as!(
         LanguageMetadata,
-        "SELECT
+        r#"SELECT
             language.id,
             language.name,
             language.segmentation_model as segmentation_model_id,
             language.recognition_model as recognition_model_id,
-            language.equality_alphabet as equality_alphabet
+            language.equality_alphabet as equality_alphabet,
+            language.text_direction as "text_direction: TextDirection"
          FROM language
          INNER JOIN default_language on language.id = default_language.language
-         LIMIT 1;"
+         LIMIT 1;"#
     )
     .fetch_optional(pool)
     .await
@@ -1277,8 +1325,16 @@ pub enum KrakenTask {
     Ocr(OcrTask),
 }
 
+/// Get the next task that kraken should run:
+/// - baseline a page
+/// - ocr a page
 pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<KrakenTask>, DBError> {
-    match sqlx::query!("SELECT manuscript.title, page.name FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE minified AND should_baseline;")
+    match sqlx::query!("SELECT manuscript.title, page.name
+            FROM page
+            INNER JOIN manuscript on manuscript.id = page.manuscript
+            INNER JOIN language ON language.id = (
+                SELECT COALESCE(page.language, manuscript.language, (SELECT language FROM default_language WHERE id = 1)))
+            WHERE page.minified AND page.should_baseline AND language.segmentation_model IS NOT NULL;")
         .fetch_optional(&*pool)
         .await
         .map_err(DBError::CannotGetPage)?
@@ -1286,8 +1342,12 @@ pub async fn get_next_kraken_task(pool: &Pool<Postgres>) -> Result<Option<Kraken
         {
             None => {
                 match sqlx::query!(
-                        "SELECT manuscript.title, page.name, page.id FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE minified AND should_ocr;"
-                    )
+                        "SELECT manuscript.title, page.name, page.id
+                        FROM page
+                        INNER JOIN manuscript on manuscript.id = page.manuscript
+                        INNER JOIN language ON language.id = (
+                            SELECT COALESCE(page.language, manuscript.language, (SELECT language FROM default_language WHERE id = 1)))
+                        WHERE page.minified AND page.should_ocr AND language.recognition_model IS NOT NULL;")
                     .fetch_optional(&*pool)
                     .await
                     .map_err(DBError::CannotGetPage)?
@@ -1326,7 +1386,7 @@ pub async fn get_model_for_page(
     pool: &Pool<Postgres>,
     pagename: &str,
     model_type: ModelType,
-) -> Result<ModelMetadata, DBError> {
+) -> Result<Option<ModelMetadata>, DBError> {
     match model_type {
         ModelType::Segmentation => {
             sqlx::query!(
@@ -1344,9 +1404,9 @@ pub async fn get_model_for_page(
                     WHERE page.name = $1);",
                 pagename,
                 )
-                .fetch_one(&*pool)
+                .fetch_optional(&*pool)
                 .await
-                .map(|raw| ModelMetadata {
+                .map(|model_opt| model_opt.map(|raw| ModelMetadata {
                     id: raw.id,
                     name: raw.name,
                     model_type: ModelType::Segmentation,
@@ -1360,7 +1420,7 @@ pub async fn get_model_for_page(
                     } else {
                         None
                     },
-                })
+                }))
                 .map_err(DBError::CannotGetModel)
             }
         ModelType::Recognition => {
@@ -1379,9 +1439,9 @@ pub async fn get_model_for_page(
                     WHERE page.name = $1);",
                 pagename,
                 )
-                .fetch_one(&*pool)
+                .fetch_optional(&*pool)
                 .await
-                .map(|raw| ModelMetadata {
+                .map(|model_opt| model_opt.map(|raw| ModelMetadata {
                     id: raw.id,
                     name: raw.name,
                     model_type: ModelType::Recognition,
@@ -1395,7 +1455,7 @@ pub async fn get_model_for_page(
                     } else {
                         None
                     },
-                })
+                }))
                 .map_err(DBError::CannotGetModel)
             }
     }
@@ -1407,9 +1467,81 @@ pub async fn insert_segmentation(
     page_name: &str,
     segmentation: SegmentedPage,
 ) -> Result<(), DBError> {
-    for region in segmentation.regions.into_iter() {
-        // insert the region
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+
+    // we do not insert regions without lines
+    for region in segmentation
+        .regions
+        .into_iter()
+        .filter(|r| !r.baselines.is_empty())
+    {
+        let polygon = PgPolygon {
+            points: region
+                .boundary
+                .points
+                .into_iter()
+                .map(|p| PgPoint {
+                    x: p.x as f64,
+                    y: p.y as f64,
+                })
+                .collect(),
+        };
+        let region_id = sqlx::query!(
+            "INSERT INTO region (page, polygon)
+            VALUES (
+                (SELECT page.id
+                 FROM page
+                 INNER JOIN manuscript ON page.manuscript = manuscript.id
+                 WHERE page.name = $1 AND manuscript.title = $2),
+                $3) RETURNING id;",
+            page_name,
+            manuscript_name,
+            polygon
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(DBError::CannotInsertRegion)?;
         // insert the baselines
+        let segments = region
+            .baselines
+            .into_iter()
+            .map(|b| PgLSeg {
+                start_x: b.point1.x as f64,
+                start_y: b.point1.y as f64,
+                end_x: b.point2.x as f64,
+                end_y: b.point2.y as f64,
+            })
+            .collect::<Vec<PgLSeg>>();
+        sqlx::query!(
+            r#"INSERT INTO line (region, baseline)
+                SELECT
+                    $1,
+                    * FROM UNNEST($2::LSEG[]);"#,
+            region_id.id,
+            segments as _,
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(DBError::CannotInsertBaselines)?;
     }
-    todo!()
+
+    sqlx::query!(
+        "UPDATE page
+        SET should_baseline = false, should_ocr = true
+        WHERE page.id =
+            (SELECT page.id
+            FROM page
+            INNER JOIN manuscript ON page.manuscript = manuscript.id
+            WHERE page.name = $1 AND manuscript.title = $2);",
+        page_name,
+        manuscript_name
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(DBError::CannotUpdatePage)?;
+
+    tx.commit().await.map_err(DBError::CannotCommitTransaction)
 }

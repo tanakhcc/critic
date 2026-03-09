@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                id,\n                name,\n                segmentation_model as segmentation_model_id,\n                recognition_model as recognition_model_id,\n                equality_alphabet,\n                text_direction as \"text_direction: TextDirection\"\n            FROM language WHERE language.id = (\n                SELECT COALESCE(\n                        page.language,\n                        manuscript.language,\n                        (SELECT language FROM default_language WHERE id = 1)\n                    )\n                FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE page.name = $1);",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "segmentation_model_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "recognition_model_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "equality_alphabet",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "text_direction: TextDirection",
+        "type_info": {
+          "Custom": {
+            "name": "textdirection",
+            "kind": {
+              "Enum": [
+                "HorizontalLR",
+                "HorizontalRL",
+                "VerticalLR",
+                "VerticalRL"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e30e9729b7a1a716bf7f420f7c8e3989e4319315c04e17fa05dd133700bdaaa0"
+}

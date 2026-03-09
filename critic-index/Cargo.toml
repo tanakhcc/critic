@@ -17,3 +17,4 @@ quick-xml = { version = "0.38.0", features = ["serialize"]}
 tantivy = "0.25.0"
 tokio = { version = "1.46.1", default-features = false, features = ["time"] }
 tracing = { version = "0.1.40" }
+geo = "0.32.0"

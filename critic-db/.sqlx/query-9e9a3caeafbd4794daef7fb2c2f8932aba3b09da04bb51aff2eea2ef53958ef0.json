@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            language.id,\n            language.name,\n            language.segmentation_model as segmentation_model_id,\n            language.recognition_model as recognition_model_id,\n            language.equality_alphabet as equality_alphabet,\n            language.text_direction as \"text_direction: TextDirection\"\n         FROM language\n         INNER JOIN default_language on language.id = default_language.language\n         LIMIT 1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "segmentation_model_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "recognition_model_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "equality_alphabet",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "text_direction: TextDirection",
+        "type_info": {
+          "Custom": {
+            "name": "textdirection",
+            "kind": {
+              "Enum": [
+                "HorizontalLR",
+                "HorizontalRL",
+                "VerticalLR",
+                "VerticalRL"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "9e9a3caeafbd4794daef7fb2c2f8932aba3b09da04bb51aff2eea2ef53958ef0"
+}

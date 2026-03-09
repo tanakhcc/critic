@@ -502,9 +502,6 @@ where
     }
 }
 impl NormalizeFn {
-    pub fn into_inner(self) -> Box<dyn Fn(String) -> String + 'static> {
-        self.0
-    }
     pub fn inner(&self) -> &Box<dyn Fn(String) -> String + 'static> {
         &self.0
     }

@@ -8,7 +8,7 @@ use critic_components::{
     language_dropdown::LanguageDropDown, DEFAULT_BUTTON_CLASSES, TEXTAREA_DEFAULT_COLS,
     TEXTAREA_DEFAULT_ROWS,
 };
-use critic_shared::LanguageMetadata;
+use critic_shared::{LanguageMetadata, TextDirection};
 use itertools::Itertools;
 use leptos::prelude::*;
 use leptos_router::components::Outlet;
@@ -469,6 +469,8 @@ fn LanguageMeta(
     let recognition_model_saved = RwSignal::new(recognition_model.get_untracked());
     let equality_alphabet = RwSignal::new(meta.equality_alphabet);
     let equality_alphabet_saved = RwSignal::new(equality_alphabet.get_untracked());
+    let text_direction = RwSignal::new(meta.text_direction);
+    let text_direction_saved = RwSignal::new(text_direction.get_untracked());
 
     let srvact = ServerAction::<UpdateLanguageModels>::new();
 
@@ -492,11 +494,53 @@ fn LanguageMeta(
                                 Characters used for Equality Check:
                             </MMetaTextArea>
                             <div class="grid grid-cols-2 border border-b-0 border-slate-500 p-2">
+                                <label for="data[text_direction]">Text Direction:</label>
+                                <select
+                                    id="data[text_direction]"
+                                    name="data[text_direction]"
+                                    class="border border-slate-500 rounded-md"
+                                    class=(
+                                        ["text-orange-400"],
+                                        move || text_direction.get() != text_direction_saved.get(),
+                                    )
+                                    prop:value=move || { format!("{}", text_direction.get()) }
+                                    on:change:target=move |evt| {
+                                        text_direction
+                                            .set(
+                                                evt
+                                                    .target()
+                                                    .value()
+                                                    .parse::<TextDirection>()
+                                                    .unwrap_or_default(),
+                                            );
+                                    }
+                                >
+                                    <option value="horizontal-lr" class="text-black">
+                                        Horizontal Left to Right
+                                    </option>
+                                    <option value="horizontal-rl" class="text-black">
+                                        Horizontal Right to Left
+                                    </option>
+                                    <option value="vertical-lr" class="text-black">
+                                        Vertical with Lines Left to Right
+                                    </option>
+                                    <option value="vertical-rl" class="text-black">
+                                        Vertical with Lines Right to Left
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 border border-b-0 border-slate-500 p-2">
                                 <label for="data[segmentation_model_id]">Segmentation model:</label>
                                 <select
                                     id="data[segmentation_model_id]"
                                     name="data[segmentation_model_id]"
                                     class="border border-slate-500 rounded-md"
+                                    class=(
+                                        ["text-orange-400"],
+                                        move || {
+                                            segmentation_model.get() != segmentation_model_saved.get()
+                                        },
+                                    )
                                     // when no segmentation model is chosen (None), we want to write
                                     // the empty string into the value here
                                     prop:value=move || {
@@ -537,6 +581,12 @@ fn LanguageMeta(
                                     id="data[recognition_model_id]"
                                     name="data[recognition_model_id]"
                                     class="border border-slate-500 rounded-md"
+                                    class=(
+                                        ["text-orange-400"],
+                                        move || {
+                                            recognition_model.get() != recognition_model_saved.get()
+                                        },
+                                    )
                                     prop:value=move || {
                                         recognition_model
                                             .get()
@@ -566,9 +616,10 @@ fn LanguageMeta(
                                 class=format!("w-2/5 {DEFAULT_BUTTON_CLASSES}")
                                 type="button"
                                 on:click=move |_| {
-                                    recognition_model.set(recognition_model_saved.get());
-                                    segmentation_model.set(segmentation_model_saved.get());
                                     equality_alphabet.set(equality_alphabet_saved.get());
+                                    text_direction.set(text_direction_saved.get());
+                                    segmentation_model.set(segmentation_model_saved.get());
+                                    recognition_model.set(recognition_model_saved.get());
                                 }
                             >
                                 "Cancel"
@@ -580,9 +631,10 @@ fn LanguageMeta(
                                 // and the clicks cancel, the last state already saved to the server
                                 // would be overwritten here
                                 on:click=move |_| {
-                                    recognition_model_saved.set(recognition_model.get());
-                                    segmentation_model_saved.set(segmentation_model.get());
                                     equality_alphabet_saved.set(equality_alphabet.get());
+                                    text_direction_saved.set(text_direction.get());
+                                    segmentation_model_saved.set(segmentation_model.get());
+                                    recognition_model_saved.set(recognition_model.get());
                                 }
                             >
                                 Save changes

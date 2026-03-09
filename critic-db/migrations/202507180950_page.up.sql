@@ -17,13 +17,9 @@ CREATE TABLE page (
 	minification_failed BOOL NOT NULL DEFAULT false,
 	--- this page should be passed through kraken for baseline identification
 	should_baseline BOOL NOT NULL DEFAULT true,
-	--- the baseline identifiacation has been attempted but failed
-	baseline_failed BOOL NOT NULL DEFAULT false,
 	--- this page should be passed through kraken for ocr (identification of text based on the current baselines)
 	--- (will be set when baselines have been accepted by the user)
 	should_ocr BOOL NOT NULL DEFAULT false,
-	--- the baseline identifiacation has been attempted but failed
-	ocr_failed BOOL NOT NULL DEFAULT false,
 	--- the pages of an individual manuscript have to have different names
 	UNIQUE(manuscript, name)
 );

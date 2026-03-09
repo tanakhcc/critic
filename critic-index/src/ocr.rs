@@ -4,14 +4,15 @@ use std::path::{Path, PathBuf};
 
 use critic_config::Config;
 use critic_db::{OcrTask, get_model_for_page};
+use critic_shared::urls::IMAGE_BASE_LOCATION;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::{ffi::c_str, types::PyList};
 
-use critic_shared::Point;
+use critic_shared::{Point, TextDirection};
 use tantivy::Searcher;
 
-use crate::{IndexError, OcrRecord, TextDirection};
+use crate::{IndexError, OcrRecord};
 
 /// Given an image and a segmentation model by file path, calculate the segmentation.
 pub fn ocr_image<P1: AsRef<Path>, P2: AsRef<Path>>(
@@ -81,12 +82,19 @@ pub async fn handle_ocr_task(
     task: &OcrTask,
     searcher: Searcher,
 ) -> Result<(), IndexError> {
-    let model = get_model_for_page(
+    let Some(model) = get_model_for_page(
         &config.db,
         &task.page,
         critic_shared::ModelType::Recognition,
     )
-    .await?;
+    .await?
+    else {
+        return Err(IndexError::NoOcrModel(
+            task.manuscript.clone(),
+            task.page.clone(),
+        ));
+    };
+
     let model_path: PathBuf = [
         &config.data_directory,
         &model.directory(),
@@ -94,8 +102,10 @@ pub async fn handle_ocr_task(
     ]
     .iter()
     .collect();
+
     let image_path: PathBuf = [
         &config.data_directory,
+        &IMAGE_BASE_LOCATION[1..],
         &task.manuscript,
         &task.page,
         "original.webp",

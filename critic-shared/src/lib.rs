@@ -1,5 +1,7 @@
 //! Types and functions shared by App and Server
 
+use std::fmt::write;
+
 use reactive_stores::Store;
 
 pub mod urls;
@@ -223,8 +225,11 @@ impl ModelMetadata {
     /// This does not contain the basename of any individual file.
     pub fn directory(&self) -> String {
         format!(
-            "{MODEL_BASE_LOCATION}/{}/{}_{}",
-            self.model_type, self.name, self.id
+            "{}/{}/{}_{}",
+            &MODEL_BASE_LOCATION[1..],
+            self.model_type,
+            self.name,
+            self.id
         )
     }
 }
@@ -240,6 +245,51 @@ pub struct RetrainOptions {
     pub keep_versions: Option<u16>,
 }
 
+/// The text direction for a language, as used in kraken
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+pub enum TextDirection {
+    HorizontalLR,
+    HorizontalRL,
+    VerticalLR,
+    VerticalRL,
+}
+impl Default for TextDirection {
+    fn default() -> Self {
+        Self::HorizontalLR
+    }
+}
+impl From<TextDirection> for &'static str {
+    fn from(value: TextDirection) -> Self {
+        match value {
+            TextDirection::HorizontalLR => "horizontal-lr",
+            TextDirection::HorizontalRL => "horizontal-rl",
+            TextDirection::VerticalLR => "vertical-lr",
+            TextDirection::VerticalRL => "vertical-rl",
+        }
+    }
+}
+impl core::fmt::Display for TextDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", <TextDirection as Into<&'static str>>::into(*self))
+    }
+}
+impl core::str::FromStr for TextDirection {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(match value {
+            "horizontal-lr" => TextDirection::HorizontalLR,
+            "horizontal-rl" => TextDirection::HorizontalRL,
+            "vertical-lr" => TextDirection::VerticalLR,
+            "vertical-rl" => TextDirection::VerticalRL,
+            _ => {
+                return Err(());
+            }
+        })
+    }
+}
+
 /// Language Metadata
 #[cfg_attr(feature = "ssr", derive(FromRow))]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -249,6 +299,7 @@ pub struct LanguageMetadata {
     pub segmentation_model_id: Option<i64>,
     pub recognition_model_id: Option<i64>,
     pub equality_alphabet: Option<String>,
+    pub text_direction: TextDirection,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Store)]
@@ -259,6 +310,11 @@ pub struct Point {
 impl Point {
     pub fn from(p: (u32, u32)) -> Self {
         Self { x: p.0, y: p.1 }
+    }
+}
+impl From<(u32, u32)> for Point {
+    fn from(value: (u32, u32)) -> Self {
+        Point::from(value)
     }
 }
 impl core::fmt::Display for Point {
@@ -277,12 +333,42 @@ pub struct Baseline {
     /// containing the literal ocr result
     pub content: Vec<critic_format::streamed::Block>,
 }
+impl Baseline {
+    pub fn centroid(&self) -> Point {
+        Point {
+            x: (self.point1.x + self.point2.x) / 2,
+            y: (self.point1.y + self.point2.y) / 2,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Polygon {
     /// closes the polygon between last and first point - i.e. the first point should not be added
     /// as the last point as well
     pub points: Vec<Point>,
+}
+impl FromIterator<Point> for Polygon {
+    fn from_iter<T: IntoIterator<Item = Point>>(iter: T) -> Self {
+        Self {
+            points: iter.into_iter().collect(),
+        }
+    }
+}
+impl TryFrom<Vec<Vec<u32>>> for Polygon {
+    type Error = ();
+    fn try_from(value: Vec<Vec<u32>>) -> Result<Self, Self::Error> {
+        value
+            .into_iter()
+            .map(|p| {
+                if p.len() != 2 {
+                    Err(())
+                } else {
+                    Ok(Point::from((p[0], p[1])))
+                }
+            })
+            .collect()
+    }
 }
 impl Polygon {
     /// The points listed in SVG format

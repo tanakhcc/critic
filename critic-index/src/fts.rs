@@ -191,6 +191,7 @@ pub async fn create_fts_store(
                         if indexed_chunks >= number_of_chunks.into() {
                             continue;
                         } else {
+                            tracing::debug!("Done indexing the present base corpus. Now creating the FTS reader.");
                             return index.reader().map_err(FtsError::Reader);
                         }
                     }

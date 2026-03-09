@@ -8,5 +8,5 @@ CREATE TABLE region (
 	page BIGINT NOT NULL REFERENCES page(id),
 	-- the actual bounding polygon
 	polygon POLYGON NOT NULL,
-	region_type REGIONTYPE
+	region_type REGIONTYPE NOT NULL DEFAULT 'main'
 );

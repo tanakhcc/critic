@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO line (region, baseline)\n                SELECT\n                    $1,\n                    * FROM UNNEST($2::LSEG[]);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "LsegArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "83b689d0e688e07f704fafcdc521b9f713ae093b74226662686f5d4cb9454171"
+}

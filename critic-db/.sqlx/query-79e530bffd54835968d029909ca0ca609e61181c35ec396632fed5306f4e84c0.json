@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT manuscript.title, page.name, page.id\n                        FROM page\n                        INNER JOIN manuscript on manuscript.id = page.manuscript\n                        INNER JOIN language ON language.id = (\n                            SELECT COALESCE(page.language, manuscript.language, (SELECT language FROM default_language WHERE id = 1)))\n                        WHERE page.minified AND page.should_ocr AND language.recognition_model IS NOT NULL;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "79e530bffd54835968d029909ca0ca609e61181c35ec396632fed5306f4e84c0"
+}

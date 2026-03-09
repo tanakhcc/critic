@@ -24,3 +24,6 @@ critic/style/output.css
 
 .env
 **/.env
+
+.venv/
+**/.venv
