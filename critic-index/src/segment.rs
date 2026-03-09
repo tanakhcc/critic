@@ -140,7 +140,7 @@ pub async fn handle_baseline_task(config: &Config, task: &BaselineTask) -> Resul
 
     tracing::trace!("Now segmenting image {image_path:?}.");
     let segmentation = segment_image(&image_path, model_path, language.text_direction)?;
-    insert_segmentation(&config.db, &task.manuscript, &task.page, segmentation).await?;
+    insert_segmentation(&config.db, &task.manuscript, &task.page, &segmentation).await?;
     tracing::trace!("Finished segmenting image {image_path:?}.");
     Ok(())
 }

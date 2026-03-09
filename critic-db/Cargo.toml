@@ -9,7 +9,9 @@ crate-type = ["lib"]
 [dependencies]
 axum-login = { version = "0.17.0" }
 critic-config = { path="../critic-config/" }
+critic-format = { path="../../critic-format/" }
 critic-shared = { path="../critic-shared/", features = ["ssr"] }
+quick-xml = { version = "0.38.0", features = ["serialize"]}
 serde = { version = "1.0.219", features = ["derive"] }
 sqlx = { version = "0.8.2", default-features = false, features = ["migrate", "time", "sqlite", "postgres", "runtime-tokio-rustls", "macros"] }
 oauth2 = { version = "5.0.0" }

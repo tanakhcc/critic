@@ -452,4 +452,91 @@ fn ModelMeta(meta: ModelMetadata) -> impl IntoView {
 }
 
 #[component]
-pub fn Recognition() -> impl IntoView {}
+pub fn Recognition() -> impl IntoView {
+    let model_list = Resource::new(
+        || false,
+        async move |_| {
+            super::get_models(ModelType::Recognition)
+                .await
+                .map_err(|e| ServerFnError::new(format!("Unable to get models: {e}")))
+        },
+    );
+
+    view! {
+        <div id="model-wrapper" class="h-full flex flex-row justify-start">
+            // the left sidebar containing the different models
+            <div
+                id="model-sidebar-wrapper"
+                class="flex flex-col justify-start w-1/4 overflow-auto border-r-2 border-slate-600"
+            >
+                <TransferModel
+                    model_type=ModelType::Recognition
+                    on_new=move || model_list.refetch()
+                />
+                <ErrorBoundary fallback=|errors| {
+                    view! {
+                        <div>
+                            "Error: failed to get manuscripts"
+                            <ul>
+                                {move || {
+                                    errors
+                                        .get()
+                                        .into_iter()
+                                        .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                        .collect::<Vec<_>>()
+                                }}
+                            </ul>
+                        </div>
+                    }
+                }>
+                    <Transition fallback=|| view! { <p>"Loading models..."</p> }>
+                        // list of models
+                        <div id="model-list-wrapper" class="flex flex-col justify-start h-0 grow">
+                            <ul>
+                                {move || {
+                                    model_list
+                                        .get()
+                                        .map(|info_res| {
+                                            info_res
+                                                .map(|info: Vec<ModelMetadata>| {
+                                                    info.into_iter()
+                                                        .map(|model| {
+                                                            let model_params = use_params::<ModelParams>();
+                                                            let is_selected = move || {
+                                                                model_params
+                                                                    .get()
+                                                                    .is_ok_and(|param| {
+                                                                        param.id.is_some_and(|param| param == model.id)
+                                                                    })
+                                                            };
+                                                            // we do not want to show MSS that the
+                                                            // user did not search for
+                                                            view! {
+                                                                <li class="flex">
+                                                                    // keep query parameter if one is set
+                                                                    <a
+                                                                        href=format!("/admin/models/recognition/{}", model.id)
+                                                                        class="w-0 grow my-2 bg-slate-600 p-2 text-center font-serif text-lg shadow-sm hover:bg-slate-500"
+                                                                        class=(["shadow-sky-600"], !is_selected())
+                                                                        class=(["shadow-slate-300", "text-sky-300"], is_selected())
+                                                                    >
+                                                                        {model.name.clone()}
+                                                                    </a>
+                                                                </li>
+                                                            }
+                                                        })
+                                                        .collect_view()
+                                                })
+                                        })
+                                }}
+                            </ul>
+                        </div>
+                    </Transition>
+                </ErrorBoundary>
+            </div>
+
+            // the information on the selected model
+            <Outlet />
+        </div>
+    }
+}

@@ -289,7 +289,7 @@ fn MsOverlay(
             class="stroke-emerald-400 fill-amber-500 absolute top-0 left-0"
             style:stroke-wdith=format!("{stroke_width}px")
         >
-            <For each=move || regions.regions() key=|r| r.clone().region_id().get() let(region)>
+            <For each=move || regions.regions() key=|r| r.clone().id().get() let(region)>
                 <Region region=region stroke_width=stroke_width />
             </For>
         </svg>
@@ -298,14 +298,14 @@ fn MsOverlay(
 
 #[component]
 fn Region(
-    region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, String, Vec<Region>>,
+    region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
     stroke_width: u32,
 ) -> impl IntoView {
     view! {
         <polygon points=region.read().boundary.point_list() stroke-width=stroke_width />
         <For
             each=move || region.clone().baselines()
-            key=|baseline| baseline.clone().baseline_id().get()
+            key=|baseline| baseline.clone().id().get()
             let(baseline)
         >
             <BaseLine baseline=baseline stroke_width=stroke_width * 2 />
@@ -316,9 +316,9 @@ fn Region(
 #[component]
 fn BaseLine(
     baseline: reactive_stores::AtKeyed<
-        reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, String, Vec<Region>>,
+        reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
         Region,
-        String,
+        i64,
         Vec<Baseline>,
     >,
     stroke_width: u32,

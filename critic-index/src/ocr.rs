@@ -3,33 +3,37 @@
 use std::path::{Path, PathBuf};
 
 use critic_config::Config;
-use critic_db::{OcrTask, get_model_for_page};
+use critic_db::{OcrTask, get_language_for_page, get_model_for_page, get_segmentation};
 use critic_shared::urls::IMAGE_BASE_LOCATION;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::{ffi::c_str, types::PyList};
 
-use critic_shared::{Point, TextDirection};
+use critic_shared::{Baseline, Point, TextDirection};
 use tantivy::Searcher;
 
+use crate::fts::basetext_from_proposal;
 use crate::{IndexError, OcrRecord};
 
 /// Given an image and a segmentation model by file path, calculate the segmentation.
-pub fn ocr_image<P1: AsRef<Path>, P2: AsRef<Path>>(
+pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
     image_path: P1,
     model_path: P2,
     text_direction: TextDirection,
-    baselines: Vec<((i32, i32), (i32, i32))>,
+    baselines: impl Iterator<Item = &'a Baseline>,
 ) -> Result<Vec<OcrRecord>, IndexError> {
     Python::attach(|py| {
         let code = c_str!(include_str!("./py/ocr.py"));
         let ocr =
             PyModule::from_code(py, code, c_str!("ocr.py"), c_str!("ocr")).expect("static code");
 
+        let baselines_raw: Vec<_> = baselines
+            .map(|bl| ((bl.point1.x, bl.point1.y), (bl.point2.x, bl.point2.y)))
+            .collect();
         let args = (
             image_path.as_ref().to_str(),
             model_path.as_ref().to_str(),
-            baselines,
+            baselines_raw,
         );
         let kwargs = PyDict::new(py);
         kwargs.set_item("text_direction", text_direction.to_string())?;
@@ -114,13 +118,20 @@ pub async fn handle_ocr_task(
     .collect();
 
     // get the baselines from the DB
+    let segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
+    let baselines = segmentation.regions.iter().map(|r| &r.baselines).flatten();
+    let language = get_language_for_page(&config.db, &task.page).await?;
 
     // get the OCR result from kraken
+    tracing::trace!("Now running OCR on image {image_path:?}.");
+    let ocr = ocr_image(&image_path, model_path, language.text_direction, baselines)?;
+    tracing::trace!(
+        "Finished OCR on image {image_path:?}. Now identifying the result in the base corpus."
+    );
 
     // call to the indexing machine to find the correct basetext from the proposed OCR text
-    //          this function actually needs to live in the continuous indexer and get the searcher
-    //          from there
-    // write the result to DB
+    let indexed_basetext = basetext_from_proposal(config, searcher, &ocr).await?;
 
-    todo!()
+    // write the result to DB
+    todo!("actually do automatic OCR")
 }

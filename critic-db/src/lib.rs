@@ -1,5 +1,6 @@
 //! Communication with the postgres database
 
+use critic_format::streamed::Block;
 use sqlx::{
     Pool, Postgres, QueryBuilder,
     postgres::types::{PgLSeg, PgPoint, PgPolygon},
@@ -8,8 +9,9 @@ use sqlx::{
 };
 
 use critic_shared::{
-    LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta, PageTodo,
-    Point, RetrainOptions, SegmentedPage, TextDirection, VersificationScheme,
+    Baseline, LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta,
+    PageTodo, Point, Polygon, Region, RegionType, RetrainOptions, SegmentedPage, TextDirection,
+    VersificationScheme,
 };
 
 use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -70,6 +72,11 @@ pub enum DBError {
     CannotGetOcr(sqlx::Error),
     CannotInsertRegion(sqlx::Error),
     CannotInsertBaselines(sqlx::Error),
+    XmlParse(quick_xml::de::DeError),
+    XmlNormalize(critic_format::denorm::NormalizationError),
+    XmlStream(critic_format::destream::StreamError),
+    TeiConversion(critic_format::ConversionError),
+    CannotUpdateOcr(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -181,6 +188,21 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotInsertBaselines(e) => {
                 write!(f, "Unable to insert baselines: {e}")
+            }
+            Self::XmlParse(e) => {
+                write!(f, "Unable to parse XML that was present in the DB: {e}")
+            }
+            Self::XmlNormalize(e) => {
+                write!(f, "Unable to normalize XML that was present in the DB: {e}")
+            }
+            Self::XmlStream(e) => {
+                write!(f, "Unable to stream XML that was present in the DB: {e}")
+            }
+            Self::TeiConversion(e) => {
+                write!(f, "Unable to convert between XML and streamed data: {e}")
+            }
+            Self::CannotUpdateOcr(e) => {
+                write!(f, "Unable to update OCR record: {e}")
             }
         }
     }
@@ -1465,7 +1487,7 @@ pub async fn insert_segmentation(
     pool: &Pool<Postgres>,
     manuscript_name: &str,
     page_name: &str,
-    segmentation: SegmentedPage,
+    segmentation: &SegmentedPage,
 ) -> Result<(), DBError> {
     let mut tx = pool
         .begin()
@@ -1475,14 +1497,14 @@ pub async fn insert_segmentation(
     // we do not insert regions without lines
     for region in segmentation
         .regions
-        .into_iter()
+        .iter()
         .filter(|r| !r.baselines.is_empty())
     {
         let polygon = PgPolygon {
             points: region
                 .boundary
                 .points
-                .into_iter()
+                .iter()
                 .map(|p| PgPoint {
                     x: p.x as f64,
                     y: p.y as f64,
@@ -1507,7 +1529,7 @@ pub async fn insert_segmentation(
         // insert the baselines
         let segments = region
             .baselines
-            .into_iter()
+            .iter()
             .map(|b| PgLSeg {
                 start_x: b.point1.x as f64,
                 start_y: b.point1.y as f64,
@@ -1544,4 +1566,97 @@ pub async fn insert_segmentation(
     .map_err(DBError::CannotUpdatePage)?;
 
     tx.commit().await.map_err(DBError::CannotCommitTransaction)
+}
+
+pub async fn get_segmentation(
+    pool: &Pool<Postgres>,
+    manuscript_name: &str,
+    pagename: &str,
+) -> Result<SegmentedPage, DBError> {
+    let mut regions = sqlx::query!(
+        r#"SELECT region.id, region.polygon, region.region_type as "region_type: RegionType"
+        FROM region
+        INNER JOIN page ON page.id = region.page
+        INNER JOIN manuscript ON manuscript.id = page.manuscript
+        WHERE manuscript.title = $1 AND page.name = $2;"#,
+        manuscript_name,
+        pagename
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(DBError::CannotGetOcr)?
+    .into_iter()
+    .map(|r| Region {
+        id: r.id,
+        baselines: Vec::default(),
+        boundary: Polygon {
+            points: r
+                .polygon
+                .points
+                .into_iter()
+                .map(|p| Point {
+                    x: p.x as u32,
+                    y: p.y as u32,
+                })
+                .collect(),
+        },
+    })
+    .collect::<Vec<_>>();
+    for region in regions.iter_mut() {
+        let baselines = sqlx::query!("SELECT * FROM line WHERE region = $1;", region.id)
+            .fetch_all(&*pool)
+            .await
+            .map_err(DBError::CannotGetOcr)?
+            .into_iter()
+            .map(|r| {
+                Ok(Baseline {
+                    id: r.id,
+                    point1: Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
+                    point2: Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
+                    content: r
+                        .proposed_basetext
+                        .map(|text| -> Result<Vec<_>, _> {
+                            let parsed: critic_format::schema::Text =
+                                quick_xml::de::from_str(&text).map_err(DBError::XmlParse)?;
+                            let normed: critic_format::normalized::Text =
+                                parsed.try_into().map_err(DBError::XmlNormalize)?;
+                            normed.try_into().map_err(DBError::XmlStream)
+                        })
+                        .unwrap_or_else(|| Ok(Vec::default()))?,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        region.baselines = baselines;
+    }
+    Ok(SegmentedPage { regions })
+}
+
+/// Update the OCR records corresponding to the Baselines given in `ocr_results`.
+pub async fn update_ocr(
+    pool: &Pool<Postgres>,
+    pagename: &str,
+    ocr_results: &SegmentedPage,
+) -> Result<(), DBError> {
+    for region in &ocr_results.regions {
+        let contents = region
+            .baselines
+            .iter()
+            .map(|bl| {
+                bl.content_as_xml(pagename.to_string())
+                    .map_err(DBError::TeiConversion)
+            })
+            .collect::<Result<Vec<String>, _>>()?;
+        sqlx::query!(
+            "UPDATE line
+            SET proposed_basetext = record.text FROM UNNEST($1::BIGINT[], $2::TEXT[]) as record(id, text)
+            WHERE line.id = record.id;",
+            &region
+                .baselines
+                .iter()
+                .map(|bl| bl.id)
+                .collect::<Vec<i64>>(),
+            &contents,
+        ).execute(&*pool).await.map_err(DBError::CannotUpdateOcr)?;
+    }
+    todo!()
 }

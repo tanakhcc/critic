@@ -20,11 +20,13 @@ struct KrakenBaseline {
     baseline: Vec<Vec<u32>>,
     // boundary: Vec<Vec<u32>>,
 }
+
 impl TryFrom<KrakenBaseline> for Baseline {
     type Error = ();
+
     fn try_from(value: KrakenBaseline) -> Result<Self, Self::Error> {
         Ok(Baseline {
-            baseline_id: value.id,
+            id: 0,
             point1: {
                 let entry = value.baseline.get(0).ok_or(())?;
                 if entry.len() != 2 {
@@ -59,7 +61,7 @@ impl TryFrom<KrakenRegion> for Region {
     type Error = ();
     fn try_from(value: KrakenRegion) -> Result<Self, Self::Error> {
         Ok(Self {
-            region_id: value.id,
+            id: 0,
             boundary: value.boundary.try_into()?,
             baselines: Vec::default(),
         })

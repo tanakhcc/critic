@@ -598,12 +598,18 @@ fn LanguageMeta(
                                             .set(evt.target().value().parse::<i64>().ok());
                                     }
                                 >
-                                    <option value="">No automatic Recognition</option>
+                                    <option value="" class="text-black">
+                                        No automatic Recognition
+                                    </option>
                                     {move || {
                                         recognition_models
                                             .iter()
                                             .map(|m| {
-                                                view! { <option value=m.id>{m.name.clone()}</option> }
+                                                view! {
+                                                    <option value=m.id class="text-black">
+                                                        {m.name.clone()}
+                                                    </option>
+                                                }
                                             })
                                             .collect_view()
                                     }}

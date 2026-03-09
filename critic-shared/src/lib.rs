@@ -2,6 +2,7 @@
 
 use std::fmt::write;
 
+use critic_format::{destream::StreamError, page_to_xml};
 use reactive_stores::Store;
 
 pub mod urls;
@@ -245,6 +246,45 @@ pub struct RetrainOptions {
     pub keep_versions: Option<u16>,
 }
 
+/// The type of region of text found during the segmentation
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ssr", derive(sqlx::Type))]
+pub enum RegionType {
+    Main,
+    Marginalia,
+}
+impl Default for RegionType {
+    fn default() -> Self {
+        Self::Main
+    }
+}
+impl From<RegionType> for &'static str {
+    fn from(value: RegionType) -> Self {
+        match value {
+            RegionType::Main => "main",
+            RegionType::Marginalia => "marginalia",
+        }
+    }
+}
+impl core::fmt::Display for RegionType {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", <RegionType as Into<&'static str>>::into(*self))
+    }
+}
+impl core::str::FromStr for RegionType {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(match value {
+            "main" => RegionType::Main,
+            "marginalia" => RegionType::Marginalia,
+            _ => {
+                return Err(());
+            }
+        })
+    }
+}
+
 /// The text direction for a language, as used in kraken
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
@@ -325,8 +365,7 @@ impl core::fmt::Display for Point {
 
 #[derive(Debug, Clone, Store)]
 pub struct Baseline {
-    /// uses the same id scheme as kraken, which is why this is a string
-    pub baseline_id: String,
+    pub id: i64,
     pub point1: Point,
     pub point2: Point,
     /// actual content - this will be the plain text we got from the base text of a single block
@@ -334,6 +373,19 @@ pub struct Baseline {
     pub content: Vec<critic_format::streamed::Block>,
 }
 impl Baseline {
+    /// Return the content on this Baseline as XML string
+    pub fn content_as_xml(
+        &self,
+        pagename: String,
+    ) -> Result<String, critic_format::ConversionError> {
+        page_to_xml(self.content.clone(), pagename)
+    }
+
+    /// Return the content on this Baseline as XML string
+    pub fn into_xml(self, pagename: String) -> Result<String, critic_format::ConversionError> {
+        page_to_xml(self.content, pagename)
+    }
+
     pub fn centroid(&self) -> Point {
         Point {
             x: (self.point1.x + self.point2.x) / 2,
@@ -385,19 +437,18 @@ impl Polygon {
 }
 #[derive(Debug, Clone, Store)]
 pub struct Region {
-    /// uses the same id scheme as kraken, which is why this is a string
-    pub region_id: String,
+    pub id: i64,
     /// polygon bounding this region
     pub boundary: Polygon,
     /// Baselines belonging to this Region
-    #[store(key: String = |baseline| baseline.baseline_id.clone())]
+    #[store(key: i64 = |baseline| baseline.id)]
     pub baselines: Vec<Baseline>,
     // other useful things: text_type
 }
 
 #[derive(Debug, Clone, Store)]
 pub struct SegmentedPage {
-    #[store(key: String = |r| r.region_id.clone())]
+    #[store(key: i64 = |r| r.id.clone())]
     pub regions: Vec<Region>,
 }
 impl Default for SegmentedPage {

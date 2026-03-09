@@ -11,14 +11,16 @@ use critic_config::Config;
 use critic_db::{
     get_unindexed_chunks, get_unindexed_chunks_with_equality_alphabet, set_chunks_indexed,
 };
-use critic_format::surface_form::SurfaceBaseText;
+use critic_format::{streamed::Block, surface_form::SurfaceBaseText};
 use critic_shared::{InShutdown, urls::FTS_INDEX_BASE_LOCATION};
 use tantivy::{
-    Index, IndexReader, IndexWriter, TantivyDocument,
+    Index, IndexReader, IndexWriter, Searcher, TantivyDocument,
     directory::MmapDirectory,
     doc,
     schema::{FAST, STORED, Schema, TEXT},
 };
+
+use crate::{IndexError, OcrRecord};
 
 #[derive(Debug)]
 pub enum FtsError {
@@ -166,7 +168,7 @@ async fn index_next_chunks(
     }
 }
 
-pub async fn create_fts_store(
+async fn create_fts_store(
     config: Arc<Config>,
     mut shutdown_rx: tokio::sync::watch::Receiver<InShutdown>,
 ) -> Result<IndexReader, FtsError> {
@@ -238,4 +240,16 @@ pub async fn create_fts_store_with_notification(
             shutdown_tx.send_replace(InShutdown::Yes);
         }
     }
+}
+
+/// Given the proposed text on a page, find the associated content in the base corpus.
+///
+/// Each [`OcrRecord`] represents one line, and the output contains one entry with inline
+/// [`Block`]s for that line.
+pub async fn basetext_from_proposal(
+    config: &Config,
+    searcher: Searcher,
+    proposal: &[OcrRecord],
+) -> Result<Vec<Vec<Block>>, IndexError> {
+    todo!()
 }
