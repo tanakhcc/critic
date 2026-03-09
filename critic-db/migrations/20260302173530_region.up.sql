@@ -1,5 +1,5 @@
 -- the types of regions we support
-CREATE TYPE REGIONTYPE AS ENUM('main', 'marginalia');
+CREATE TYPE REGIONTYPE AS ENUM('Main', 'Marginalia');
 
 -- A region of Text on a page (this is the bounding polygon)
 CREATE TABLE region (
@@ -8,5 +8,5 @@ CREATE TABLE region (
 	page BIGINT NOT NULL REFERENCES page(id),
 	-- the actual bounding polygon
 	polygon POLYGON NOT NULL,
-	region_type REGIONTYPE NOT NULL DEFAULT 'main'
+	region_type REGIONTYPE NOT NULL DEFAULT 'Main'
 );

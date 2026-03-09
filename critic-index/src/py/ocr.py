@@ -4,7 +4,7 @@ import kraken.lib.models
 from kraken.lib.segmentation import calculate_polygonal_environment
 from kraken.containers import Segmentation, BaselineLine
 
-def ocr(in_img, model_path, baselines, text_direction="horizontal-lr"):
+def ocr(in_img, model_path, raw_bls, text_direction="horizontal-lr"):
     # load the model
     biblia = kraken.lib.models.load_any("~/.local/share/htrmopo/926633a8-35f5-5c4f-b2c2-dbb2e566e636/BiblIA_01.mlmodel")
 

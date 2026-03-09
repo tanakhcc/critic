@@ -20,7 +20,7 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
     image_path: P1,
     model_path: P2,
     text_direction: TextDirection,
-    baselines: impl Iterator<Item = &'a Baseline>,
+    baselines: Vec<&Baseline>,
 ) -> Result<Vec<OcrRecord>, IndexError> {
     Python::attach(|py| {
         let code = c_str!(include_str!("./py/ocr.py"));
@@ -28,6 +28,7 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
             PyModule::from_code(py, code, c_str!("ocr.py"), c_str!("ocr")).expect("static code");
 
         let baselines_raw: Vec<_> = baselines
+            .into_iter()
             .map(|bl| ((bl.point1.x, bl.point1.y), (bl.point2.x, bl.point2.y)))
             .collect();
         let args = (
@@ -39,10 +40,7 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
         kwargs.set_item("text_direction", text_direction.to_string())?;
 
         tracing::trace!("Starting OCR for {:?}", image_path.as_ref());
-        let ocr =
-            ocr.getattr("ocr")
-                .expect("static code")
-                .call_method("ocr", args, Some(&kwargs))?;
+        let ocr = ocr.call_method("ocr", args, Some(&kwargs))?;
         let records: &Bound<'_, PyList> =
             ocr.cast().map_err(|e| IndexError::Cast(e.to_string()))?;
         records
@@ -119,11 +117,16 @@ pub async fn handle_ocr_task(
 
     // get the baselines from the DB
     let segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
-    let baselines = segmentation.regions.iter().map(|r| &r.baselines).flatten();
     let language = get_language_for_page(&config.db, &task.page).await?;
 
     // get the OCR result from kraken
     tracing::trace!("Now running OCR on image {image_path:?}.");
+    let baselines = segmentation
+        .regions
+        .iter()
+        .map(|r| &r.baselines)
+        .flatten()
+        .collect();
     let ocr = ocr_image(&image_path, model_path, language.text_direction, baselines)?;
     tracing::trace!(
         "Finished OCR on image {image_path:?}. Now identifying the result in the base corpus."

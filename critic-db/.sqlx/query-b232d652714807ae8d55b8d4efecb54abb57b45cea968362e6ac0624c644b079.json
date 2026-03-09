@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM line WHERE region = $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "region",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "baseline",
+        "type_info": "Lseg"
+      },
+      {
+        "ordinal": 3,
+        "name": "proposed_basetext",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b232d652714807ae8d55b8d4efecb54abb57b45cea968362e6ac0624c644b079"
+}

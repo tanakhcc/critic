@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT region.id, region.polygon, region.region_type as \"region_type: RegionType\"\n        FROM region\n        INNER JOIN page ON page.id = region.page\n        INNER JOIN manuscript ON manuscript.id = page.manuscript\n        WHERE manuscript.title = $1 AND page.name = $2;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "polygon",
+        "type_info": "Polygon"
+      },
+      {
+        "ordinal": 2,
+        "name": "region_type: RegionType",
+        "type_info": {
+          "Custom": {
+            "name": "regiontype",
+            "kind": {
+              "Enum": [
+                "Main",
+                "Marginalia"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "92c40c58cfa1aca9fe605f6b35d28139625ae938800ce211e1ea7b5ac0b58e80"
+}
