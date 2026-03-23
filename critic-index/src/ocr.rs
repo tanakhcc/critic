@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use critic_config::Config;
 use critic_db::{OcrTask, get_language_for_page, get_model_for_page, get_segmentation};
 use critic_shared::urls::IMAGE_BASE_LOCATION;
+use itertools::Itertools;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::{ffi::c_str, types::PyList};
@@ -65,10 +66,10 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
                     .map_err(|e| IndexError::Cast(e.to_string()))?
                     .extract()
                     .map_err(|e| IndexError::Cast(e.to_string()))?;
-                let typed_ocr_record = OcrRecord {
-                    prediction: prediction_as_str,
-                    baseline: (Point::from(baseline_start), Point::from(baseline_end)),
-                };
+                let typed_ocr_record = OcrRecord::new(
+                    &prediction_as_str,
+                    (Point::from(baseline_start), Point::from(baseline_end)),
+                );
                 Ok(typed_ocr_record)
             })
             .collect()

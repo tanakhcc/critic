@@ -5,10 +5,11 @@ use std::sync::Arc;
 use critic_config::Config;
 use critic_db::{DBError, get_next_kraken_task};
 use critic_shared::{Baseline, InShutdown, Point, Region};
+use itertools::Itertools;
 use ocr::handle_ocr_task;
 use pyo3::FromPyObject;
 use segment::handle_baseline_task;
-use tantivy::IndexReader;
+use tantivy::{IndexReader, TantivyError};
 
 pub mod fts;
 pub mod ocr;
@@ -71,10 +72,20 @@ impl TryFrom<KrakenRegion> for Region {
 /// The Result after running OCR over a single line.
 #[derive(Debug)]
 pub struct OcrRecord {
-    /// The predicted text as a continuous string
+    /// The predicted text as a continuous string.
+    ///
+    /// Whitspace is normalized to single spaces.
     prediction: String,
     /// The associated baseline
     baseline: (Point, Point),
+}
+impl OcrRecord {
+    pub fn new(prediction_as_str: &str, baseline: (Point, Point)) -> Self {
+        OcrRecord {
+            prediction: prediction_as_str.split_whitespace().join(" "),
+            baseline,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -96,6 +107,12 @@ pub enum IndexError {
     NoOcrModel(String, String),
     /// We have no Segmentation model available for manuscript, page
     NoSegmentationModel(String, String),
+    /// Unable to search in the FTS index
+    FtsSearch(TantivyError),
+    /// Unable to open a document after the search
+    OpenDocument(TantivyError),
+    /// The index has the wrong schema
+    WrongSchema(TantivyError),
 }
 impl From<pyo3::PyErr> for IndexError {
     fn from(value: pyo3::PyErr) -> Self {
@@ -142,6 +159,15 @@ impl core::fmt::Display for IndexError {
             }
             IndexError::NoSegmentationModel(ms, page) => {
                 write!(f, "There is no OCR model present for MS {ms}, page {page}.")
+            }
+            IndexError::OpenDocument(e) => {
+                write!(f, "Unable to open a document from the FTS store: {e}.")
+            }
+            IndexError::FtsSearch(e) => {
+                write!(f, "Unable to search through the FTS index: {e}.")
+            }
+            IndexError::WrongSchema(e) => {
+                write!(f, "The FTS index has the wrong schema: {e}.")
             }
         }
     }

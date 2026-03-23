@@ -15,6 +15,7 @@ critic-shared = { path = "../critic-shared" }
 pyo3 = { version = "0.26.0", features = ["auto-initialize"] }
 quick-xml = { version = "0.38.0", features = ["serialize"]}
 tantivy = "0.25.0"
-tokio = { version = "1.46.1", default-features = false, features = ["time"] }
+tokio = { version = "1.46.1", default-features = false, features = ["time", "macros"] }
 tracing = { version = "0.1.40" }
 geo = "0.32.0"
+itertools = "0.14.0"
