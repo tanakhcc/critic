@@ -248,16 +248,6 @@ pub async fn create_fts_store_with_notification(
     }
 }
 
-/// The alignment information for a match from an [`OcrRecord`] in the FTS index
-struct FtsLineMatch {
-    /// the line id that was matched
-    line_index: usize,
-    /// The ID of the matched chunk in FTS
-    fts_id: DocAddress,
-    /// The content in the FTS chunk that matched the [`OcrRecord`]
-    in_chunk_position: core::ops::Range<usize>,
-}
-
 /// levenshtein distance taken from https://github.com/rapidfuzz/strsim-rs v0.11.1
 ///
 /// Their License is MIT.
@@ -290,8 +280,7 @@ fn prefix_is_close(prefix: &str, haystack: &str) -> bool {
         return false;
     }
 
-    needle_wordcount
-        >= levenshtein(&prefix.as_bytes(), &haystack.as_bytes()[0..prefix.len()])
+    needle_wordcount >= levenshtein(&prefix.as_bytes(), &haystack.as_bytes()[0..prefix.len()])
 }
 
 /// Find the location in haystack at which needle can be found.
@@ -308,28 +297,55 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
 
     // index of whitespace and length of that whitespace
     // also contains 0,0 because that starts the first word
-    let whitespace_and_size = core::iter::once((0, 0)).chain(
-        needle
-            .char_indices()
-            .filter_map(|(idx, c)| (c.is_whitespace() && idx + c.len_utf8() < needle.len()).then_some((idx, c.len_utf8()))),
-    ).collect::<Vec<_>>();
+    let whitespace_and_size = core::iter::once((0, 0))
+        .chain(needle.char_indices().filter_map(|(idx, c)| {
+            (c.is_whitespace() && idx + c.len_utf8() < needle.len()).then_some((idx, c.len_utf8()))
+        }))
+        .collect::<Vec<_>>();
 
     for (word_idx, (whitespace_idx, whitespace_len)) in whitespace_and_size.iter().enumerate() {
-        let index_after_word = whitespace_and_size.get(word_idx + 1).map(|(idx, _size)| *idx).unwrap_or(needle.len());
-        let word = core::str::from_utf8(&needle.as_bytes()[*whitespace_idx + whitespace_len..index_after_word]).expect("We have calculated the char indices at word boundaries.");
+        let index_after_word = whitespace_and_size
+            .get(word_idx + 1)
+            .map(|(idx, _size)| *idx)
+            .unwrap_or(needle.len());
+        let word = core::str::from_utf8(
+            &needle.as_bytes()[*whitespace_idx + whitespace_len..index_after_word],
+        )
+        .expect("We have calculated the char indices at word boundaries.");
 
         let mut next_search_start = 0;
-        while let Some(current_search_start) = haystack[next_search_start..].find(word).map(|idx| idx + next_search_start) {
-            let haystack_potential_match_start = current_search_start.saturating_sub(*whitespace_idx + whitespace_len);
-            let haystack_potential_match_end = core::cmp::min(haystack.len(), haystack_potential_match_start + needle.len());
-            if prefix_is_close(needle, &haystack[haystack_potential_match_start..haystack_potential_match_end]) {
+        while let Some(current_search_start) = haystack[next_search_start..]
+            .find(word)
+            .map(|idx| idx + next_search_start)
+        {
+            let haystack_potential_match_start =
+                current_search_start.saturating_sub(*whitespace_idx + whitespace_len);
+            let haystack_potential_match_end = core::cmp::min(
+                haystack.len(),
+                haystack_potential_match_start + needle.len(),
+            );
+            if prefix_is_close(
+                needle,
+                &haystack[haystack_potential_match_start..haystack_potential_match_end],
+            ) {
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
-                next_search_start = core::cmp::min(current_search_start + word.len() + 1, haystack.len());
+                next_search_start =
+                    core::cmp::min(current_search_start + word.len() + 1, haystack.len());
             }
         }
-    };
+    }
     None
+}
+
+/// The alignment information for a match from an [`OcrRecord`] in the FTS index
+struct FtsLineMatch {
+    /// the line id that was matched
+    line_index: usize,
+    /// The chunk of the base corpus the match was found in
+    fts_chunk: tantivy::TantivyDocument,
+    /// The content in the FTS chunk that matched the [`OcrRecord`]
+    in_chunk_position: core::ops::Range<usize>,
 }
 
 /// Find `line` in the FTS index. Only full inclusions in a single chunk are considered.
@@ -378,18 +394,100 @@ async fn line_match_in_fts(
     };
     Ok(Some(FtsLineMatch {
         line_index,
-        fts_id: *doc_address,
+        fts_chunk: doc,
         in_chunk_position: position,
     }))
 }
 
-async fn forward_complete_from_line_match(
+/// backward complete all the lines in `proposal_tail`.
+///
+/// Start using text from `first_chunk_tail` and then pull in new chunks as long as required until
+/// the entire `proposal_tail` is matched.
+async fn backward_complete_from_position(
+    config: &Config,
+    searcher: &Searcher,
+    proposal_head: &[OcrRecord],
+    first_chunk_head: &str,
+    body: Field,
+    language: &str,
+) -> Option<Vec<Vec<Block>>> {
+    todo!()
+}
+
+/// forward complete all the lines in `proposal_tail`.
+///
+/// Start using text from `first_chunk_tail` and then pull in new chunks as long as required until
+/// the entire `proposal_tail` is matched.
+async fn forward_complete_from_position(
+    config: &Config,
+    searcher: &Searcher,
+    proposal_tail: &[OcrRecord],
+    first_chunk_tail: &str,
+    body: Field,
+    language: &str,
+) -> Option<Vec<Vec<Block>>> {
+    let mut current_chunk_tail = first_chunk_tail;
+
+    for line in proposal_tail {
+        let mut this_line_basetext = String::default();
+        for word in line.prediction.split_whitespace() {
+            if current_chunk_tail.len() < word.len()  {
+                todo!("load next chunk");
+            }
+            if prefix_is_close(word, current_chunk_tail) {
+                todo!();
+            }
+        }
+    }
+
+    todo!()
+}
+
+async fn consecutive_complete_from_line_match(
     config: &Config,
     searcher: &Searcher,
     proposal: &[OcrRecord],
     line_match: FtsLineMatch,
+    body: Field,
+    language: &str,
 ) -> Result<Option<Vec<Vec<Block>>>, IndexError> {
-    todo!()
+    let first_chunk = line_match.fts_chunk;
+    let content = first_chunk
+        .get_first(body)
+        .expect("schema is static")
+        .as_str()
+        .expect("body is a string");
+    let first_line = vec![Block::Text(critic_format::streamed::Paragraph {
+        lang: language.to_string(),
+        content: content[line_match.in_chunk_position.clone()].to_string(),
+    })];
+
+    let Some(mut following_lines) = forward_complete_from_position(
+        config,
+        searcher,
+        &proposal[core::cmp::min(proposal.len(), line_match.line_index + 1)..],
+        &content[line_match.in_chunk_position.end..],
+        body,
+        language,
+    )
+    .await
+    else {
+        return Ok(None);
+    };
+
+    let Some(mut res) = backward_complete_from_position(
+        config,
+        searcher,
+        &proposal[..line_match.line_index],
+        &content[..line_match.in_chunk_position.start],
+        body,
+        language,
+        ).await else {
+        return Ok(None);
+    };
+    res.push(first_line);
+    res.append(&mut following_lines);
+    Ok(Some(res))
 }
 
 /// Given the proposed text on a page, find the associated content in the base corpus.
@@ -402,14 +500,16 @@ pub async fn basetext_from_proposal(
     proposal: &[OcrRecord],
 ) -> Result<Vec<Vec<Block>>, IndexError> {
     let schema = searcher.schema();
-    let body = schema.get_field("surface_form").map_err(IndexError::WrongSchema)?;
+    let body = schema
+        .get_field("surface_form")
+        .map_err(IndexError::WrongSchema)?;
 
     for (idx, line) in proposal.iter().enumerate() {
         let Some(line_match) = line_match_in_fts(&searcher, line, idx, body).await? else {
             continue;
         };
         if let Some(completion) =
-            forward_complete_from_line_match(config, &searcher, proposal, line_match).await?
+            consecutive_complete_from_line_match(config, &searcher, proposal, line_match, body, todo!()).await?
         {
             return Ok(completion);
         } else {
@@ -509,5 +609,17 @@ mod test {
         let haystack = "Haystack Another Haystack. The Needle";
         let found = fuzzy_find_needle_in_haystack(needle, haystack);
         assert_eq!(found, Some(27..36));
+    }
+
+    #[test]
+    fn fuzzy_find_long_haystack() {
+        let haystack = "Als nun die Tage Davids herannahten, dass er sterben sollte, befahl er seinem Sohn Salomo und sagte: Ich gehe nun den Weg aller Welt. So sei stark und erweise dich als Mann! Bewahre, was der HERR, dein Gott, zu bewahren geboten hat, dass du auf seinen Wegen gehst, indem du seine Ordnungen, seine Gebote und seine Rechtsbestimmungen und seine Zeugnisse bewahrst, wie es im Gesetz des Mose geschrieben ist, damit du Erfolg hast in allem, was du tust, und überall, wohin du dich wendest; damit der HERR sein Wort aufrechterhält, das er über mich geredet hat, als er sprach: Wenn deine Söhne auf ihren Weg achthaben, sodass sie in Treue vor mir leben mit ihrem ganzen Herzen und mit ihrer ganzen Seele, dann soll es dir nicht an einem Mann fehlen auf dem Thron Israels. Auch hast du ja selbst erkannt, was mir Joab, der Sohn der Zeruja, angetan hat, was er den beiden Heerobersten Israels, Abner, dem Sohn Ners, und Amasa, dem Sohn Jeters, angetan hat, dass er sie ermordete und so mit Kriegsblut den Frieden belastete. So hat er Kriegsblut an seinen Gürtel gebracht, der um seine Hüften war, und an seine Schuhe, die an seinen Füßen waren. So handle nun nach deiner Weisheit und lass sein graues Haar nicht in Frieden in den Scheol hinabfahren! Aber an den Söhnen des Gileaditers Barsillai sollst du Gnade erweisen, und sie sollen unter denen sein, die an deinem Tisch essen; denn ebenso sind sie mir entgegengekommen, als ich vor deinem Bruder Absalom floh. Und siehe, bei dir ist Schimi, der Sohn Geras, der Benjaminiter aus Bahurim; das ist der, der mich mit einem schlimmen Fluch verflucht hat am Tag, als ich nach Mahanajim ging. Aber er kam mir dann entgegen, an den Jordan herab, und ich schwor ihm bei dem HERRN und sprach: Wenn ich dich mit dem Schwert töte! Jetzt aber lass ihn nicht ungestraft, denn du bist ein weiser Mann und wirst erkennen, was du ihm tun sollst. Lass sein graues Haar mit Blut befleckt in den Scheol hinabfahren! Und David legte sich zu seinen Vätern und wurde in der Stadt Davids begraben. Und die Tage, die David über Israel König war, betrugen vierzig Jahre. In Hebron war er sieben Jahre König, und in Jerusalem war er 33 Jahre König. Und Salomo setzte sich auf den Thron seines Vaters David, und seine Königsherrschaft war fest gegründet.";
+        let needle = "Und seine Königsherrschaft waret fest gegründet.";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert_eq!(found, Some(2240..2290));
+
+        let needle = "Und seine war fest gegründet.";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert_eq!(found, None);
     }
 }
