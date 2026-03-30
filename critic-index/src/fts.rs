@@ -10,13 +10,11 @@ use std::sync::Arc;
 use itertools::Itertools;
 
 use critic_config::Config;
-use critic_db::{
-    get_unindexed_chunks, get_unindexed_chunks_with_equality_alphabet, set_chunks_indexed,
-};
+use critic_db::{get_unindexed_chunks_with_equality_alphabet, set_chunks_indexed};
 use critic_format::{streamed::Block, surface_form::SurfaceBaseText};
 use critic_shared::{InShutdown, urls::FTS_INDEX_BASE_LOCATION};
 use tantivy::{
-    DocAddress, Index, IndexReader, IndexWriter, Searcher, TantivyDocument, Term,
+    Index, IndexReader, IndexWriter, Searcher, TantivyDocument, Term,
     collector::TopDocs,
     directory::MmapDirectory,
     doc,
@@ -40,6 +38,8 @@ pub enum FtsError {
     TeiXmlParse(quick_xml::de::DeError),
     TeiXmlNormalize(critic_format::denorm::NormalizationError),
     TeiXmlStream(critic_format::destream::StreamError),
+    /// Failure to convert between XML and internal format
+    Tei(critic_format::ConversionError),
     OpenDirectory(tantivy::directory::error::OpenDirectoryError),
     Aborted,
 }
@@ -51,6 +51,11 @@ impl From<critic_format::denorm::NormalizationError> for FtsError {
 impl From<critic_format::destream::StreamError> for FtsError {
     fn from(value: critic_format::destream::StreamError) -> Self {
         Self::TeiXmlStream(value)
+    }
+}
+impl From<critic_format::ConversionError> for FtsError {
+    fn from(value: critic_format::ConversionError) -> Self {
+        Self::Tei(value)
     }
 }
 impl From<critic_db::DBError> for FtsError {
@@ -112,6 +117,9 @@ impl core::fmt::Display for FtsError {
             FtsError::TeiXmlStream(e) => {
                 write!(f, "Failed to stream xml: {e}")
             }
+            FtsError::Tei(e) => {
+                write!(f, "Failed to convert xml: {e}")
+            }
         }
     }
 }
@@ -141,11 +149,12 @@ async fn index_next_chunks(
     let surface_form = schema.get_field("surface_form").expect("static field name");
     let id = schema.get_field("id").expect("static field name");
     for (chunk, equality_alphabet) in &next_chunks {
-        let parsed: critic_format::schema::Text = quick_xml::de::from_str(&chunk.content)?;
-        let normed: critic_format::normalized::Text = parsed.try_into()?;
-        let streamed: Vec<critic_format::streamed::Block> = normed.try_into()?;
-        let surface_base_text =
-            SurfaceBaseText::from_blocks_with_equality_alphabet(&streamed, Some(equality_alphabet));
+        let (streamed, _first_page_name) =
+            critic_format::page_from_xml(chunk.content.as_bytes(), &chunk.language)?;
+        let surface_base_text = SurfaceBaseText::from_blocks_with_equality_alphabet(
+            &streamed,
+            equality_alphabet.as_deref(),
+        );
         index_writer
             .add_document(doc!(
                 surface_form => surface_base_text.raw_text(),
@@ -195,7 +204,7 @@ async fn create_fts_store(
             next_result = index_next_chunks(&config, number_of_chunks.into(), &mut writer, &schema) => {
                 match next_result {
                     Ok(indexed_chunks) => {
-                        tracing::debug!("Indexed {indexed_chunks} new chunks of the base corpus.");
+                        tracing::trace!("Indexed {indexed_chunks} new chunks of the base corpus.");
                         if indexed_chunks >= number_of_chunks.into() {
                             continue;
                         } else {
@@ -251,15 +260,17 @@ pub async fn create_fts_store_with_notification(
 /// levenshtein distance taken from https://github.com/rapidfuzz/strsim-rs v0.11.1
 ///
 /// Their License is MIT.
-fn levenshtein(a: &[u8], b: &[u8]) -> usize {
+///
+/// This function acts on characters, not bytes.
+fn levenshtein(a: &str, b: &str) -> usize {
     let mut cache: Vec<usize> = (1..b.len() + 1).collect();
     let mut result = b.len();
 
-    for (i, a_elem) in a.into_iter().enumerate() {
+    for (i, a_elem) in a.chars().enumerate() {
         result = i + 1;
         let mut distance_b = i;
 
-        for (j, b_elem) in b.into_iter().enumerate() {
+        for (j, b_elem) in b.chars().enumerate() {
             let cost = usize::from(a_elem != b_elem);
             let distance_a = distance_b + cost;
             distance_b = cache[j];
@@ -280,10 +291,11 @@ fn prefix_is_close(prefix: &str, haystack: &str) -> bool {
         return false;
     }
 
-    needle_wordcount >= levenshtein(&prefix.as_bytes(), &haystack.as_bytes()[0..prefix.len()])
+    let possible_endpoint = haystack.ceil_char_boundary(prefix.len());
+    needle_wordcount >= levenshtein(&prefix, &haystack[0..possible_endpoint])
 }
 
-/// Find the location in haystack at which needle can be found.
+/// Find the byteindex in haystack at which needle can be found.
 ///
 /// The level of allowed fuzzyness is controlled by prefix_is_close.
 /// The range contains char indices, NOT byte indices.
@@ -295,7 +307,7 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
         return None;
     }
 
-    // index of whitespace and length of that whitespace
+    // index of whitespace in needle and length of that whitespace
     // also contains 0,0 because that starts the first word
     let whitespace_and_size = core::iter::once((0, 0))
         .chain(needle.char_indices().filter_map(|(idx, c)| {
@@ -318,20 +330,23 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
             .find(word)
             .map(|idx| idx + next_search_start)
         {
-            let haystack_potential_match_start =
-                current_search_start.saturating_sub(*whitespace_idx + whitespace_len);
-            let haystack_potential_match_end = core::cmp::min(
+            let haystack_potential_match_start = haystack.floor_char_boundary(
+                current_search_start.saturating_sub(*whitespace_idx + whitespace_len),
+            );
+            let haystack_potential_match_end = haystack.ceil_char_boundary(core::cmp::min(
                 haystack.len(),
                 haystack_potential_match_start + needle.len(),
-            );
+            ));
             if prefix_is_close(
                 needle,
                 &haystack[haystack_potential_match_start..haystack_potential_match_end],
             ) {
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
-                next_search_start =
-                    core::cmp::min(current_search_start + word.len() + 1, haystack.len());
+                next_search_start = haystack.floor_char_boundary(core::cmp::min(
+                    current_search_start + word.len() + 1,
+                    haystack.len(),
+                ));
             }
         }
     }
@@ -339,12 +354,18 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
 }
 
 /// The alignment information for a match from an [`OcrRecord`] in the FTS index
+#[derive(Debug)]
 struct FtsLineMatch {
     /// the line id that was matched
     line_index: usize,
     /// The chunk of the base corpus the match was found in
     fts_chunk: tantivy::TantivyDocument,
+    /// The ID of the doc in the database (this is doc -> id; we return it here to prevent
+    /// unnecessary FS operations to read this ID later on)
+    fts_chunk_id: i64,
     /// The content in the FTS chunk that matched the [`OcrRecord`]
+    ///
+    /// This index is a byte position
     in_chunk_position: core::ops::Range<usize>,
 }
 
@@ -357,6 +378,7 @@ async fn line_match_in_fts(
     line: &OcrRecord,
     line_index: usize,
     body: Field,
+    id: Field,
 ) -> Result<Option<FtsLineMatch>, IndexError> {
     let subqueries = line
         .prediction
@@ -370,7 +392,12 @@ async fn line_match_in_fts(
             (Occur::Should, phrase_query.box_clone())
         })
         .collect::<Vec<_>>();
-    let minimum_should = subqueries.len() - 2 * FTS_MAX_WRONG_WORDS as usize;
+    let minimum_should = core::cmp::max(
+        subqueries
+            .len()
+            .saturating_sub(2 * FTS_MAX_WRONG_WORDS as usize),
+        1,
+    );
     let mut query = BooleanQuery::new(subqueries);
     query.set_minimum_number_should_match(minimum_should);
 
@@ -392,102 +419,18 @@ async fn line_match_in_fts(
     let Some(position) = fuzzy_find_needle_in_haystack(&line.prediction, content) else {
         return Ok(None);
     };
+    let id = doc
+        .get_first(id)
+        .expect("schema is static")
+        .as_i64()
+        .expect("id is an i64");
+
     Ok(Some(FtsLineMatch {
         line_index,
         fts_chunk: doc,
+        fts_chunk_id: id,
         in_chunk_position: position,
     }))
-}
-
-/// backward complete all the lines in `proposal_tail`.
-///
-/// Start using text from `first_chunk_tail` and then pull in new chunks as long as required until
-/// the entire `proposal_tail` is matched.
-async fn backward_complete_from_position(
-    config: &Config,
-    searcher: &Searcher,
-    proposal_head: &[OcrRecord],
-    first_chunk_head: &str,
-    body: Field,
-    language: &str,
-) -> Option<Vec<Vec<Block>>> {
-    todo!()
-}
-
-/// forward complete all the lines in `proposal_tail`.
-///
-/// Start using text from `first_chunk_tail` and then pull in new chunks as long as required until
-/// the entire `proposal_tail` is matched.
-async fn forward_complete_from_position(
-    config: &Config,
-    searcher: &Searcher,
-    proposal_tail: &[OcrRecord],
-    first_chunk_tail: &str,
-    body: Field,
-    language: &str,
-) -> Option<Vec<Vec<Block>>> {
-    let mut current_chunk_tail = first_chunk_tail;
-
-    for line in proposal_tail {
-        let mut this_line_basetext = String::default();
-        for word in line.prediction.split_whitespace() {
-            if current_chunk_tail.len() < word.len()  {
-                todo!("load next chunk");
-            }
-            if prefix_is_close(word, current_chunk_tail) {
-                todo!();
-            }
-        }
-    }
-
-    todo!()
-}
-
-async fn consecutive_complete_from_line_match(
-    config: &Config,
-    searcher: &Searcher,
-    proposal: &[OcrRecord],
-    line_match: FtsLineMatch,
-    body: Field,
-    language: &str,
-) -> Result<Option<Vec<Vec<Block>>>, IndexError> {
-    let first_chunk = line_match.fts_chunk;
-    let content = first_chunk
-        .get_first(body)
-        .expect("schema is static")
-        .as_str()
-        .expect("body is a string");
-    let first_line = vec![Block::Text(critic_format::streamed::Paragraph {
-        lang: language.to_string(),
-        content: content[line_match.in_chunk_position.clone()].to_string(),
-    })];
-
-    let Some(mut following_lines) = forward_complete_from_position(
-        config,
-        searcher,
-        &proposal[core::cmp::min(proposal.len(), line_match.line_index + 1)..],
-        &content[line_match.in_chunk_position.end..],
-        body,
-        language,
-    )
-    .await
-    else {
-        return Ok(None);
-    };
-
-    let Some(mut res) = backward_complete_from_position(
-        config,
-        searcher,
-        &proposal[..line_match.line_index],
-        &content[..line_match.in_chunk_position.start],
-        body,
-        language,
-        ).await else {
-        return Ok(None);
-    };
-    res.push(first_line);
-    res.append(&mut following_lines);
-    Ok(Some(res))
 }
 
 /// Given the proposed text on a page, find the associated content in the base corpus.
@@ -503,21 +446,96 @@ pub async fn basetext_from_proposal(
     let body = schema
         .get_field("surface_form")
         .map_err(IndexError::WrongSchema)?;
+    let id = schema.get_field("id").map_err(IndexError::WrongSchema)?;
+    // get best match for each line
+    let mut line_matches = Vec::new();
 
     for (idx, line) in proposal.iter().enumerate() {
-        let Some(line_match) = line_match_in_fts(&searcher, line, idx, body).await? else {
+        if let Some(line_match) = line_match_in_fts(&searcher, line, idx, body, id).await? {
+            tracing::trace!("Actually found a line match.");
+            line_matches.push(line_match);
+        };
+    }
+    let chunks = critic_db::get_base_corpus_chunks_by_id(
+        &config.db,
+        &line_matches
+            .iter()
+            .map(|lm| lm.fts_chunk_id)
+            .collect::<Vec<i64>>(),
+    )
+    .await
+    .map_err(IndexError::DB)?;
+
+    let mut res = vec![Vec::default(); proposal.len()];
+    // fill res with the known line matches
+    for line_match in line_matches {
+        let our_chunk = chunks
+            .iter()
+            .find(|chunk| chunk.id == line_match.fts_chunk_id)
+            .expect("We successfully got all chunks from the DB earlier.");
+        // get the part of the base corpus chunk that actually belongs to this line
+        let surface_form = SurfaceBaseText::from_blocks_with_equality_alphabet(
+            &our_chunk.content,
+            our_chunk.equality_alphabet.as_deref(),
+        );
+        let Some(starting_index) = surface_form.indexmap().iter().find(|&surface_index| {
+            surface_form
+                .raw_text()
+                .char_indices()
+                .nth(surface_index.position_in_raw())
+                .is_some_and(|(idx, _char)| idx == line_match.in_chunk_position.start)
+        }) else {
             continue;
         };
-        if let Some(completion) =
-            consecutive_complete_from_line_match(config, &searcher, proposal, line_match, body, todo!()).await?
-        {
-            return Ok(completion);
-        } else {
-            continue;
-        }
+        let mut tei_match: Vec<_> = our_chunk
+            .content
+            .iter()
+            .skip(starting_index.block_position())
+            .map(|b| b.clone())
+            .collect();
+        tei_match.first_mut().map(|b| match b {
+            Block::Text(paragraph) => {
+                paragraph.content = paragraph
+                    .content
+                    .split_whitespace()
+                    .skip(starting_index.position_in_block())
+                    .join(" ");
+            }
+            Block::Uncertain(uncertain) => {
+                uncertain.content = uncertain
+                    .content
+                    .split_whitespace()
+                    .skip(starting_index.position_in_block())
+                    .join(" ");
+            }
+            Block::Correction(correction) => {
+                correction.versions.last_mut().map(|v| {
+                    v.content = v
+                        .content
+                        .split_whitespace()
+                        .skip(starting_index.position_in_block())
+                        .join(" ")
+                });
+            }
+            Block::Abbreviation(abbreviation) => {
+                abbreviation.surface = abbreviation
+                    .surface
+                    .split_whitespace()
+                    .skip(starting_index.position_in_block())
+                    .join(" ");
+            }
+            Block::Anchor(_) | Block::Break(_) | Block::Lacuna(_) | Block::Space(_) => {}
+        });
+        res[line_match.line_index] = tei_match;
     }
-    // if no success on any initial line match - cry??
-    todo!()
+    // now infill between known line matches
+    //      when the two adjacent elements are the same chunk, return everything in between
+    //      when the adjacent elements are next to each other in at least one versification
+    //        scheme, return the end of the first and the start of the next base corpus chunk
+    return Ok(res);
+
+    // fill gaps in the middle
+    // extrapolate for leading/trailing lines with no match
 }
 
 #[cfg(test)]
@@ -572,6 +590,22 @@ mod test {
         let haystack = "The world is a cruel place";
         let found = fuzzy_find_needle_in_haystack(needle, haystack);
         assert_eq!(found, None);
+    }
+
+    #[test]
+    fn fuzzy_find_long_scalar() {
+        let needle = "The world";
+        let haystack = "T\u{10ffff}e world is a cruel place";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert_eq!(found, None);
+    }
+
+    #[test]
+    fn fuzzy_find_long_scalar_in_needle() {
+        let needle = "מִ";
+        let haystack = "A אפנמ word מִאדשג aword שכהנ";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert_eq!(found, Some(16..20));
     }
 
     #[test]

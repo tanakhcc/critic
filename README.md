@@ -53,6 +53,8 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 
 # TODO random small features
+## fts index creation fails when the directory does not exist
+- need to make sure the directory is created before the fts index creator starts
 ## Allow deletion of MSs, Pages, Languages, Models with a very loud warning message that that will delete human work
 ## Nicer optics for the admin panel
 ## Help overlays for

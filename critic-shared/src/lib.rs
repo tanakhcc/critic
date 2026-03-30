@@ -2,7 +2,7 @@
 
 use std::fmt::write;
 
-use critic_format::{destream::StreamError, page_to_xml};
+use critic_format::{destream::StreamError, page_to_xml, streamed::Block};
 use reactive_stores::Store;
 
 pub mod urls;
@@ -373,17 +373,28 @@ pub struct Baseline {
     pub content: Vec<critic_format::streamed::Block>,
 }
 impl Baseline {
-    /// Return the content on this Baseline as XML string
+    /// Return the content on this Baseline as XML string if possible
     pub fn content_as_xml(
         &self,
         pagename: String,
-    ) -> Result<String, critic_format::ConversionError> {
-        page_to_xml(self.content.clone(), pagename)
+    ) -> Result<Option<String>, critic_format::ConversionError> {
+        if self.content.is_empty() {
+            Ok(None)
+        } else {
+            page_to_xml(self.content.clone(), pagename).map(|s| Some(s))
+        }
     }
 
-    /// Return the content on this Baseline as XML string
-    pub fn into_xml(self, pagename: String) -> Result<String, critic_format::ConversionError> {
-        page_to_xml(self.content, pagename)
+    /// Return the content on this Baseline as XML string if possible
+    pub fn into_xml(
+        self,
+        pagename: String,
+    ) -> Result<Option<String>, critic_format::ConversionError> {
+        if self.content.is_empty() {
+            Ok(None)
+        } else {
+            page_to_xml(self.content, pagename).map(|s| Some(s))
+        }
     }
 
     pub fn centroid(&self) -> Point {
@@ -450,6 +461,22 @@ pub struct Region {
 pub struct SegmentedPage {
     #[store(key: i64 = |r| r.id.clone())]
     pub regions: Vec<Region>,
+}
+impl SegmentedPage {
+    /// Insert the `indexed_basetext` into the correct line in `segmentation`
+    pub fn insert_basetext_into_segmentation(&mut self, mut indexed_basetext: Vec<Vec<Block>>) {
+        let mut current_bl_offset = 0;
+        for region in self.regions.iter_mut() {
+            let baselines_length = region.baselines.len();
+            for (idx, bl) in region.baselines.iter_mut().enumerate() {
+                let baseline_index_in_indexed_basetext = current_bl_offset + idx;
+                let content =
+                    core::mem::take(&mut indexed_basetext[baseline_index_in_indexed_basetext]);
+                bl.content = content;
+            }
+            current_bl_offset += baselines_length;
+        }
+    }
 }
 impl Default for SegmentedPage {
     fn default() -> Self {

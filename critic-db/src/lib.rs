@@ -1,6 +1,6 @@
 //! Communication with the postgres database
 
-use critic_format::streamed::Block;
+use critic_format::{ConversionError, streamed::Block};
 use sqlx::{
     Pool, Postgres, QueryBuilder,
     postgres::types::{PgLSeg, PgPoint, PgPolygon},
@@ -68,6 +68,7 @@ pub enum DBError {
     CannotUpdateDefaultLanguage(sqlx::Error),
     CannotGetDefaultLanguage(sqlx::Error),
     CannotGetUnindexedChunks(sqlx::Error),
+    CannotGetChunks(sqlx::Error),
     CannotUpdateChunks(sqlx::Error),
     CannotGetOcr(sqlx::Error),
     CannotInsertRegion(sqlx::Error),
@@ -176,6 +177,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotGetUnindexedChunks(e) => {
                 write!(f, "Unable to get next unindexed chunks: {e}")
+            }
+            Self::CannotGetChunks(e) => {
+                write!(f, "Unable to get base corpus chunks: {e}")
             }
             Self::CannotUpdateChunks(e) => {
                 write!(f, "Unable to update chunks: {e}")
@@ -1228,17 +1232,17 @@ pub async fn get_page_language(
 pub struct BaseCorpusChunk {
     pub id: i64,
     /// The language used in this chunk
-    pub language: i64,
+    pub language: String,
     /// the critic-tei-xml for this chunk
     pub content: String,
     /// The versification scheme that is relevant for this chunk
     pub versification_scheme: i64,
-    /// the first verse (given versification-scheme-agnostic) in this chunk
+    /// the first verse (given versification-scheme-internal) in this chunk
     pub verse_start: i64,
-    /// the last verse (given versification-scheme-agnostic) in this chunk
+    /// the last verse (given versification-scheme-internal) in this chunk
     pub verse_end: i64,
 }
-impl From<_BaseCorpusChunkWithEqualityAlphabet> for (BaseCorpusChunk, String) {
+impl From<_BaseCorpusChunkWithEqualityAlphabet> for (BaseCorpusChunk, Option<String>) {
     fn from(value: _BaseCorpusChunkWithEqualityAlphabet) -> Self {
         (
             BaseCorpusChunk {
@@ -1254,6 +1258,43 @@ impl From<_BaseCorpusChunkWithEqualityAlphabet> for (BaseCorpusChunk, String) {
     }
 }
 
+/// A chunk of the base corpus with the string already parsed as critic-tei-xml,
+/// and containing the versification-scheme-internal ID for verse start and verse end
+#[derive(Debug)]
+pub struct BaseCorpusChunkParsed {
+    pub id: i64,
+    /// The language used in this chunk
+    pub language: String,
+    /// the critic-tei-xml for this chunk
+    pub content: Vec<Block>,
+    /// The versification scheme that is relevant for this chunk
+    pub versification_scheme: i64,
+    /// the first verse (given versification-scheme-internal) in this chunk
+    pub verse_start: i64,
+    /// the last verse (given versification-scheme-internal) in this chunk
+    pub verse_end: i64,
+    /// The equality alphabet used in this chunk (is determined by language, but using it from here
+    /// does not require an additional DB select)
+    pub equality_alphabet: Option<String>,
+}
+impl TryFrom<_BaseCorpusChunkWithEqualityAlphabet> for BaseCorpusChunkParsed {
+    type Error = ConversionError;
+
+    fn try_from(value: _BaseCorpusChunkWithEqualityAlphabet) -> Result<Self, Self::Error> {
+        let (content_parsed, _first_page_name) =
+            critic_format::page_from_xml(value.content.as_bytes(), &value.language)?;
+        Ok(BaseCorpusChunkParsed {
+            id: value.id,
+            language: value.language,
+            content: content_parsed,
+            versification_scheme: value.versification_scheme,
+            verse_start: value.verse_start,
+            verse_end: value.verse_end,
+            equality_alphabet: value.equality_alphabet,
+        })
+    }
+}
+
 /// A chunk of the base corpus, representing one row in the DB
 ///
 /// Note that we expect the base corpus to be ingested into the DB by an external tool.
@@ -1262,12 +1303,12 @@ impl From<_BaseCorpusChunkWithEqualityAlphabet> for (BaseCorpusChunk, String) {
 #[derive(Debug, FromRow)]
 struct _BaseCorpusChunkWithEqualityAlphabet {
     id: i64,
-    language: i64,
+    language: String,
     content: String,
     versification_scheme: i64,
     verse_start: i64,
     verse_end: i64,
-    equality_alphabet: String,
+    equality_alphabet: Option<String>,
 }
 
 pub async fn get_unindexed_chunks(
@@ -1278,11 +1319,11 @@ pub async fn get_unindexed_chunks(
         BaseCorpusChunk,
         r#"SELECT
             id as "id!",
-            language as "language!",
+            (SELECT language.name FROM language WHERE language.id = base_corpus.language) as "language!",
             content as "content!",
             versification_scheme as "versification_scheme!",
-            verse_start as "verse_start!",
-            verse_end as "verse_end!"
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_start) as "verse_start!",
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_end) as "verse_end!"
         FROM base_corpus
         WHERE indexed = false LIMIT $1;"#,
         number_of_chunks,
@@ -1295,17 +1336,17 @@ pub async fn get_unindexed_chunks(
 pub async fn get_unindexed_chunks_with_equality_alphabet(
     pool: &Pool<Postgres>,
     number_of_chunks: i64,
-) -> Result<Vec<(BaseCorpusChunk, String)>, DBError> {
+) -> Result<Vec<(BaseCorpusChunk, Option<String>)>, DBError> {
     sqlx::query_as!(
         _BaseCorpusChunkWithEqualityAlphabet,
         r#"SELECT
             base_corpus.id as "id!",
-            language as "language!",
-            language.equality_alphabet as "equality_alphabet!",
+            language.name as "language!",
+            language.equality_alphabet as "equality_alphabet",
             content as "content!",
             versification_scheme as "versification_scheme!",
-            verse_start as "verse_start!",
-            verse_end as "verse_end!"
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_start) as "verse_start!",
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_end) as "verse_end!"
         FROM base_corpus
         INNER JOIN language ON language.id = base_corpus.language
         WHERE indexed = false LIMIT $1;"#,
@@ -1636,6 +1677,8 @@ pub async fn update_ocr(
     pool: &Pool<Postgres>,
     pagename: &str,
     ocr_results: &SegmentedPage,
+    // this page will have should_ocr set to false
+    no_re_ocr: bool,
 ) -> Result<(), DBError> {
     for region in &ocr_results.regions {
         let contents = region
@@ -1645,7 +1688,7 @@ pub async fn update_ocr(
                 bl.content_as_xml(pagename.to_string())
                     .map_err(DBError::TeiConversion)
             })
-            .collect::<Result<Vec<String>, _>>()?;
+            .collect::<Result<Vec<Option<String>>, _>>()?;
         sqlx::query!(
             "UPDATE line
             SET proposed_basetext = record.text FROM UNNEST($1::BIGINT[], $2::TEXT[]) as record(id, text)
@@ -1655,8 +1698,45 @@ pub async fn update_ocr(
                 .iter()
                 .map(|bl| bl.id)
                 .collect::<Vec<i64>>(),
-            &contents,
+            &contents as _,
         ).execute(&*pool).await.map_err(DBError::CannotUpdateOcr)?;
     }
-    todo!()
+    if no_re_ocr {
+        sqlx::query!(
+            "UPDATE page set should_ocr = false WHERE page.name = $1",
+            pagename
+        )
+        .execute(&*pool)
+        .await
+        .map_err(DBError::CannotUpdateOcr)?;
+    }
+    Ok(())
+}
+
+/// Given a list of (not necessarily unique) IDs, get the corresponding chunks
+pub async fn get_base_corpus_chunks_by_id(
+    pool: &Pool<Postgres>,
+    ids: &[i64],
+) -> Result<Vec<BaseCorpusChunkParsed>, DBError> {
+    Ok(sqlx::query_as!(
+        _BaseCorpusChunkWithEqualityAlphabet,
+        r#"SELECT
+            base_corpus.id as "id!",
+            language.name as "language!",
+            language.equality_alphabet as "equality_alphabet",
+            content as "content!",
+            versification_scheme as "versification_scheme!",
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_start) as "verse_start!",
+            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_end) as "verse_end!"
+        FROM base_corpus
+        INNER JOIN language on language.id = base_corpus.language
+        WHERE base_corpus.id = ANY($1::BIGINT[])
+        "#,
+        ids
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(DBError::CannotGetChunks)?
+    .into_iter()
+    .map(|bcc| bcc.try_into()).collect::<Result<Vec<_>, _>>().map_err(DBError::TeiConversion)?)
 }

@@ -113,6 +113,8 @@ pub enum IndexError {
     OpenDocument(TantivyError),
     /// The index has the wrong schema
     WrongSchema(TantivyError),
+    /// Failed to convert from or to TEI XML
+    Tei(critic_format::ConversionError),
 }
 impl From<pyo3::PyErr> for IndexError {
     fn from(value: pyo3::PyErr) -> Self {
@@ -168,6 +170,9 @@ impl core::fmt::Display for IndexError {
             }
             IndexError::WrongSchema(e) => {
                 write!(f, "The FTS index has the wrong schema: {e}.")
+            }
+            IndexError::Tei(e) => {
+                write!(f, "Failed to convert from or to XML: {e}")
             }
         }
     }

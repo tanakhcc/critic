@@ -3,14 +3,14 @@
 use std::path::{Path, PathBuf};
 
 use critic_config::Config;
-use critic_db::{OcrTask, get_language_for_page, get_model_for_page, get_segmentation};
+use critic_db::{OcrTask, get_language_for_page, get_model_for_page, get_segmentation, update_ocr};
+use critic_format::streamed::Block;
 use critic_shared::urls::IMAGE_BASE_LOCATION;
-use itertools::Itertools;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::{ffi::c_str, types::PyList};
 
-use critic_shared::{Baseline, Point, TextDirection};
+use critic_shared::{Baseline, Point, Region, SegmentedPage, TextDirection};
 use tantivy::Searcher;
 
 use crate::fts::basetext_from_proposal;
@@ -116,7 +116,7 @@ pub async fn handle_ocr_task(
     .collect();
 
     // get the baselines from the DB
-    let segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
+    let mut segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
     let language = get_language_for_page(&config.db, &task.page).await?;
 
     // get the OCR result from kraken
@@ -131,10 +131,12 @@ pub async fn handle_ocr_task(
     tracing::trace!(
         "Finished OCR on image {image_path:?}. Now identifying the result in the base corpus."
     );
+    dbg!(&ocr);
 
     // call to the indexing machine to find the correct basetext from the proposed OCR text
     let indexed_basetext = basetext_from_proposal(config, searcher, &ocr).await?;
-
-    // write the result to DB
-    todo!("actually do automatic OCR")
+    segmentation.insert_basetext_into_segmentation(indexed_basetext);
+    update_ocr(&config.db, &task.page, &segmentation, true).await?;
+    tracing::debug!("Finished OCR task on {image_path:?} and inserted the result in the DB.");
+    Ok(())
 }
