@@ -295,6 +295,28 @@ fn prefix_is_close(prefix: &str, haystack: &str) -> bool {
     needle_wordcount >= levenshtein(&prefix, &haystack[0..possible_endpoint])
 }
 
+/// A contiguous group of whitespace in a string.
+/// Given in byte-indices.
+#[derive(Debug)]
+struct WhitespaceGroup {
+    start: usize,
+    len: usize,
+}
+impl core::default::Default for WhitespaceGroup {
+    fn default() -> Self {
+        WhitespaceGroup { start: 0, len: 0 }
+    }
+}
+impl WhitespaceGroup {
+    /// The next non-whitespace lives at this byte-index
+    fn end(&self) -> usize {
+        self.start + self.len
+    }
+    fn increase_len(&mut self, increment: usize) {
+        self.len += increment
+    }
+}
+
 /// Find the byteindex in haystack at which needle can be found.
 ///
 /// The level of allowed fuzzyness is controlled by prefix_is_close.
@@ -309,44 +331,73 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
 
     // index of whitespace in needle and length of that whitespace
     // also contains 0,0 because that starts the first word
-    let whitespace_and_size = core::iter::once((0, 0))
-        .chain(needle.char_indices().filter_map(|(idx, c)| {
-            (c.is_whitespace() && idx + c.len_utf8() < needle.len()).then_some((idx, c.len_utf8()))
-        }))
-        .collect::<Vec<_>>();
+    let mut whitespace_and_size = vec![WhitespaceGroup::default()];
+    let mut current_group: Option<WhitespaceGroup> = None;
+    for (char_idx, char) in needle.char_indices() {
+        if char.is_whitespace() {
+            if let Some(ref mut group) = current_group {
+                // whitespace group continues
+                group.increase_len(char.len_utf8());
+            } else {
+                // new whitespace group starts here
+                current_group = Some(WhitespaceGroup {
+                    start: char_idx,
+                    len: char.len_utf8(),
+                });
+            }
+        } else {
+            // this non-whitespace was preceeded by a whitespace group and closes it
+            if let Some(group) = current_group {
+                whitespace_and_size.push(group);
+                current_group = None;
+            }
+        }
+    }
 
-    for (word_idx, (whitespace_idx, whitespace_len)) in whitespace_and_size.iter().enumerate() {
+    dbg!(&whitespace_and_size);
+    dbg!(haystack);
+    dbg!(haystack.len());
+
+    for (word_idx, whitespace_group) in whitespace_and_size.iter().enumerate() {
         let index_after_word = whitespace_and_size
             .get(word_idx + 1)
-            .map(|(idx, _size)| *idx)
+            .map(|group| group.start)
             .unwrap_or(needle.len());
-        let word = core::str::from_utf8(
-            &needle.as_bytes()[*whitespace_idx + whitespace_len..index_after_word],
-        )
-        .expect("We have calculated the char indices at word boundaries.");
+        let word =
+            core::str::from_utf8(&needle.as_bytes()[whitespace_group.end()..index_after_word])
+                .expect("We have calculated the char indices at word boundaries.");
+        println!("Trying to find the next word in our haystack.");
+        dbg!(word_idx, whitespace_group);
+        dbg!(&needle);
+        dbg!(word);
 
         let mut next_search_start = 0;
         while let Some(current_search_start) = haystack[next_search_start..]
             .find(word)
             .map(|idx| idx + next_search_start)
         {
-            let haystack_potential_match_start = haystack.floor_char_boundary(
-                current_search_start.saturating_sub(*whitespace_idx + whitespace_len),
-            );
+            let haystack_potential_match_start = haystack
+                .floor_char_boundary(current_search_start.saturating_sub(whitespace_group.end()));
             let haystack_potential_match_end = haystack.ceil_char_boundary(core::cmp::min(
                 haystack.len(),
                 haystack_potential_match_start + needle.len(),
             ));
+
             if prefix_is_close(
                 needle,
                 &haystack[haystack_potential_match_start..haystack_potential_match_end],
             ) {
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
-                next_search_start = haystack.floor_char_boundary(core::cmp::min(
+                dbg!(needle);
+                dbg!(haystack_potential_match_start);
+                dbg!(haystack_potential_match_end);
+                dbg!(next_search_start);
+                next_search_start = haystack.floor_char_boundary(dbg!(core::cmp::min(
                     current_search_start + word.len() + 1,
                     haystack.len(),
-                ));
+                )));
+                dbg!(next_search_start);
             }
         }
     }
@@ -407,6 +458,7 @@ async fn line_match_in_fts(
         .search(&query, &TopDocs::with_limit(1))
         .map_err(IndexError::FtsSearch)?;
     let Some((_score, doc_address)) = top_docs.get(0) else {
+        tracing::trace!("No document matched.");
         return Ok(None);
     };
     let doc = searcher
@@ -418,9 +470,14 @@ async fn line_match_in_fts(
         .expect("schema is static")
         .as_str()
         .expect("body is a string");
+    tracing::trace!(
+        "Got some top docs. Now trying to find the line in that document. The document content ist {content:?}."
+    );
     let Some(position) = fuzzy_find_needle_in_haystack(&line.prediction, content) else {
+        tracing::trace!("Did not find the line in the found document.");
         return Ok(None);
     };
+    tracing::trace!("Found the line in the found document.");
     let id = doc
         .get_first(id)
         .expect("schema is static")
@@ -657,5 +714,13 @@ mod test {
         let needle = "Und seine war fest gegründet.";
         let found = fuzzy_find_needle_in_haystack(needle, haystack);
         assert_eq!(found, None);
+    }
+
+    #[test]
+    fn fuzzy_on_hebrew_text() {
+        let haystack = "ויעל משה מערבת מואב אלהר נבו ראש הפסגה אשר עלפני ירחו ויראהו יהוה אתכלהארץ אתהגלעד עדדן ואת כלנפתלי ואתארץ אפרים ומנשה ואת כלארץ יהודה עד הים האחרון ואתהנגב ואתהככר בקעת ירחו עיר התמרים עדצער ויאמר יהוה אליו זאת הארץ אשר נשבעתי לאברהם ליצחק וליעקב לאמר לזרעך אתננה הראיתיך בעיניך ושמה לא תעבר וימת שם משה עבדיהוה בארץ מואב עלפי יהוה ויקבר אתו בגי בארץ מואב מול בית פעור ולאידע איש אתקברתו עד היום הזה ומשה בןמאה ועשרים שנה במתו לאכהתה עינו ולאנס לחה ויבכו בני ישראל אתמשה בערבת מואב שלשים יום ויתמו ימי בכי אבל משה ויהושע בןנון מלא רוח חכמה כיסמך משה אתידיו עליו וישמעו אליו בניישראל ויעשו כאשר צוה יהוה אתמשה";
+        let needle = "ונמו ימו בבו אבל משה  שא";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert!(found.is_none());
     }
 }
