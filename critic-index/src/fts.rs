@@ -380,6 +380,8 @@ async fn line_match_in_fts(
     body: Field,
     id: Field,
 ) -> Result<Option<FtsLineMatch>, IndexError> {
+    tracing::trace!("Trying to find match for {line:?}");
+
     let subqueries = line
         .prediction
         .split_whitespace()

@@ -21,7 +21,8 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
     image_path: P1,
     model_path: P2,
     text_direction: TextDirection,
-    baselines: Vec<&Baseline>,
+    baselines: Vec<Baseline>,
+    equality_alphabet: Option<String>,
 ) -> Result<Vec<OcrRecord>, IndexError> {
     Python::attach(|py| {
         let code = c_str!(include_str!("./py/ocr.py"));
@@ -69,6 +70,7 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
                 let typed_ocr_record = OcrRecord::new(
                     &prediction_as_str,
                     (Point::from(baseline_start), Point::from(baseline_end)),
+                    equality_alphabet.as_deref(),
                 );
                 Ok(typed_ocr_record)
             })
@@ -124,14 +126,24 @@ pub async fn handle_ocr_task(
     let baselines = segmentation
         .regions
         .iter()
-        .map(|r| &r.baselines)
+        .map(|r| r.baselines.clone())
         .flatten()
         .collect();
-    let ocr = ocr_image(&image_path, model_path, language.text_direction, baselines)?;
+    let image_path_for_spawn = image_path.clone();
+    let ocr = tokio::task::spawn_blocking(move || {
+        ocr_image(
+            image_path_for_spawn,
+            model_path,
+            language.text_direction,
+            baselines,
+            language.equality_alphabet,
+        )
+    })
+    .await??;
+
     tracing::trace!(
         "Finished OCR on image {image_path:?}. Now identifying the result in the base corpus."
     );
-    dbg!(&ocr);
 
     // call to the indexing machine to find the correct basetext from the proposed OCR text
     let indexed_basetext = basetext_from_proposal(config, searcher, &ocr).await?;

@@ -80,9 +80,18 @@ pub struct OcrRecord {
     baseline: (Point, Point),
 }
 impl OcrRecord {
-    pub fn new(prediction_as_str: &str, baseline: (Point, Point)) -> Self {
+    pub fn new(
+        prediction_as_str: &str,
+        baseline: (Point, Point),
+        equality_alphabet: Option<&str>,
+    ) -> Self {
         OcrRecord {
-            prediction: prediction_as_str.split_whitespace().join(" "),
+            prediction: prediction_as_str
+                .split_whitespace()
+                .map(|word| {
+                    word.replace(|c| equality_alphabet.is_some_and(|ea| !ea.contains(c)), "")
+                })
+                .join(" "),
             baseline,
         }
     }
@@ -115,6 +124,8 @@ pub enum IndexError {
     WrongSchema(TantivyError),
     /// Failed to convert from or to TEI XML
     Tei(critic_format::ConversionError),
+    /// Failed to Join Kraken Job (the job paniced)
+    Join(tokio::task::JoinError),
 }
 impl From<pyo3::PyErr> for IndexError {
     fn from(value: pyo3::PyErr) -> Self {
@@ -124,6 +135,11 @@ impl From<pyo3::PyErr> for IndexError {
 impl From<DBError> for IndexError {
     fn from(value: DBError) -> Self {
         IndexError::DB(value)
+    }
+}
+impl From<tokio::task::JoinError> for IndexError {
+    fn from(value: tokio::task::JoinError) -> Self {
+        IndexError::Join(value)
     }
 }
 impl core::fmt::Display for IndexError {
@@ -173,6 +189,9 @@ impl core::fmt::Display for IndexError {
             }
             IndexError::Tei(e) => {
                 write!(f, "Failed to convert from or to XML: {e}")
+            }
+            IndexError::Join(e) => {
+                write!(f, "Kraken Thread paniced: {e}")
             }
         }
     }
