@@ -1,6 +1,6 @@
 //! Communication with the postgres database
 
-use critic_format::{ConversionError, streamed::Block};
+use critic_format::{ConversionError, page_from_xml, streamed::Block};
 use sqlx::{
     Pool, Postgres, QueryBuilder,
     postgres::types::{PgLSeg, PgPoint, PgPolygon},
@@ -1621,7 +1621,7 @@ pub async fn get_segmentation(
         INNER JOIN manuscript ON manuscript.id = page.manuscript
         WHERE manuscript.title = $1 AND page.name = $2;"#,
         manuscript_name,
-        pagename
+        pagename,
     )
     .fetch_all(&*pool)
     .await
@@ -1644,29 +1644,49 @@ pub async fn get_segmentation(
     })
     .collect::<Vec<_>>();
     for region in regions.iter_mut() {
-        let baselines = sqlx::query!("SELECT * FROM line WHERE region = $1;", region.id)
-            .fetch_all(&*pool)
-            .await
-            .map_err(DBError::CannotGetOcr)?
-            .into_iter()
-            .map(|r| {
-                Ok(Baseline {
-                    id: r.id,
-                    point1: Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
-                    point2: Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
-                    content: r
-                        .proposed_basetext
-                        .map(|text| -> Result<Vec<_>, _> {
-                            let parsed: critic_format::schema::Text =
-                                quick_xml::de::from_str(&text).map_err(DBError::XmlParse)?;
-                            let normed: critic_format::normalized::Text =
-                                parsed.try_into().map_err(DBError::XmlNormalize)?;
-                            normed.try_into().map_err(DBError::XmlStream)
-                        })
-                        .unwrap_or_else(|| Ok(Vec::default()))?,
-                })
+        let baselines = sqlx::query!(
+            "SELECT
+                line.id,
+                baseline,
+                proposed_basetext,
+                (SELECT name FROM language
+                    WHERE language.id =
+                COALESCE(
+                    page.language,
+                    manuscript.language,
+                    (SELECT language FROM default_language
+                     WHERE id = 1)))
+                as language
+            FROM line
+            INNER JOIN region on region.id = line.region
+            INNER JOIN page ON page.id = region.page
+            INNER JOIN manuscript ON manuscript.id = page.manuscript
+            WHERE region = $1
+            ;",
+            region.id
+        )
+        .fetch_all(&*pool)
+        .await
+        .map_err(DBError::CannotGetOcr)?
+        .into_iter()
+        .map(|r| {
+            Ok(Baseline {
+                id: r.id,
+                point1: Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
+                point2: Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
+                content: r
+                    .proposed_basetext
+                    .map(|text| -> Result<Vec<_>, _> {
+                        Ok(
+                            page_from_xml(text.as_bytes(), &r.language.unwrap_or_default())
+                                .map_err(DBError::TeiConversion)?
+                                .0,
+                        )
+                    })
+                    .unwrap_or_else(|| Ok(Vec::default()))?,
             })
-            .collect::<Result<Vec<_>, _>>()?;
+        })
+        .collect::<Result<Vec<_>, _>>()?;
         region.baselines = baselines;
     }
     Ok(SegmentedPage { regions })

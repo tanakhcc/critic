@@ -190,8 +190,9 @@ pub fn MsViewer() -> impl IntoView {
         }
     };
 
+    // the key to the selected element
     let selected = RwSignal::new(None);
-    let overlay_editable = RwSignal::new(false);
+    // the active tool
     let tool = RwSignal::new(SelectedTool::Select);
 
     // TODO:
@@ -229,54 +230,63 @@ pub fn MsViewer() -> impl IntoView {
                         style:transform-origin="top left"
                     >
                         <img src=format!("{image_base}/original.webp") alt=msname />
-                        <Suspense fallback=|| {}>
-                            {move || {
-                                image_dimensions
-                                    .get()
-                                    .map(|dimensions| {
-                                        dimensions
-                                            .map(|(dim_x, dim_y)| {
-                                                segmentation
-                                                    .get()
-                                                    .map(|seg_res| {
-                                                        seg_res
-                                                            .map(|seg| {
-                                                                let regions = Store::new(seg);
+                        <ErrorBoundary fallback=|errors| {
+                            view! {
+                                <div>
+                                    "Error: failed to get segmentation"
+                                    <ul>
+                                        {move || {
+                                            errors
+                                                .get()
+                                                .into_iter()
+                                                .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                                .collect::<Vec<_>>()
+                                        }}
+                                    </ul>
+                                </div>
+                            }
+                        }>
+                            <Suspense fallback=|| {}>
+                                {move || {
+                                    image_dimensions
+                                        .get()
+                                        .map(|dimensions| {
+                                            dimensions
+                                                .map(|(dim_x, dim_y)| {
+                                                    segmentation
+                                                        .get()
+                                                        .map(|seg_res| {
+                                                            seg_res
+                                                                .map(|seg| {
+                                                                    let regions = Store::new(seg);
 
-                                                                view! {
-                                                                    <MsOverlay
-                                                                        dim_x=dim_x
-                                                                        dim_y=dim_y
-                                                                        regions=regions
-                                                                        selected=selected
-                                                                        editable=overlay_editable.read_only()
-                                                                        scale=scale.read_only()
-                                                                        tool=tool.read_only()
-                                                                    />
-                                                                }
-                                                            })
-                                                    })
-                                            })
-                                    })
-                            }}
-                        </Suspense>
+                                                                    view! {
+                                                                        <MsOverlay
+                                                                            dim_x=dim_x
+                                                                            dim_y=dim_y
+                                                                            regions=regions
+                                                                            selected=selected
+                                                                            scale=scale.read_only()
+                                                                            tool=tool.read_only()
+                                                                        />
+                                                                    }
+                                                                })
+                                                        })
+                                                })
+                                        })
+                                }}
+                            </Suspense>
+                        </ErrorBoundary>
                     </div>
                 </div>
             </div>
             <div class="h-full w-52 bg-black">
                 <components::Toolbar on_save=|| {} tool=tool />
                 <components::Layers />
+                <components::Information selected=selected.read_only() />
             </div>
         </div>
     })
-}
-
-/// Gives the indices of the currently selected element in the store.
-struct SelectedId {
-    /// idx of the region in the [`Vec<Region>`]
-    region_idx: usize,
-    /// idx of the line in the [`Vec<Baseline>`]
-    line_idx: usize,
 }
 
 /// The entire overlay over the MS image
@@ -292,15 +302,13 @@ fn MsOverlay(
     /// the regions available, including their baselines
     regions: Store<SegmentedPage>,
     /// the currently selected region or baseline
-    selected: RwSignal<Option<SelectedId>>,
-    /// is overlay editing currently allowed or not
-    editable: ReadSignal<bool>,
+    selected: RwSignal<Option<KeyedBaseline>>,
     /// The current scale used in the MS
     scale: ReadSignal<f64>,
     /// the tool currently selected
     tool: ReadSignal<SelectedTool>,
 ) -> impl IntoView {
-    let stroke_width = (dim_x.pow(2) + dim_y.pow(2)).isqrt() / 250;
+    let stroke_width = ((dim_x.pow(2) + dim_y.pow(2)).isqrt() / 250).max(2);
 
     provide_context(selected);
     provide_context(scale);
@@ -336,19 +344,19 @@ fn Region(
     }
 }
 
+type KeyedBaseline = reactive_stores::AtKeyed<
+    reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
+    Region,
+    i64,
+    Vec<Baseline>,
+>;
+
 #[component]
-fn BaseLine(
-    baseline: reactive_stores::AtKeyed<
-        reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
-        Region,
-        i64,
-        Vec<Baseline>,
-    >,
-) -> impl IntoView {
+fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
     let stroke_width = use_context::<u32>().expect("MsOverlay supplies stroke width");
     let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
-    let selected =
-        use_context::<RwSignal<Option<SelectedId>>>().expect("MsOverlay supplies selected element");
+    let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
+        .expect("MsOverlay supplies selected element");
     let scale = use_context::<ReadSignal<f64>>().expect("MsOverlay supplies scale");
 
     view! {
@@ -356,6 +364,7 @@ fn BaseLine(
             class="group"
             on:click=move |_evt| {
                 if tool.get() == SelectedTool::Select {
+                    selected.set(Some(baseline));
                 }
             }
         >

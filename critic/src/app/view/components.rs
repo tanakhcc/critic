@@ -1,6 +1,10 @@
 //! Subcomponents for the View Page
 
+use critic_format::page_to_xml;
+use critic_shared::BaselineStoreFields;
 use leptos::prelude::*;
+
+use super::KeyedBaseline;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub(super) enum SelectedTool {
@@ -176,5 +180,25 @@ pub(super) fn layers() -> impl IntoView {
                 </li>
             </ul>
         </div>
+    }
+}
+
+#[component]
+pub(super) fn Information(selected: ReadSignal<Option<KeyedBaseline>>) -> impl IntoView {
+    {
+        move || {
+            selected.read().map(
+                |sel| match page_to_xml(sel.content().get(), "".to_string()) {
+                    Ok(xml) => leptos::either::Either::Left(view! {
+                        <p>This baseline has the following XML:</p>
+                        <p>{xml}</p>
+                    }),
+                    Err(e) => leptos::either::Either::Right(view! {
+                        <p>Problem while searlizing the Data for this line into XML:</p>
+                        <p>{e.to_string()}</p>
+                    }),
+                },
+            )
+        }
     }
 }

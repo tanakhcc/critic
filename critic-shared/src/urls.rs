@@ -12,9 +12,6 @@ pub const MODEL_BASE_LOCATION: &str = "/models";
 /// filesystem-location to put the FTS index into
 pub const FTS_INDEX_BASE_LOCATION: &str = "/fts-index";
 
-/// URL to server static-at-compile-time assets (unter static)
-pub const ASSETS_BASE_URL: &str = "/assets";
-
 /// Base url for static content like files etc.
 pub const STATIC_BASE_URL: &str = "/static";
 /// The base url for uploading anything

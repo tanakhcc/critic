@@ -405,7 +405,7 @@ enum EditorTabs {
 
 /// Switches between the different tabs in the editor
 #[component]
-fn EditorWithTabs(
+pub fn EditorWithTabs(
     blocks: RwSignal<Vec<EditorBlock>>,
     default_language: String,
     on_save: Action<Vec<EditorBlock>, Result<(), ServerFnError>>,
