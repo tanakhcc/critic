@@ -543,7 +543,7 @@ enum QueryType {
 /// ```text
 /// ms=IIB17+ lang=hbo-Hebr page:3
 /// ```
-fn decompose_query(query: &str) -> Vec<QueryTerm> {
+fn decompose_query(query: &str) -> Vec<QueryTerm<'_>> {
     let mut res = Vec::<QueryTerm>::new();
     for item in query.split_whitespace() {
         match item {

@@ -62,45 +62,20 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ### Languages
 
 # TODOs - Redesign for visual Transcription Editor
-## ocr
-### complete db insertion for baselines and regions
-### complete segment and ocr primitives
-### get the segmentation and ocr without FTS working completely
-
-## base corpus search
-
-### Write primitives
-
-#### search for a line in FTS
-- create the query "ALLOF(FUZZY(w) for w in line)" and run it against the index
-
-#### last and next blocks
-- select from DB
-- requires verse ordering to find the last and next block
-
-#### Forward-completion
-GIVEN:
-- a match of one line to a base corpus block
-    - given as
-        - block id and clean-idx in that block (start)
-        - block id and clean-idx in that same block (end)
-- a `vec<lines>`
-FIND:
-- matches for the other lines (they potentially span multiple blocks)
-ALGORITHM:
-- if the block is not exhausted, fuzzy match word-for-word backwards (and forwards) through the lines
-    - ideally, this simply matches
-    - when it does not match, early return with None
-    - when the block becomes exhausted before the backward(forward) search ends, load the next block with the last primitive
-
-#### find basetext for lines on a page
-- iterate over lines, FTS them
-- on the first match, stop; Forward-complete the remainder of the page
-    - if this fails: continue FTS on the next line
-- if no line fits (or some fit FTS, but Forward-completion does not work):
-    - instead just return the raw ocr text found
-
 ## redo image editor
+### show layers in the side panel
+They are selectable so that one layer is always selected (like QGIS)
+#### segmentation (with ocr)
+#### transcriptions
+#### reconciliations
+### toolbar
+#### new line
+#### new region??? maybe we drop regions entirely
+#### edit line
+#### identify closest element on layer
+### make elements selectable
+#### show their values, specifically text for now
+
 ### remove layout layer
 - we may want to force redo the layout analysis when the model changes
     - add a button in the editor
@@ -122,6 +97,15 @@ ALGORITHM:
 #### transcriptions (manual)
 #### reconciliations (manual)
 
+
+## ocr
+### complete segment and ocr primitives
+#### Completion of missing segments
+### get the segmentation and ocr without FTS working completely
+
+## base corpus search
+
+### Write primitives
 
 ## Automatically (OCR) find out which part of the base text belongs to which line
 If this does not work well, this entire approach will not work

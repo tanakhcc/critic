@@ -9,9 +9,12 @@ use critic_shared::{
 };
 use leptos::prelude::*;
 use leptos_use::use_event_listener;
-use reactive_stores::Store;
+use reactive_stores::{Store, StoreField};
 
 use crate::app::shared::{MsParams, PageParams};
+use crate::app::view::components::SelectedTool;
+
+mod components;
 
 #[server]
 async fn get_image_dimensions(
@@ -29,6 +32,18 @@ async fn get_image_dimensions(
         which,
     )
     .map_err(|e| ServerFnError::new(e.to_string()))
+}
+
+#[server]
+async fn get_segmentation(
+    msname: String,
+    pagename: String,
+) -> Result<SegmentedPage, ServerFnError> {
+    let config: std::sync::Arc<critic_config::Config> =
+        use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_db::get_segmentation(&config.db, &msname, &pagename)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
 }
 
 #[component]
@@ -58,10 +73,11 @@ pub fn MsViewer() -> impl IntoView {
 
     let image_base = format!("{STATIC_BASE_URL}{IMAGE_BASE_LOCATION}/{msname}/{pagename}",);
     let image_dimensions = OnceResource::new(get_image_dimensions(
-        msname,
-        pagename,
+        msname.clone(),
+        pagename.clone(),
         critic_shared::ImageType::Original,
     ));
+    let segmentation = OnceResource::new(get_segmentation(msname.clone(), pagename));
 
     let x = RwSignal::new(0);
     let y = RwSignal::new(0);
@@ -119,39 +135,20 @@ pub fn MsViewer() -> impl IntoView {
         y.update(|y| *y = clipped_offset.1);
     };
 
-    // this function deals with scrolling and zooming
+    // this function deals with scrolling
     let on_wheel = move |evt: leptos::ev::WheelEvent| {
         // do not scroll with browser default, we control scrolling behaviour here
         evt.prevent_default();
-        // scaling
-        if evt.ctrl_key() {
-            let effective_scaling_factor = if evt.delta_y() >= 0. { 0.8 } else { 1.25 };
-            let old_scale = scale.get_untracked();
-            // get real pixel the mouse points to right now
-            let (x_r, y_r) = real_pixel(evt.client_x(), evt.client_y() - 70);
-            // update the scale
-            scale.update(|s| *s *= effective_scaling_factor);
-            let new_scale = old_scale * effective_scaling_factor;
-            let x_new = (x_r * (old_scale - new_scale)) as i32 + x.get_untracked();
-            let y_new = (y_r * (old_scale - new_scale)) as i32 + y.get_untracked();
-            set_offset_clipped(x_new, y_new);
-        } else {
-            if evt.shift_key() {
-                // left-right scrolling
-                set_offset_clipped(
-                    x.get_untracked()
-                        + (evt.delta_y() / (scale.get_untracked() as f64).sqrt()) as i32,
-                    y.get_untracked(),
-                );
-            } else {
-                // top-bottom scrolling
-                set_offset_clipped(
-                    x.get_untracked(),
-                    y.get_untracked()
-                        + (evt.delta_y() / (scale.get_untracked() as f64).sqrt()) as i32,
-                );
-            }
-        }
+        let effective_scaling_factor = if evt.delta_y() >= 0. { 0.8 } else { 1.25 };
+        let old_scale = scale.get_untracked();
+        // get real pixel the mouse points to right now
+        let (x_r, y_r) = real_pixel(evt.client_x(), evt.client_y() - 70);
+        // update the scale
+        scale.update(|s| *s *= effective_scaling_factor);
+        let new_scale = old_scale * effective_scaling_factor;
+        let x_new = (x_r * (old_scale - new_scale)) as i32 + x.get_untracked();
+        let y_new = (y_r * (old_scale - new_scale)) as i32 + y.get_untracked();
+        set_offset_clipped(x_new, y_new);
     };
 
     let space_down = RwSignal::new(false);
@@ -193,11 +190,9 @@ pub fn MsViewer() -> impl IntoView {
         }
     };
 
-    // TODO:
-    // read from DB (actually add DB for this)
-    let regions = Store::new(SegmentedPage::default());
     let selected = RwSignal::new(None);
     let overlay_editable = RwSignal::new(false);
+    let tool = RwSignal::new(SelectedTool::Select);
 
     // TODO:
     // smaller image for the viewer here?
@@ -233,7 +228,7 @@ pub fn MsViewer() -> impl IntoView {
                         }
                         style:transform-origin="top left"
                     >
-                        <img src=format!("{image_base}/original.webp") alt="ms name" />
+                        <img src=format!("{image_base}/original.webp") alt=msname />
                         <Suspense fallback=|| {}>
                             {move || {
                                 image_dimensions
@@ -241,15 +236,26 @@ pub fn MsViewer() -> impl IntoView {
                                     .map(|dimensions| {
                                         dimensions
                                             .map(|(dim_x, dim_y)| {
-                                                view! {
-                                                    <MsOverlay
-                                                        dim_x=dim_x
-                                                        dim_y=dim_y
-                                                        regions=regions
-                                                        selected=selected
-                                                        editable=overlay_editable.read_only()
-                                                    />
-                                                }
+                                                segmentation
+                                                    .get()
+                                                    .map(|seg_res| {
+                                                        seg_res
+                                                            .map(|seg| {
+                                                                let regions = Store::new(seg);
+
+                                                                view! {
+                                                                    <MsOverlay
+                                                                        dim_x=dim_x
+                                                                        dim_y=dim_y
+                                                                        regions=regions
+                                                                        selected=selected
+                                                                        editable=overlay_editable.read_only()
+                                                                        scale=scale.read_only()
+                                                                        tool=tool.read_only()
+                                                                    />
+                                                                }
+                                                            })
+                                                    })
                                             })
                                     })
                             }}
@@ -257,40 +263,58 @@ pub fn MsViewer() -> impl IntoView {
                     </div>
                 </div>
             </div>
-            <div class="h-full w-1/5 max-w-72 min-w-44 bg-red-200">hi i ams content</div>
+            <div class="h-full w-52 bg-black">
+                <components::Toolbar on_save=|| {} tool=tool />
+                <components::Layers />
+            </div>
         </div>
     })
 }
 
-#[derive(Debug, Clone)]
-enum DrawableOverlay {
-    Baseline(Baseline),
-    Region(Region),
+/// Gives the indices of the currently selected element in the store.
+struct SelectedId {
+    /// idx of the region in the [`Vec<Region>`]
+    region_idx: usize,
+    /// idx of the line in the [`Vec<Baseline>`]
+    line_idx: usize,
 }
 
+/// The entire overlay over the MS image
+///
+/// The parent div has to scale, but we still need the `scale` because we have to counter-scale
+/// some SVG elements.
 #[component]
 fn MsOverlay(
-    /// extent of the coordinate system in x-direction
+    /// extent of the unscaled coordinate system in x-direction
     dim_x: u32,
-    /// extent of the coordinate system in y-direction
+    /// extent of the unscaled coordinate system in y-direction
     dim_y: u32,
     /// the regions available, including their baselines
     regions: Store<SegmentedPage>,
     /// the currently selected region or baseline
-    selected: RwSignal<Option<DrawableOverlay>>,
+    selected: RwSignal<Option<SelectedId>>,
     /// is overlay editing currently allowed or not
     editable: ReadSignal<bool>,
+    /// The current scale used in the MS
+    scale: ReadSignal<f64>,
+    /// the tool currently selected
+    tool: ReadSignal<SelectedTool>,
 ) -> impl IntoView {
-    let stroke_width = (dim_x + dim_y) / 150;
+    let stroke_width = (dim_x.pow(2) + dim_y.pow(2)).isqrt() / 250;
+
+    provide_context(selected);
+    provide_context(scale);
+    provide_context(tool);
+    provide_context(stroke_width);
 
     view! {
         <svg
             viewBox=format!("0 0 {dim_x} {dim_y}")
             class="stroke-emerald-400 fill-amber-500 absolute top-0 left-0"
-            style:stroke-wdith=format!("{stroke_width}px")
+            style:stroke-width=move || format!("{}px", (stroke_width as f64 / scale.get()) as u32)
         >
             <For each=move || regions.regions() key=|r| r.clone().id().get() let(region)>
-                <Region region=region stroke_width=stroke_width />
+                <Region region=region />
             </For>
         </svg>
     }
@@ -299,16 +323,15 @@ fn MsOverlay(
 #[component]
 fn Region(
     region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
-    stroke_width: u32,
 ) -> impl IntoView {
     view! {
-        <polygon points=region.read().boundary.point_list() stroke-width=stroke_width />
+        <polygon points=move || region.read().boundary.point_list() fill="none" stroke="black" />
         <For
             each=move || region.clone().baselines()
             key=|baseline| baseline.clone().id().get()
             let(baseline)
         >
-            <BaseLine baseline=baseline stroke_width=stroke_width * 2 />
+            <BaseLine baseline=baseline />
         </For>
     }
 }
@@ -321,16 +344,51 @@ fn BaseLine(
         i64,
         Vec<Baseline>,
     >,
-    stroke_width: u32,
 ) -> impl IntoView {
+    let stroke_width = use_context::<u32>().expect("MsOverlay supplies stroke width");
+    let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
+    let selected =
+        use_context::<RwSignal<Option<SelectedId>>>().expect("MsOverlay supplies selected element");
+    let scale = use_context::<ReadSignal<f64>>().expect("MsOverlay supplies scale");
+
     view! {
-        <line
-            x1=baseline.read().point1.x
-            y1=baseline.read().point1.y
-            x2=baseline.read().point2.x
-            y2=baseline.read().point2.y
-        />
-        <circle cx=baseline.read().point1.x cy=baseline.read().point1.y r=stroke_width * 2 />
-        <circle cx=baseline.read().point2.x cy=baseline.read().point2.y r=stroke_width * 2 />
+        <g
+            class="group"
+            on:click=move |_evt| {
+                if tool.get() == SelectedTool::Select {
+                }
+            }
+        >
+            <line
+                x1=move || baseline.read().point1.x
+                y1=move || baseline.read().point1.y
+                x2=move || baseline.read().point2.x
+                y2=move || baseline.read().point2.y
+                // stroke-width=format!("{}px", stroke_width * 2)
+                class=(["hover:stroke-red-600"], move || tool.get() == SelectedTool::EditLine)
+            />
+            {move || {
+                if tool.get() == SelectedTool::EditLine {
+                    Some(
+                        view! {
+                            <circle
+                                cx=move || baseline.read().point1.x
+                                cy=move || baseline.read().point1.y
+                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                                class="fill-orange-400 hover:stroke-red-600"
+                            />
+                            <circle
+                                cx=move || baseline.read().point2.x
+                                cy=move || baseline.read().point2.y
+                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                                class="fill-orange-400 hover:stroke-red-600"
+                            />
+                        },
+                    )
+                } else {
+                    None
+                }
+            }}
+        </g>
     }
 }

@@ -19,12 +19,12 @@ use tantivy::{
     directory::MmapDirectory,
     doc,
     query::{BooleanQuery, Occur, PhraseQuery, QueryClone},
-    schema::{FAST, Field, STORED, Schema, TEXT, Value},
+    schema::{Field, STORED, Schema, TEXT, Value},
 };
 
 use crate::{IndexError, OcrRecord};
 
-const FTS_MAX_WRONG_WORDS: u8 = 2;
+const FTS_MAX_WRONG_WORDS: u8 = 3;
 
 #[derive(Debug)]
 pub enum FtsError {
@@ -292,7 +292,13 @@ fn prefix_is_close(prefix: &str, haystack: &str) -> bool {
     }
 
     let possible_endpoint = haystack.ceil_char_boundary(prefix.len());
-    needle_wordcount >= levenshtein(&prefix, &haystack[0..possible_endpoint])
+    let diff = levenshtein(&prefix, &haystack[0..possible_endpoint]);
+    if diff <= 2 * needle_wordcount {
+        println!("Diff is {diff} while needle_wordcount is {needle_wordcount}.");
+        dbg!(prefix);
+        dbg!(haystack);
+    }
+    diff <= needle_wordcount
 }
 
 /// A contiguous group of whitespace in a string.
@@ -353,11 +359,6 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
             }
         }
     }
-
-    dbg!(&whitespace_and_size);
-    dbg!(haystack);
-    dbg!(haystack.len());
-
     for (word_idx, whitespace_group) in whitespace_and_size.iter().enumerate() {
         let index_after_word = whitespace_and_size
             .get(word_idx + 1)
@@ -366,11 +367,6 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
         let word =
             core::str::from_utf8(&needle.as_bytes()[whitespace_group.end()..index_after_word])
                 .expect("We have calculated the char indices at word boundaries.");
-        println!("Trying to find the next word in our haystack.");
-        dbg!(word_idx, whitespace_group);
-        dbg!(&needle);
-        dbg!(word);
-
         let mut next_search_start = 0;
         while let Some(current_search_start) = haystack[next_search_start..]
             .find(word)
@@ -389,15 +385,10 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
             ) {
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
-                dbg!(needle);
-                dbg!(haystack_potential_match_start);
-                dbg!(haystack_potential_match_end);
-                dbg!(next_search_start);
-                next_search_start = haystack.floor_char_boundary(dbg!(core::cmp::min(
+                next_search_start = haystack.floor_char_boundary(core::cmp::min(
                     current_search_start + word.len() + 1,
                     haystack.len(),
-                )));
-                dbg!(next_search_start);
+                ))
             }
         }
     }
@@ -418,6 +409,35 @@ struct FtsLineMatch {
     ///
     /// This index is a byte position
     in_chunk_position: core::ops::Range<usize>,
+}
+
+fn identify_line_in_top_docs(
+    searcher: &Searcher,
+    body: &Field,
+    top_docs: &[(f32, tantivy::DocAddress)],
+    prediction: &str,
+) -> Result<Option<(TantivyDocument, core::ops::Range<usize>)>, IndexError> {
+    for (_score, doc_address) in top_docs {
+        let doc = searcher
+            .doc::<TantivyDocument>(*doc_address)
+            .map_err(IndexError::OpenDocument)?;
+        // now get the location of the found string in the documents body
+        let content = doc
+            .get_first(*body)
+            .expect("schema is static")
+            .as_str()
+            .expect("body is a string");
+        tracing::trace!(
+            "Got some top docs. Now trying to find the line in these documents. The document content ist {content:?}."
+        );
+        let Some(position) = fuzzy_find_needle_in_haystack(prediction, content) else {
+            tracing::trace!("Did not find the line in the found document.");
+            return Ok(None);
+        };
+        tracing::trace!("Found the line in the found document.");
+        return Ok(Some((doc, position)));
+    }
+    Ok(None)
 }
 
 /// Find `line` in the FTS index. Only full inclusions in a single chunk are considered.
@@ -451,33 +471,21 @@ async fn line_match_in_fts(
             .saturating_sub(2 * FTS_MAX_WRONG_WORDS as usize),
         1,
     );
+    tracing::trace!("using minimum_should: {minimum_should}");
+
     let mut query = BooleanQuery::new(subqueries);
     query.set_minimum_number_should_match(minimum_should);
 
     let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(1))
+        .search(&query, &TopDocs::with_limit(4))
         .map_err(IndexError::FtsSearch)?;
-    let Some((_score, doc_address)) = top_docs.get(0) else {
-        tracing::trace!("No document matched.");
+
+    let Some((doc, position)) =
+        identify_line_in_top_docs(searcher, &body, &top_docs, &line.prediction)?
+    else {
         return Ok(None);
     };
-    let doc = searcher
-        .doc::<TantivyDocument>(*doc_address)
-        .map_err(IndexError::OpenDocument)?;
-    // now get the location of the found string in the documents body
-    let content = doc
-        .get_first(body)
-        .expect("schema is static")
-        .as_str()
-        .expect("body is a string");
-    tracing::trace!(
-        "Got some top docs. Now trying to find the line in that document. The document content ist {content:?}."
-    );
-    let Some(position) = fuzzy_find_needle_in_haystack(&line.prediction, content) else {
-        tracing::trace!("Did not find the line in the found document.");
-        return Ok(None);
-    };
-    tracing::trace!("Found the line in the found document.");
+
     let id = doc
         .get_first(id)
         .expect("schema is static")
@@ -500,6 +508,7 @@ pub async fn basetext_from_proposal(
     config: &Config,
     searcher: Searcher,
     proposal: &[OcrRecord],
+    language_used_in_ocr: &str,
 ) -> Result<Vec<Vec<Block>>, IndexError> {
     let schema = searcher.schema();
     let body = schema
@@ -587,6 +596,18 @@ pub async fn basetext_from_proposal(
         });
         res[line_match.line_index] = tei_match;
     }
+
+    // TODO: this is just WIP to see something in the output for lines where we found no match in
+    // the base corpus
+    for idx in 0..res.len() {
+        if res[idx].is_empty() {
+            res[idx] = vec![Block::Text(critic_format::streamed::Paragraph {
+                lang: language_used_in_ocr.to_owned(),
+                content: proposal[idx].prediction.clone(),
+            })];
+        }
+    }
+
     // now infill between known line matches
     //      when the two adjacent elements are the same chunk, return everything in between
     //      when the adjacent elements are next to each other in at least one versification
@@ -719,6 +740,11 @@ mod test {
     #[test]
     fn fuzzy_on_hebrew_text() {
         let haystack = "ויעל משה מערבת מואב אלהר נבו ראש הפסגה אשר עלפני ירחו ויראהו יהוה אתכלהארץ אתהגלעד עדדן ואת כלנפתלי ואתארץ אפרים ומנשה ואת כלארץ יהודה עד הים האחרון ואתהנגב ואתהככר בקעת ירחו עיר התמרים עדצער ויאמר יהוה אליו זאת הארץ אשר נשבעתי לאברהם ליצחק וליעקב לאמר לזרעך אתננה הראיתיך בעיניך ושמה לא תעבר וימת שם משה עבדיהוה בארץ מואב עלפי יהוה ויקבר אתו בגי בארץ מואב מול בית פעור ולאידע איש אתקברתו עד היום הזה ומשה בןמאה ועשרים שנה במתו לאכהתה עינו ולאנס לחה ויבכו בני ישראל אתמשה בערבת מואב שלשים יום ויתמו ימי בכי אבל משה ויהושע בןנון מלא רוח חכמה כיסמך משה אתידיו עליו וישמעו אליו בניישראל ויעשו כאשר צוה יהוה אתמשה";
+        let needle = "ונמו ימו בבו אבל משה  שא";
+        let found = fuzzy_find_needle_in_haystack(needle, haystack);
+        assert!(found.is_none());
+
+        let haystack = "יום ויתמו ימי בכי אבל משה ויהושע בןנון מלא רוח חכמה כיסמך משה אתידיו עליו וישמעו אליו בניישראל ויעשו כאשר צוה יהוה אתמשה";
         let needle = "ונמו ימו בבו אבל משה  שא";
         let found = fuzzy_find_needle_in_haystack(needle, haystack);
         assert!(found.is_none());

@@ -139,7 +139,11 @@ pub async fn handle_baseline_task(config: &Config, task: &BaselineTask) -> Resul
     let language = get_language_for_page(&config.db, &task.page).await?;
 
     tracing::trace!("Now segmenting image {image_path:?}.");
-    let segmentation = segment_image(&image_path, model_path, language.text_direction)?;
+    let image_path_for_spawn = image_path.clone();
+    let segmentation = tokio::task::spawn_blocking(move || {
+        segment_image(image_path_for_spawn, model_path, language.text_direction)
+    })
+    .await??;
     insert_segmentation(&config.db, &task.manuscript, &task.page, &segmentation).await?;
     tracing::trace!("Finished segmenting image {image_path:?}.");
     Ok(())

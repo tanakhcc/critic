@@ -146,7 +146,7 @@ pub async fn handle_ocr_task(
     );
 
     // call to the indexing machine to find the correct basetext from the proposed OCR text
-    let indexed_basetext = basetext_from_proposal(config, searcher, &ocr).await?;
+    let indexed_basetext = basetext_from_proposal(config, searcher, &ocr, &language.name).await?;
     segmentation.insert_basetext_into_segmentation(indexed_basetext);
     update_ocr(&config.db, &task.page, &segmentation, true).await?;
     tracing::debug!("Finished OCR task on {image_path:?} and inserted the result in the DB.");

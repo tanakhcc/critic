@@ -342,7 +342,7 @@ pub struct LanguageMetadata {
     pub text_direction: TextDirection,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Store)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Store, Deserialize, Serialize)]
 pub struct Point {
     pub x: u32,
     pub y: u32,
@@ -363,7 +363,7 @@ impl core::fmt::Display for Point {
     }
 }
 
-#[derive(Debug, Clone, Store)]
+#[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct Baseline {
     pub id: i64,
     pub point1: Point,
@@ -405,7 +405,7 @@ impl Baseline {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Polygon {
     /// closes the polygon between last and first point - i.e. the first point should not be added
     /// as the last point as well
@@ -446,7 +446,7 @@ impl Polygon {
         res
     }
 }
-#[derive(Debug, Clone, Store)]
+#[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct Region {
     pub id: i64,
     /// polygon bounding this region
@@ -457,7 +457,7 @@ pub struct Region {
     // other useful things: text_type
 }
 
-#[derive(Debug, Clone, Store)]
+#[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct SegmentedPage {
     #[store(key: i64 = |r| r.id.clone())]
     pub regions: Vec<Region>,
