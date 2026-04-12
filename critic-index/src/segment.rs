@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use critic_shared::{
-    Baseline, Point, Region, SegmentedPage, TextDirection, urls::IMAGE_BASE_LOCATION,
+    Baseline, Point, Region, RegionType, SegmentedPage, TextDirection, urls::IMAGE_BASE_LOCATION,
 };
 
 use crate::{IndexError, KrakenBaseline, KrakenRegion};
@@ -36,16 +36,26 @@ pub fn segment_image<P1: AsRef<Path>, P2: AsRef<Path>>(
         kwargs.set_item("text_direction", text_direction.to_string())?;
 
         let segmentation = segment.call_method("segment", args, Some(&kwargs))?;
-        let lines = segmentation.getattr("lines")?;
+        let lines = dbg!(&segmentation).getattr("lines")?;
         let lines_as_vec = lines.extract::<Vec<KrakenBaseline>>()?;
         let regions_any = segmentation.getattr("regions")?;
         let regions: &Bound<'_, PyDict> = regions_any
             .cast()
             .map_err(|e| IndexError::Cast(e.to_string()))?;
-        let region_text = regions
-            .get_item("text")?
-            .ok_or(IndexError::NoTextInRegion)?;
-        let regions_as_vec = region_text.extract::<Vec<KrakenRegion>>()?;
+        let mut regions_as_vec = Vec::new();
+        for (key, value) in regions {
+            let region_type = key.to_string();
+            let region_type: RegionType = region_type
+                .parse()
+                .map_err(|()| IndexError::UnknownRegionType)?;
+            for region in value
+                .extract::<Vec<KrakenRegion>>()?
+                .into_iter()
+                .map(|kr| kr.try_into_region(region_type))
+            {
+                regions_as_vec.push(region.map_err(|()| IndexError::BaselineFormat)?);
+            }
+        }
         lines_and_regions_to_segmented_page(lines_as_vec, regions_as_vec)
     })
 }
@@ -53,17 +63,12 @@ pub fn segment_image<P1: AsRef<Path>, P2: AsRef<Path>>(
 /// Assign each line to its region.
 fn lines_and_regions_to_segmented_page(
     ocr_lines: Vec<KrakenBaseline>,
-    ocr_regions: Vec<KrakenRegion>,
+    mut ocr_regions: Vec<Region>,
 ) -> Result<SegmentedPage, IndexError> {
     // for each line
     // find the region its center of gravity is closest to
-    let mut regions = ocr_regions
-        .into_iter()
-        .map(core::convert::TryInto::try_into)
-        .collect::<Result<Vec<_>, ()>>()
-        .map_err(|()| IndexError::RegionFormat)?;
     // get the regions centroid
-    let centroids = regions
+    let centroids = ocr_regions
         .iter()
         .map(|r: &Region| {
             let as_geo_poly = geo::Polygon::new(
@@ -96,9 +101,11 @@ fn lines_and_regions_to_segmented_page(
         else {
             continue;
         };
-        regions[closest_region_idx].baselines.push(line);
+        ocr_regions[closest_region_idx].baselines.push(line);
     }
-    Ok(SegmentedPage { regions })
+    Ok(SegmentedPage {
+        regions: ocr_regions,
+    })
 }
 
 /// Handle the task of baselining a single manuscript page, given in `task`.

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM region\n        USING page, manuscript\n        WHERE region.page = page.id\n            AND page.manuscript = manuscript.id\n            AND page.name = $1\n            AND manuscript.title = $2;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a215d42331ad90ae675d8edffb9f031a3e0f7bd7a3a0421d4d1f4f2e923c94a"
+}

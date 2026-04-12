@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use critic_config::Config;
 use critic_db::{DBError, get_next_kraken_task};
-use critic_shared::{Baseline, InShutdown, Point, Region};
+use critic_shared::{Baseline, InShutdown, Point, Region, RegionType};
 use itertools::Itertools;
 use ocr::handle_ocr_task;
 use pyo3::FromPyObject;
@@ -19,35 +19,39 @@ pub mod segment;
 struct KrakenBaseline {
     id: String,
     baseline: Vec<Vec<u32>>,
-    // boundary: Vec<Vec<u32>>,
+    boundary: Vec<Vec<u32>>,
 }
 
+/// Error when the baseline is not a list of exactly two items
 impl TryFrom<KrakenBaseline> for Baseline {
     type Error = ();
 
     fn try_from(value: KrakenBaseline) -> Result<Self, Self::Error> {
         Ok(Baseline {
             id: 0,
-            point1: {
-                let entry = value.baseline.get(0).ok_or(())?;
-                if entry.len() != 2 {
-                    return Err(());
-                }
-                Point {
-                    x: entry[0],
-                    y: entry[1],
-                }
-            },
-            point2: {
-                let entry = value.baseline.get(1).ok_or(())?;
-                if entry.len() != 2 {
-                    return Err(());
-                }
-                Point {
-                    x: entry[0],
-                    y: entry[1],
-                }
-            },
+            baseline: (
+                {
+                    let entry = value.baseline.get(0).ok_or(())?;
+                    if entry.len() != 2 {
+                        return Err(());
+                    }
+                    Point {
+                        x: entry[0],
+                        y: entry[1],
+                    }
+                },
+                {
+                    let entry = value.baseline.get(1).ok_or(())?;
+                    if entry.len() != 2 {
+                        return Err(());
+                    }
+                    Point {
+                        x: entry[0],
+                        y: entry[1],
+                    }
+                },
+            ),
+            boundary: value.boundary.try_into()?,
             content: Vec::with_capacity(1),
         })
     }
@@ -58,12 +62,12 @@ struct KrakenRegion {
     id: String,
     boundary: Vec<Vec<u32>>,
 }
-impl TryFrom<KrakenRegion> for Region {
-    type Error = ();
-    fn try_from(value: KrakenRegion) -> Result<Self, Self::Error> {
-        Ok(Self {
+impl KrakenRegion {
+    fn try_into_region(self, region_type: RegionType) -> Result<Region, ()> {
+        Ok(Region {
             id: 0,
-            boundary: value.boundary.try_into()?,
+            region_type: region_type,
+            boundary: self.boundary.try_into()?,
             baselines: Vec::default(),
         })
     }
@@ -126,6 +130,11 @@ pub enum IndexError {
     Tei(critic_format::ConversionError),
     /// Failed to Join Kraken Job (the job paniced)
     Join(tokio::task::JoinError),
+    /// The region Type was unknown
+    UnknownRegionType,
+    /// A SurfaceIndex indicates a character position that is higher then the number of characters
+    /// in the base text.
+    PositionInRawImpossible,
 }
 impl From<pyo3::PyErr> for IndexError {
     fn from(value: pyo3::PyErr) -> Self {
@@ -146,7 +155,7 @@ impl core::fmt::Display for IndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             IndexError::Kraken(e) => {
-                write!(f, "Error in python: {e}")
+                write!(f, "Error in python: {e:?}.")
             }
             IndexError::Cast(e) => {
                 write!(f, "Error Casting between python types: {e}")
@@ -192,6 +201,13 @@ impl core::fmt::Display for IndexError {
             }
             IndexError::Join(e) => {
                 write!(f, "Kraken Thread paniced: {e}")
+            }
+            IndexError::UnknownRegionType => {
+                write!(f, "The region type was unknown.")
+            }
+            IndexError::PositionInRawImpossible => {
+                write!(f, "A SurfaceIndex points to a character position in the cleaned base corpus chunk that is higher then the number of chars in that base corpus chunk.
+                    This is a programmer error.")
             }
         }
     }

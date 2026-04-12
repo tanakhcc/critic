@@ -38,12 +38,17 @@ async fn get_image_dimensions(
 async fn get_segmentation(
     msname: String,
     pagename: String,
-) -> Result<SegmentedPage, ServerFnError> {
+) -> Result<Option<SegmentedPage>, ServerFnError> {
     let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    critic_db::get_segmentation(&config.db, &msname, &pagename)
+    let segmentation = critic_db::get_segmentation(&config.db, &msname, &pagename)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    if segmentation.regions.iter().any(|r| !r.baselines.is_empty()) {
+        Ok(Some(segmentation))
+    } else {
+        Ok(None)
+    }
 }
 
 #[component]
@@ -258,17 +263,22 @@ pub fn MsViewer() -> impl IntoView {
                                                         .map(|seg_res| {
                                                             seg_res
                                                                 .map(|seg| {
-                                                                    let regions = Store::new(seg);
+                                                                    if let Some(seg) = seg {
+                                                                        let regions = Store::new(seg);
 
-                                                                    view! {
-                                                                        <MsOverlay
-                                                                            dim_x=dim_x
-                                                                            dim_y=dim_y
-                                                                            regions=regions
-                                                                            selected=selected
-                                                                            scale=scale.read_only()
-                                                                            tool=tool.read_only()
-                                                                        />
+                                                                        view! {
+                                                                            <MsOverlay
+                                                                                dim_x=dim_x
+                                                                                dim_y=dim_y
+                                                                                regions=regions
+                                                                                selected=selected
+                                                                                scale=scale.read_only()
+                                                                                tool=tool.read_only()
+                                                                            />
+                                                                        }
+                                                                            .into_any()
+                                                                    } else {
+                                                                        view! { <p>OCR is not yet finished.</p> }.into_any()
                                                                     }
                                                                 })
                                                         })
@@ -369,10 +379,10 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
             }
         >
             <line
-                x1=move || baseline.read().point1.x
-                y1=move || baseline.read().point1.y
-                x2=move || baseline.read().point2.x
-                y2=move || baseline.read().point2.y
+                x1=move || baseline.read().baseline.0.x
+                y1=move || baseline.read().baseline.0.y
+                x2=move || baseline.read().baseline.1.x
+                y2=move || baseline.read().baseline.1.y
                 // stroke-width=format!("{}px", stroke_width * 2)
                 class=(["hover:stroke-red-600"], move || tool.get() == SelectedTool::EditLine)
             />
@@ -381,14 +391,14 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
                     Some(
                         view! {
                             <circle
-                                cx=move || baseline.read().point1.x
-                                cy=move || baseline.read().point1.y
+                                cx=move || baseline.read().baseline.0.x
+                                cy=move || baseline.read().baseline.0.y
                                 r=move || format!("{}px", (stroke_width as f64 / scale.get()))
                                 class="fill-orange-400 hover:stroke-red-600"
                             />
                             <circle
-                                cx=move || baseline.read().point2.x
-                                cy=move || baseline.read().point2.y
+                                cx=move || baseline.read().baseline.1.x
+                                cy=move || baseline.read().baseline.1.y
                                 r=move || format!("{}px", (stroke_width as f64 / scale.get()))
                                 class="fill-orange-400 hover:stroke-red-600"
                             />

@@ -933,6 +933,18 @@ async fn update_page_language(
     Ok(())
 }
 
+/// Flag this page so that its OCR is rerun
+#[server]
+async fn flag_for_ocr_rerun(ms_name: String, page_name: String) -> Result<(), ServerFnError> {
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+    // after adding the new language, redirect to its own page
+    critic_db::delete_ocr_and_flag_for_rerun(&config.db, &ms_name, &page_name)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
 #[server]
 pub async fn get_page_language(
     ms_name: String,
@@ -953,6 +965,7 @@ pub fn Page() -> impl IntoView {
     let ms_params = use_params::<MsParams>();
     let page_params = use_params::<PageParams>();
     let save_language = ServerAction::<UpdatePageLanguage>::new();
+    let flag_for_ocr_rerun = ServerAction::<FlagForOcrRerun>::new();
     let language_list = Resource::new(|| (), |()| get_languages());
 
     view! {
@@ -990,6 +1003,8 @@ pub fn Page() -> impl IntoView {
                     };
                     let msname_c = msname.clone();
                     let pagename_c = pagename.clone();
+                    let msname_c_1 = msname.clone();
+                    let pagename_c_1 = pagename.clone();
                     Ok(
                         view! {
                             <div class="flex w-0 flex-col grow justify-start">
@@ -1045,7 +1060,7 @@ pub fn Page() -> impl IntoView {
                                     </ActionForm>
                                     <a
                                         class=DEFAULT_BUTTON_CLASSES
-                                        href=format!("/edit/{msname}/{pagename}")
+                                        href=format!("/view/{msname}/{pagename}")
                                     >
                                         Transcribe this page
                                     </a>
@@ -1056,13 +1071,13 @@ pub fn Page() -> impl IntoView {
                                     >
                                         View Original
                                     </a>
-                                    <a
-                                        class=DEFAULT_BUTTON_CLASSES
-                                        href=format!("{image_base}/original.webp")
-                                        download=format!("{msname}_{pagename}.webp")
-                                    >
-                                        Download Original
-                                    </a>
+                                    <ActionForm action=flag_for_ocr_rerun>
+                                        <input type="hidden" name="ms_name" value=msname_c_1 />
+                                        <input type="hidden" name="page_name" value=pagename_c_1 />
+                                        <button class=DEFAULT_BUTTON_CLASSES type="submit">
+                                            Rerun Segmentation and OCR
+                                        </button>
+                                    </ActionForm>
                                 </div>
                                 // image preview for this page in the right hand side
                                 <img

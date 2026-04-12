@@ -1,4 +1,5 @@
 import contextlib
+import math
 import sys
 
 from PIL import Image
@@ -20,19 +21,16 @@ def nostdout():
     sys.stdout = save_stdout
     sys.stderr = save_stderr
 
-def ocr(in_img, model_path, raw_bls, text_direction="horizontal-lr"):
+def ocr(in_img, model_path, baselines_and_boundaries, text_direction="horizontal-lr"):
     # load the model
-    biblia = kraken.lib.models.load_any("~/.local/share/htrmopo/926633a8-35f5-5c4f-b2c2-dbb2e566e636/BiblIA_01.mlmodel")
+    biblia = kraken.lib.models.load_any(model_path)
 
     # we need to regain polygons before ocr
     with Image.open(in_img) as im:
         with nostdout():
-            pols = calculate_polygonal_environment(im, baselines=raw_bls, raise_on_error=True)
-            assert len(pols) == len(raw_bls)
             new_segmentation_bls = []
-            for i, pol in enumerate(pols):
-                if pol is not None:
-                    new_segmentation_bls.append(BaselineLine(id="unknown", baseline=raw_bls[i], boundary=pol))
+            for baseline, boundary in baselines_and_boundaries:
+                new_segmentation_bls.append(BaselineLine(id="unknown", baseline=baseline, boundary=boundary))
             # create a new segmentation with the forced baselines
             new_segmentation = Segmentation(type="baselines", imagename=in_img, script_detection=False, lines=new_segmentation_bls, text_direction=text_direction)
             res = rpred(biblia, im, new_segmentation)

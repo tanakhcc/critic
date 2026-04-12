@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                line.id,\n                baseline,\n                boundary,\n                proposed_basetext,\n                (SELECT name FROM language\n                    WHERE language.id =\n                COALESCE(\n                    page.language,\n                    manuscript.language,\n                    (SELECT language FROM default_language\n                     WHERE id = 1)))\n                as language\n            FROM line\n            INNER JOIN region on region.id = line.region\n            INNER JOIN page ON page.id = region.page\n            INNER JOIN manuscript ON manuscript.id = page.manuscript\n            WHERE region = $1\n            ;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "baseline",
+        "type_info": "Lseg"
+      },
+      {
+        "ordinal": 2,
+        "name": "boundary",
+        "type_info": "Polygon"
+      },
+      {
+        "ordinal": 3,
+        "name": "proposed_basetext",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "language",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "41e1aa0d7f9e9829a86b9209edda56bb482c92f3c8b20bf37ab67caaa16268c1"
+}

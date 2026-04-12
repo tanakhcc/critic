@@ -325,7 +325,7 @@ impl WhitespaceGroup {
 
 /// Find the byteindex in haystack at which needle can be found.
 ///
-/// The level of allowed fuzzyness is controlled by prefix_is_close.
+/// The level of allowed fuzzyness is controlled by `prefix_is_close`.
 /// The range contains char indices, NOT byte indices.
 ///
 /// The `needle` MAY NOT contain multiple whitespace characters next to each other. We will panic
@@ -383,6 +383,10 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
                 needle,
                 &haystack[haystack_potential_match_start..haystack_potential_match_end],
             ) {
+                dbg!(&haystack[haystack_potential_match_start..haystack_potential_match_end]);
+                tracing::trace!(
+                    "haystack_potential_match_start: {haystack_potential_match_start}. haystack_potential_match_end: {haystack_potential_match_end}"
+                );
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
                 next_search_start = haystack.floor_char_boundary(core::cmp::min(
@@ -411,6 +415,10 @@ struct FtsLineMatch {
     in_chunk_position: core::ops::Range<usize>,
 }
 
+/// Identify the predicted line in a number of top documents.
+///
+/// The first match in these documents is returned.
+/// The returned range is given as byte-indices.
 fn identify_line_in_top_docs(
     searcher: &Searcher,
     body: &Field,
@@ -434,7 +442,10 @@ fn identify_line_in_top_docs(
             tracing::trace!("Did not find the line in the found document.");
             return Ok(None);
         };
-        tracing::trace!("Found the line in the found document.");
+        tracing::trace!(
+            "Found the line in the found document. Chunk total as byte indices: {}.",
+            &content[position.clone()],
+        );
         return Ok(Some((doc, position)));
     }
     Ok(None)
@@ -546,15 +557,70 @@ pub async fn basetext_from_proposal(
             &our_chunk.content,
             our_chunk.equality_alphabet.as_deref(),
         );
-        let Some(starting_index) = surface_form.indexmap().iter().find(|&surface_index| {
+
+        dbg!(
+            surface_form.raw_text(),
+            line_match
+                .fts_chunk
+                .get_first(body)
+                .expect("schema is static")
+                .as_str()
+                .expect("body is a string")
+        );
+        debug_assert!(
+            surface_form.raw_text()
+                == line_match
+                    .fts_chunk
+                    .get_first(body)
+                    .expect("schema is static")
+                    .as_str()
+                    .expect("body is a string")
+        );
+
+        tracing::trace!(
+            "Now finding the starting index in our chunk. line_match in chunk: {:?}, line: {}, chunk from line_match start: {}.",
+            &line_match.in_chunk_position,
+            proposal[line_match.line_index].prediction,
+            &surface_form.raw_text()[line_match.in_chunk_position.clone()],
+        );
+
+        // we need the SurfaceIndex before this match starts
+        let starting_index = match surface_form.indexmap().binary_search_by(|surface_index| {
             surface_form
                 .raw_text()
                 .char_indices()
                 .nth(surface_index.position_in_raw())
-                .is_some_and(|(idx, _char)| idx == line_match.in_chunk_position.start)
-        }) else {
-            continue;
+                .map(|(byte_idx, _char)| byte_idx.cmp(&line_match.in_chunk_position.start))
+                .unwrap_or(std::cmp::Ordering::Greater)
+        }) {
+            // the index cannot be 0, because the first SurfaceIndex is always 0 in the raw text
+            Ok(idx_into_indexmap) => surface_form.indexmap()[idx_into_indexmap],
+            Err(idx_into_indexmap) => surface_form.indexmap()[idx_into_indexmap - 1],
         };
+        // let Some(starting_index) = surface_form.indexmap().iter().find(|&surface_index| {
+        //     let content_in_raw_start = surface_form
+        //         .raw_text()
+        //         .chars()
+        //         .skip(surface_index.position_in_raw())
+        //         .collect::<String>();
+        //     tracing::trace!(
+        //         "proposal: {}, content_starts_with: {}",
+        //         proposal[line_match.line_index].prediction,
+        //         &content_in_raw_start,
+        //     );
+        //     surface_form
+        //         .raw_text()
+        //         .char_indices()
+        //         .nth(surface_index.position_in_raw())
+        //         .is_some_and(|(byte_idx, _char)| {
+        //             tracing::trace!("actually found the charindex at the given position_in_raw: {byte_idx}, {_char}");
+        //             byte_idx == dbg!(line_match.in_chunk_position.start)
+        //         })
+        // }) else {
+        //     tracing::trace!("Unable to find the content in the surface form.",);
+        //     panic!();
+        //     continue;
+        // };
         let mut tei_match: Vec<_> = our_chunk
             .content
             .iter()
@@ -599,14 +665,20 @@ pub async fn basetext_from_proposal(
 
     // TODO: this is just WIP to see something in the output for lines where we found no match in
     // the base corpus
+    let mut count_not_found = 0;
     for idx in 0..res.len() {
         if res[idx].is_empty() {
+            count_not_found += 1;
             res[idx] = vec![Block::Text(critic_format::streamed::Paragraph {
                 lang: language_used_in_ocr.to_owned(),
                 content: proposal[idx].prediction.clone(),
             })];
         }
     }
+    println!(
+        "There are {count_not_found} lines where we did not find the basetext from the base corpus out of {} lines total.",
+        res.len(),
+    );
 
     // now infill between known line matches
     //      when the two adjacent elements are the same chunk, return everything in between

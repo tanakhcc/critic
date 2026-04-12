@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO line (region, baseline, boundary)\n                SELECT\n                    $1,\n                    * FROM UNNEST($2::LSEG[], $3::POLYGON[]);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "LsegArray",
+        "PolygonArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "223e0c8ff8144dec264d01f1f5bd154d3b169ba0a9e8576f7928cc4b45b286ca"
+}

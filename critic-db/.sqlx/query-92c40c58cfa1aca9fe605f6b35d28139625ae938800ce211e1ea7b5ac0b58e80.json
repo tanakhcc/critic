@@ -22,7 +22,8 @@
             "kind": {
               "Enum": [
                 "Main",
-                "Marginalia"
+                "Margin",
+                "Paratext"
               ]
             }
           }

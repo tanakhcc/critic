@@ -4,13 +4,12 @@ use std::path::{Path, PathBuf};
 
 use critic_config::Config;
 use critic_db::{OcrTask, get_language_for_page, get_model_for_page, get_segmentation, update_ocr};
-use critic_format::streamed::Block;
 use critic_shared::urls::IMAGE_BASE_LOCATION;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::{ffi::c_str, types::PyList};
 
-use critic_shared::{Baseline, Point, Region, SegmentedPage, TextDirection};
+use critic_shared::{Baseline, Point, TextDirection};
 use tantivy::Searcher;
 
 use crate::fts::basetext_from_proposal;
@@ -29,14 +28,28 @@ pub fn ocr_image<'a, P1: AsRef<Path>, P2: AsRef<Path>>(
         let ocr =
             PyModule::from_code(py, code, c_str!("ocr.py"), c_str!("ocr")).expect("static code");
 
-        let baselines_raw: Vec<_> = baselines
+        // gets the python type
+        // list[tuple[baseline: tuple[tuple[x, y]], boundary: list[tuple[x, y]]]]
+        let baselines_and_boundaries: Vec<_> = baselines
             .into_iter()
-            .map(|bl| ((bl.point1.x, bl.point1.y), (bl.point2.x, bl.point2.y)))
+            .map(|bl| {
+                (
+                    (
+                        (bl.baseline.0.x, bl.baseline.0.y),
+                        (bl.baseline.1.x, bl.baseline.1.y),
+                    ),
+                    bl.boundary
+                        .points
+                        .iter()
+                        .map(|p| (p.x as f64, p.y as f64))
+                        .collect::<Vec<_>>(),
+                )
+            })
             .collect();
         let args = (
             image_path.as_ref().to_str(),
             model_path.as_ref().to_str(),
-            baselines_raw,
+            baselines_and_boundaries,
         );
         let kwargs = PyDict::new(py);
         kwargs.set_item("text_direction", text_direction.to_string())?;

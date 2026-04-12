@@ -78,6 +78,7 @@ pub enum DBError {
     XmlStream(critic_format::destream::StreamError),
     TeiConversion(critic_format::ConversionError),
     CannotUpdateOcr(sqlx::Error),
+    DeleteRegions(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -207,6 +208,9 @@ impl core::fmt::Display for DBError {
             }
             Self::CannotUpdateOcr(e) => {
                 write!(f, "Unable to update OCR record: {e}")
+            }
+            Self::DeleteRegions(e) => {
+                write!(f, "Unable to delete OCR regions: {e}")
             }
         }
     }
@@ -1572,19 +1576,25 @@ pub async fn insert_segmentation(
             .baselines
             .iter()
             .map(|b| PgLSeg {
-                start_x: b.point1.x as f64,
-                start_y: b.point1.y as f64,
-                end_x: b.point2.x as f64,
-                end_y: b.point2.y as f64,
+                start_x: b.baseline.0.x as f64,
+                start_y: b.baseline.0.y as f64,
+                end_x: b.baseline.1.x as f64,
+                end_y: b.baseline.1.y as f64,
             })
             .collect::<Vec<PgLSeg>>();
+        let boundaries = region
+            .baselines
+            .iter()
+            .map(|b| b.boundary.clone().into())
+            .collect::<Vec<PgPolygon>>();
         sqlx::query!(
-            r#"INSERT INTO line (region, baseline)
+            r#"INSERT INTO line (region, baseline, boundary)
                 SELECT
                     $1,
-                    * FROM UNNEST($2::LSEG[]);"#,
+                    * FROM UNNEST($2::LSEG[], $3::POLYGON[]);"#,
             region_id.id,
             segments as _,
+            boundaries as _,
         )
         .fetch_all(&mut *tx)
         .await
@@ -1609,6 +1619,7 @@ pub async fn insert_segmentation(
     tx.commit().await.map_err(DBError::CannotCommitTransaction)
 }
 
+/// Get the segmentation for this page
 pub async fn get_segmentation(
     pool: &Pool<Postgres>,
     manuscript_name: &str,
@@ -1629,6 +1640,7 @@ pub async fn get_segmentation(
     .into_iter()
     .map(|r| Region {
         id: r.id,
+        region_type: r.region_type,
         baselines: Vec::default(),
         boundary: Polygon {
             points: r
@@ -1648,6 +1660,7 @@ pub async fn get_segmentation(
             "SELECT
                 line.id,
                 baseline,
+                boundary,
                 proposed_basetext,
                 (SELECT name FROM language
                     WHERE language.id =
@@ -1672,8 +1685,11 @@ pub async fn get_segmentation(
         .map(|r| {
             Ok(Baseline {
                 id: r.id,
-                point1: Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
-                point2: Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
+                baseline: (
+                    Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
+                    Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
+                ),
+                boundary: r.boundary.into(),
                 content: r
                     .proposed_basetext
                     .map(|text| -> Result<Vec<_>, _> {
@@ -1759,4 +1775,45 @@ pub async fn get_base_corpus_chunks_by_id(
     .map_err(DBError::CannotGetChunks)?
     .into_iter()
     .map(|bcc| bcc.try_into()).collect::<Result<Vec<_>, _>>().map_err(DBError::TeiConversion)?)
+}
+
+/// Delete the segmentation for this page and flag it to rerun
+pub async fn delete_ocr_and_flag_for_rerun(
+    pool: &Pool<Postgres>,
+    msname: &str,
+    pagename: &str,
+) -> Result<(), DBError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+    sqlx::query!(
+        "
+        DELETE FROM region
+        USING page, manuscript
+        WHERE region.page = page.id
+            AND page.manuscript = manuscript.id
+            AND page.name = $1
+            AND manuscript.title = $2;",
+        msname,
+        pagename
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(DBError::DeleteRegions)?;
+    sqlx::query!(
+        "UPDATE page
+        SET should_baseline = true
+        WHERE page.id =
+            (SELECT page.id
+            FROM page
+            INNER JOIN manuscript ON page.manuscript = manuscript.id
+            WHERE page.name = $1 AND manuscript.title = $2);",
+        pagename,
+        msname
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(DBError::CannotUpdatePage)?;
+    tx.commit().await.map_err(DBError::CannotCommitTransaction)
 }

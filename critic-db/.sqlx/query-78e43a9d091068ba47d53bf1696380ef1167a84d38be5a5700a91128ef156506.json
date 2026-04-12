@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE page set should_ocr = false WHERE page.name = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78e43a9d091068ba47d53bf1696380ef1167a84d38be5a5700a91128ef156506"
+}

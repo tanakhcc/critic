@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            id as \"id!\",\n            (SELECT language.name FROM language WHERE language.id = base_corpus.language) as \"language!\",\n            content as \"content!\",\n            versification_scheme as \"versification_scheme!\",\n            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_start) as \"verse_start!\",\n            (SELECT verse_monotone_id FROM verse_map WHERE verse_map.verse_id = base_corpus.verse_end) as \"verse_end!\"\n        FROM base_corpus\n        WHERE indexed = false LIMIT $1;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "language!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "versification_scheme!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "verse_start!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "verse_end!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "a524050f44c553def2aed8fb3112182855169b3d947dbdf1f8bfae99843092f8"
+}

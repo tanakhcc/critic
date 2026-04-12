@@ -251,7 +251,8 @@ pub struct RetrainOptions {
 #[cfg_attr(feature = "ssr", derive(sqlx::Type))]
 pub enum RegionType {
     Main,
-    Marginalia,
+    Margin,
+    Paratext,
 }
 impl Default for RegionType {
     fn default() -> Self {
@@ -261,8 +262,9 @@ impl Default for RegionType {
 impl From<RegionType> for &'static str {
     fn from(value: RegionType) -> Self {
         match value {
-            RegionType::Main => "main",
-            RegionType::Marginalia => "marginalia",
+            RegionType::Main => "Main",
+            RegionType::Margin => "Margin",
+            RegionType::Paratext => "Paratext",
         }
     }
 }
@@ -276,8 +278,13 @@ impl core::str::FromStr for RegionType {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Ok(match value {
+            "Main" => RegionType::Main,
+            "Margin" => RegionType::Margin,
+            "Paratext" => RegionType::Paratext,
+            "Text" => RegionType::Main,
             "main" => RegionType::Main,
-            "marginalia" => RegionType::Marginalia,
+            "margin" => RegionType::Margin,
+            "paratext" => RegionType::Paratext,
             _ => {
                 return Err(());
             }
@@ -357,6 +364,27 @@ impl From<(u32, u32)> for Point {
         Point::from(value)
     }
 }
+#[cfg(feature = "ssr")]
+use sqlx::postgres::types::PgPoint;
+#[cfg(feature = "ssr")]
+impl From<PgPoint> for Point {
+    fn from(value: PgPoint) -> Self {
+        Self {
+            x: value.x as u32,
+            y: value.y as u32,
+        }
+    }
+}
+#[cfg(feature = "ssr")]
+impl From<Point> for PgPoint {
+    fn from(value: Point) -> Self {
+        Self {
+            x: value.x as f64,
+            y: value.y as f64,
+        }
+    }
+}
+
 impl core::fmt::Display for Point {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{},{}", self.x, self.y)
@@ -366,8 +394,8 @@ impl core::fmt::Display for Point {
 #[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct Baseline {
     pub id: i64,
-    pub point1: Point,
-    pub point2: Point,
+    pub baseline: (Point, Point),
+    pub boundary: Polygon,
     /// actual content - this will be the plain text we got from the base text of a single block
     /// containing the literal ocr result
     pub content: Vec<critic_format::streamed::Block>,
@@ -399,8 +427,8 @@ impl Baseline {
 
     pub fn centroid(&self) -> Point {
         Point {
-            x: (self.point1.x + self.point2.x) / 2,
-            y: (self.point1.y + self.point2.y) / 2,
+            x: (self.baseline.0.x + self.baseline.1.x) / 2,
+            y: (self.baseline.0.y + self.baseline.1.y) / 2,
         }
     }
 }
@@ -446,9 +474,31 @@ impl Polygon {
         res
     }
 }
+
+#[cfg(feature = "ssr")]
+use sqlx::postgres::types::PgPolygon;
+#[cfg(feature = "ssr")]
+impl From<PgPolygon> for Polygon {
+    fn from(value: PgPolygon) -> Self {
+        Self {
+            points: value.points.into_iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+#[cfg(feature = "ssr")]
+impl From<Polygon> for PgPolygon {
+    fn from(value: Polygon) -> Self {
+        Self {
+            points: value.points.into_iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct Region {
     pub id: i64,
+    /// Type of this region (Main / Paratext and so on)
+    pub region_type: RegionType,
     /// polygon bounding this region
     pub boundary: Polygon,
     /// Baselines belonging to this Region

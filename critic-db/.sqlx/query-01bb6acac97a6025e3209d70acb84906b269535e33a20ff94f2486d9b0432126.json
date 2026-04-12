@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE page\n        SET should_baseline = true\n        WHERE page.id =\n            (SELECT page.id\n            FROM page\n            INNER JOIN manuscript ON page.manuscript = manuscript.id\n            WHERE page.name = $1 AND manuscript.title = $2);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "01bb6acac97a6025e3209d70acb84906b269535e33a20ff94f2486d9b0432126"
+}

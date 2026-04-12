@@ -27,3 +27,4 @@ critic/style/output.css
 
 .venv/
 **/.venv
+**/__pycache__
