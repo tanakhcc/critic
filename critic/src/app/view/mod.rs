@@ -393,28 +393,20 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
                 // stroke-width=format!("{}px", stroke_width * 2)
                 class=(["hover:stroke-red-600"], move || tool.get() == SelectedTool::EditLine)
             />
-            {move || {
-                if tool.get() == SelectedTool::EditLine {
-                    Some(
-                        view! {
-                            <circle
-                                cx=move || baseline.read().baseline.0.x
-                                cy=move || baseline.read().baseline.0.y
-                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                                class="fill-orange-400 hover:stroke-red-600"
-                            />
-                            <circle
-                                cx=move || baseline.read().baseline.1.x
-                                cy=move || baseline.read().baseline.1.y
-                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                                class="fill-orange-400 hover:stroke-red-600"
-                            />
-                        },
-                    )
-                } else {
-                    None
-                }
-            }}
+            <circle
+                cx=move || baseline.read().baseline.0.x
+                cy=move || baseline.read().baseline.0.y
+                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                class="fill-orange-400 hover:stroke-red-600"
+                class=(["hidden"], move || tool.get() != SelectedTool::EditLine)
+            />
+            <circle
+                cx=move || baseline.read().baseline.1.x
+                cy=move || baseline.read().baseline.1.y
+                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                class="fill-orange-400 hover:stroke-red-600"
+                class=(["hidden"], move || tool.get() != SelectedTool::EditLine)
+            />
         </g>
     }
 }
