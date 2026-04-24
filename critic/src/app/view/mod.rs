@@ -205,12 +205,21 @@ pub fn MsViewer() -> impl IntoView {
     leptos::either::Either::Right(view! {
         <div class="overflow-none flex h-full w-full flex-row">
             <div
-                class="w-0 grow overflow-auto border-r-2 border-slate-600"
+                class="w-0 grow overflow-auto border-r-2 border-slate-600 relative"
                 style="scrollbar-width: none;"
                 node_ref=view_ref
                 tabindex="0"
                 autofocus
             >
+                <div
+                    class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5"
+                    // no scrolling here
+                    on:wheel=|evt| {
+                        evt.prevent_default();
+                    }
+                >
+                    <components::Information selected=selected.read_only() />
+                </div>
                 <div
                     class="overflow-clip"
                     on:mousedown=move |evt: leptos::ev::MouseEvent| {
@@ -292,7 +301,6 @@ pub fn MsViewer() -> impl IntoView {
             <div class="h-full w-52 bg-black">
                 <components::Toolbar on_save=|| {} tool=tool />
                 <components::Layers />
-                <components::Information selected=selected.read_only() />
             </div>
         </div>
     })

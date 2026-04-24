@@ -183,6 +183,7 @@ pub(super) fn layers() -> impl IntoView {
     }
 }
 
+/// Show Information on a Baseline
 #[component]
 pub(super) fn Information(selected: ReadSignal<Option<KeyedBaseline>>) -> impl IntoView {
     {
