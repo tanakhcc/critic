@@ -60,21 +60,13 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## Help overlays for
 ### Models
 ### Languages
+### View
 
 # TODOs - Redesign for visual Transcription Editor
 ## redo image editor
-### show layers in the side panel
-They are selectable so that one layer is always selected (like QGIS)
-#### segmentation (with ocr)
-#### transcriptions
-#### reconciliations
-### toolbar
-#### new line
-#### new region??? maybe we drop regions entirely
-#### edit line
-#### identify closest element on layer
-### make elements selectable
-#### show their values, specifically text for now
+### make a full Block Editor appear instead of information only when a baseline is selected
+#### automatically zoom to the selected baseline
+#### make baseline lines less opressive (reduce opacity maybe?)
 
 ### remove layout layer
 - we may want to force redo the layout analysis when the model changes
@@ -90,8 +82,6 @@ They are selectable so that one layer is always selected (like QGIS)
 ### for each baseline, show associated information
 #### type
 #### automatic polygonalization
-- can not be edited
-- maybe do not show, since humans need not interact with it
 #### automatically recognized text
 #### automatically assigned base text
 #### transcriptions (manual)
