@@ -293,11 +293,6 @@ fn prefix_is_close(prefix: &str, haystack: &str) -> bool {
 
     let possible_endpoint = haystack.ceil_char_boundary(prefix.len());
     let diff = levenshtein(&prefix, &haystack[0..possible_endpoint]);
-    if diff <= 2 * needle_wordcount {
-        println!("Diff is {diff} while needle_wordcount is {needle_wordcount}.");
-        dbg!(prefix);
-        dbg!(haystack);
-    }
     diff <= needle_wordcount
 }
 
@@ -383,10 +378,6 @@ fn fuzzy_find_needle_in_haystack(needle: &str, haystack: &str) -> Option<core::o
                 needle,
                 &haystack[haystack_potential_match_start..haystack_potential_match_end],
             ) {
-                dbg!(&haystack[haystack_potential_match_start..haystack_potential_match_end]);
-                tracing::trace!(
-                    "haystack_potential_match_start: {haystack_potential_match_start}. haystack_potential_match_end: {haystack_potential_match_end}"
-                );
                 return Some(haystack_potential_match_start..haystack_potential_match_end);
             } else {
                 next_search_start = haystack.floor_char_boundary(core::cmp::min(
@@ -413,18 +404,27 @@ struct FtsLineMatch {
     ///
     /// This index is a byte position
     in_chunk_position: core::ops::Range<usize>,
+    /// The number of characters inside the prediction in the [`FtsLineMatch::in_chunk_position`]
+    ///
+    /// This is required, because content truncation needs to work on characters, not byte indices
+    /// and we may no longer have the prediction string to calculate this value when it is
+    /// required.
+    number_of_chars_matching: usize,
 }
 
 /// Identify the predicted line in a number of top documents.
 ///
 /// The first match in these documents is returned.
 /// The returned range is given as byte-indices.
+///
+/// The third return value is the number of UTF-8 characters actually inside the position range,
+/// including whitespace.
 fn identify_line_in_top_docs(
     searcher: &Searcher,
     body: &Field,
     top_docs: &[(f32, tantivy::DocAddress)],
     prediction: &str,
-) -> Result<Option<(TantivyDocument, core::ops::Range<usize>)>, IndexError> {
+) -> Result<Option<(TantivyDocument, core::ops::Range<usize>, usize)>, IndexError> {
     for (_score, doc_address) in top_docs {
         let doc = searcher
             .doc::<TantivyDocument>(*doc_address)
@@ -435,18 +435,11 @@ fn identify_line_in_top_docs(
             .expect("schema is static")
             .as_str()
             .expect("body is a string");
-        tracing::trace!(
-            "Got some top docs. Now trying to find the line in these documents. The document content ist {content:?}."
-        );
         let Some(position) = fuzzy_find_needle_in_haystack(prediction, content) else {
-            tracing::trace!("Did not find the line in the found document.");
             return Ok(None);
         };
-        tracing::trace!(
-            "Found the line in the found document. Chunk total as byte indices: {}.",
-            &content[position.clone()],
-        );
-        return Ok(Some((doc, position)));
+        let number_of_chars_in_needle_match = content[position.clone()].chars().count();
+        return Ok(Some((doc, position, number_of_chars_in_needle_match)));
     }
     Ok(None)
 }
@@ -462,8 +455,6 @@ async fn line_match_in_fts(
     body: Field,
     id: Field,
 ) -> Result<Option<FtsLineMatch>, IndexError> {
-    tracing::trace!("Trying to find match for {line:?}");
-
     let subqueries = line
         .prediction
         .split_whitespace()
@@ -482,8 +473,6 @@ async fn line_match_in_fts(
             .saturating_sub(2 * FTS_MAX_WRONG_WORDS as usize),
         1,
     );
-    tracing::trace!("using minimum_should: {minimum_should}");
-
     let mut query = BooleanQuery::new(subqueries);
     query.set_minimum_number_should_match(minimum_should);
 
@@ -491,7 +480,7 @@ async fn line_match_in_fts(
         .search(&query, &TopDocs::with_limit(4))
         .map_err(IndexError::FtsSearch)?;
 
-    let Some((doc, position)) =
+    let Some((doc, position, number_of_chars_matching)) =
         identify_line_in_top_docs(searcher, &body, &top_docs, &line.prediction)?
     else {
         return Ok(None);
@@ -508,6 +497,7 @@ async fn line_match_in_fts(
         fts_chunk: doc,
         fts_chunk_id: id,
         in_chunk_position: position,
+        number_of_chars_matching,
     }))
 }
 
@@ -520,6 +510,7 @@ pub async fn basetext_from_proposal(
     searcher: Searcher,
     proposal: &[OcrRecord],
     language_used_in_ocr: &str,
+    equality_alphabet: Option<&str>,
 ) -> Result<Vec<Vec<Block>>, IndexError> {
     let schema = searcher.schema();
     let body = schema
@@ -531,7 +522,6 @@ pub async fn basetext_from_proposal(
 
     for (idx, line) in proposal.iter().enumerate() {
         if let Some(line_match) = line_match_in_fts(&searcher, line, idx, body, id).await? {
-            tracing::trace!("Actually found a line match.");
             line_matches.push(line_match);
         };
     }
@@ -547,7 +537,7 @@ pub async fn basetext_from_proposal(
 
     let mut res = vec![Vec::default(); proposal.len()];
     // fill res with the known line matches
-    for line_match in line_matches {
+    'line_match: for line_match in line_matches {
         let our_chunk = chunks
             .iter()
             .find(|chunk| chunk.id == line_match.fts_chunk_id)
@@ -558,15 +548,6 @@ pub async fn basetext_from_proposal(
             our_chunk.equality_alphabet.as_deref(),
         );
 
-        dbg!(
-            surface_form.raw_text(),
-            line_match
-                .fts_chunk
-                .get_first(body)
-                .expect("schema is static")
-                .as_str()
-                .expect("body is a string")
-        );
         debug_assert!(
             surface_form.raw_text()
                 == line_match
@@ -575,13 +556,6 @@ pub async fn basetext_from_proposal(
                     .expect("schema is static")
                     .as_str()
                     .expect("body is a string")
-        );
-
-        tracing::trace!(
-            "Now finding the starting index in our chunk. line_match in chunk: {:?}, line: {}, chunk from line_match start: {}.",
-            &line_match.in_chunk_position,
-            proposal[line_match.line_index].prediction,
-            &surface_form.raw_text()[line_match.in_chunk_position.clone()],
         );
 
         // we need the SurfaceIndex before this match starts
@@ -593,56 +567,61 @@ pub async fn basetext_from_proposal(
                 .map(|(byte_idx, _char)| byte_idx.cmp(&line_match.in_chunk_position.start))
                 .unwrap_or(std::cmp::Ordering::Greater)
         }) {
-            // the index cannot be 0, because the first SurfaceIndex is always 0 in the raw text
             Ok(idx_into_indexmap) => surface_form.indexmap()[idx_into_indexmap],
+            // the index cannot be 0, because the first SurfaceIndex is always 0 in the raw text
             Err(idx_into_indexmap) => surface_form.indexmap()[idx_into_indexmap - 1],
         };
-        // let Some(starting_index) = surface_form.indexmap().iter().find(|&surface_index| {
-        //     let content_in_raw_start = surface_form
-        //         .raw_text()
-        //         .chars()
-        //         .skip(surface_index.position_in_raw())
-        //         .collect::<String>();
-        //     tracing::trace!(
-        //         "proposal: {}, content_starts_with: {}",
-        //         proposal[line_match.line_index].prediction,
-        //         &content_in_raw_start,
-        //     );
-        //     surface_form
-        //         .raw_text()
-        //         .char_indices()
-        //         .nth(surface_index.position_in_raw())
-        //         .is_some_and(|(byte_idx, _char)| {
-        //             tracing::trace!("actually found the charindex at the given position_in_raw: {byte_idx}, {_char}");
-        //             byte_idx == dbg!(line_match.in_chunk_position.start)
-        //         })
-        // }) else {
-        //     tracing::trace!("Unable to find the content in the surface form.",);
-        //     panic!();
-        //     continue;
-        // };
-        let mut tei_match: Vec<_> = our_chunk
+
+        // take only the part of the match actually on the line
+        // in chars
+        let mut total_content_length_taken = 0;
+        let mut tei_match: Vec<_> = Vec::new();
+        let mut blocks_to_take_from = our_chunk
             .content
             .iter()
-            .skip(starting_index.block_position())
-            .map(|b| b.clone())
-            .collect();
-        tei_match.first_mut().map(|b| match b {
-            Block::Text(paragraph) => {
+            .skip(starting_index.block_position());
+        // split off first part before the start of the match
+        match blocks_to_take_from.next() {
+            Some(Block::Text(paragraph)) => {
+                let mut paragraph = paragraph.clone();
                 paragraph.content = paragraph
                     .content
                     .split_whitespace()
                     .skip(starting_index.position_in_block())
                     .join(" ");
+                // in chars
+                let this_block_length = &paragraph
+                    .content
+                    .chars()
+                    .filter(|char| {
+                        !equality_alphabet
+                            .is_some_and(|ea| !ea.contains(*char) && !char.is_whitespace())
+                    })
+                    .count();
+                let first_block = Block::Text(paragraph);
+                if *this_block_length > line_match.number_of_chars_matching {
+                    tei_match.push(first_block.with_truncated_content(
+                        line_match.number_of_chars_matching,
+                        equality_alphabet,
+                    ));
+                    res[line_match.line_index] = tei_match;
+                    continue 'line_match;
+                } else {
+                    total_content_length_taken += this_block_length;
+                    tei_match.push(first_block);
+                }
             }
-            Block::Uncertain(uncertain) => {
+            Some(Block::Uncertain(uncertain)) => {
+                let mut uncertain = uncertain.clone();
                 uncertain.content = uncertain
                     .content
                     .split_whitespace()
                     .skip(starting_index.position_in_block())
                     .join(" ");
+                tei_match.push(Block::Uncertain(uncertain));
             }
-            Block::Correction(correction) => {
+            Some(Block::Correction(correction)) => {
+                let mut correction = correction.clone();
                 correction.versions.last_mut().map(|v| {
                     v.content = v
                         .content
@@ -650,16 +629,50 @@ pub async fn basetext_from_proposal(
                         .skip(starting_index.position_in_block())
                         .join(" ")
                 });
+                tei_match.push(Block::Correction(correction));
             }
-            Block::Abbreviation(abbreviation) => {
+            Some(Block::Abbreviation(abbreviation)) => {
+                let mut abbreviation = abbreviation.clone();
                 abbreviation.surface = abbreviation
                     .surface
                     .split_whitespace()
                     .skip(starting_index.position_in_block())
                     .join(" ");
+                tei_match.push(Block::Abbreviation(abbreviation));
             }
-            Block::Anchor(_) | Block::Break(_) | Block::Lacuna(_) | Block::Space(_) => {}
-        });
+            None
+            | Some(Block::Anchor(_) | Block::Break(_) | Block::Lacuna(_) | Block::Space(_)) => {}
+        };
+        debug_assert!(tei_match[0].content().is_some_and(|c| {
+            c.chars()
+                .filter(|char| !equality_alphabet.is_some_and(|ea| !ea.contains(*char)))
+                .count()
+                <= line_match.number_of_chars_matching
+        }));
+
+        for block in blocks_to_take_from {
+            // counts the block length in chars outside the equality alphabet
+            let this_block_length = block.content().map_or(0, |c| {
+                c.chars()
+                    .filter(|char| !equality_alphabet.is_some_and(|ea| !ea.contains(*char)))
+                    .map(|char| char.len_utf8())
+                    .sum()
+            });
+            let content_of_this_block_to_take =
+                line_match.number_of_chars_matching as isize - total_content_length_taken as isize;
+            if content_of_this_block_to_take >= this_block_length as isize {
+                tei_match.push(block.clone());
+                total_content_length_taken += this_block_length;
+            } else if content_of_this_block_to_take <= 0 {
+                break;
+            } else {
+                tei_match.push(block.with_truncated_content(
+                    content_of_this_block_to_take as usize,
+                    equality_alphabet,
+                ));
+                break;
+            }
+        }
         res[line_match.line_index] = tei_match;
     }
 
@@ -675,10 +688,6 @@ pub async fn basetext_from_proposal(
             })];
         }
     }
-    println!(
-        "There are {count_not_found} lines where we did not find the basetext from the base corpus out of {} lines total.",
-        res.len(),
-    );
 
     // now infill between known line matches
     //      when the two adjacent elements are the same chunk, return everything in between

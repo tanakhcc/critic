@@ -36,7 +36,7 @@ pub fn segment_image<P1: AsRef<Path>, P2: AsRef<Path>>(
         kwargs.set_item("text_direction", text_direction.to_string())?;
 
         let segmentation = segment.call_method("segment", args, Some(&kwargs))?;
-        let lines = dbg!(&segmentation).getattr("lines")?;
+        let lines = &segmentation.getattr("lines")?;
         let lines_as_vec = lines.extract::<Vec<KrakenBaseline>>()?;
         let regions_any = segmentation.getattr("regions")?;
         let regions: &Bound<'_, PyDict> = regions_any

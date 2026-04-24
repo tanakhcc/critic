@@ -202,7 +202,6 @@ pub fn MsViewer() -> impl IntoView {
 
     // TODO:
     // smaller image for the viewer here?
-    // allow showing boxes overlaid ontop the image, given in real coordinates
     leptos::either::Either::Right(view! {
         <div class="overflow-none flex h-full w-full flex-row">
             <div

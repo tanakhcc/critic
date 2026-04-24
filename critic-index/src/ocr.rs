@@ -143,13 +143,14 @@ pub async fn handle_ocr_task(
         .flatten()
         .collect();
     let image_path_for_spawn = image_path.clone();
+    let equality_alphabet_for_spawn = language.equality_alphabet.clone();
     let ocr = tokio::task::spawn_blocking(move || {
         ocr_image(
             image_path_for_spawn,
             model_path,
             language.text_direction,
             baselines,
-            language.equality_alphabet,
+            equality_alphabet_for_spawn,
         )
     })
     .await??;
@@ -159,7 +160,14 @@ pub async fn handle_ocr_task(
     );
 
     // call to the indexing machine to find the correct basetext from the proposed OCR text
-    let indexed_basetext = basetext_from_proposal(config, searcher, &ocr, &language.name).await?;
+    let indexed_basetext = basetext_from_proposal(
+        config,
+        searcher,
+        &ocr,
+        &language.name,
+        language.equality_alphabet.as_deref(),
+    )
+    .await?;
     segmentation.insert_basetext_into_segmentation(indexed_basetext);
     update_ocr(&config.db, &task.page, &segmentation, true).await?;
     tracing::debug!("Finished OCR task on {image_path:?} and inserted the result in the DB.");
