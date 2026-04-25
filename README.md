@@ -66,7 +66,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ## redo image editor
 ### Block Editor
 #### feedback on save
-#### show polygons when the line is selected
 #### make lines and polygons editable
 #### show this info in the sidebar when a line is selected
 - first we need to actually save this information somehwere

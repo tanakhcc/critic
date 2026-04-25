@@ -364,10 +364,12 @@ fn MsOverlay(
             class="stroke-emerald-400 fill-amber-500 absolute top-0 left-0"
             style:stroke-width=move || format!("{}px", (stroke_width as f64 / scale.get()) as u32)
         >
+            // rendered first to be in the background
+            <SelectedLineExtrasBefore />
             <For each=move || regions.regions() key=|r| r.clone().id().get() let(region)>
                 <Region region=region />
             </For>
-            <SelectedLineExtras />
+            <SelectedLineExtrasAfter />
         </svg>
     }
 }
@@ -377,7 +379,7 @@ fn Region(
     region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
 ) -> impl IntoView {
     view! {
-        <polygon points=move || region.read().boundary.point_list() fill="none" stroke="black" />
+        <polygon points=move || region.read().boundary.to_string() fill="none" stroke="black" />
         <For
             each=move || region.clone().baselines()
             key=|baseline| baseline.clone().id().get()
@@ -407,6 +409,7 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
             y1=move || baseline.read().baseline.0.y
             x2=move || baseline.read().baseline.1.x
             y2=move || baseline.read().baseline.1.y
+            stroke-opacity="0.7"
             on:click=move |_evt| {
                 if tool.get() == SelectedTool::Select {
                     selected.set(Some(baseline));
@@ -416,9 +419,33 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
     }
 }
 
-/// Additional extras shown on the selected baseline
+/// Additional extras shown on the selected baseline, before rendering the baseline (on the bottom)
 #[component]
-fn SelectedLineExtras() -> impl IntoView {
+fn SelectedLineExtrasBefore() -> impl IntoView {
+    let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
+        .expect("MsOverlay supplies selected element");
+    let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
+    {
+        move || {
+            selected.read().map(|baseline| match tool.get() {
+                SelectedTool::Select => leptos::either::Either::Left(view! {
+                    <polygon
+                        points=baseline.boundary().read().to_string()
+                        fill="blue"
+                        fill-opacity="0.15"
+                        stroke="blue"
+                        stroke-opacity="0.7"
+                    />
+                }),
+                SelectedTool::NewLine => leptos::either::Either::Right(()),
+            })
+        }
+    }
+}
+
+/// Additional extras shown on the selected baseline, before rendering the baseline (on the bottom)
+#[component]
+fn SelectedLineExtrasAfter() -> impl IntoView {
     let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
         .expect("MsOverlay supplies selected element");
     let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
@@ -426,29 +453,22 @@ fn SelectedLineExtras() -> impl IntoView {
     let scale = use_context::<ReadSignal<f64>>().expect("MsOverlay supplies scale");
     {
         move || {
-            selected.read().map(|baseline| {
-                match tool.get() {
-                    SelectedTool::Select => {
-                        // TODO also show the Polygon here
-                        // TODO make the polygon and the two circles clickable to get put into edit mode
-                        // the specific node
-                        leptos::either::Either::Left(view! {
-                            <circle
-                                cx=move || baseline.baseline().read().0.x
-                                cy=move || baseline.baseline().read().0.y
-                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                                class="fill-orange-400 hover:stroke-red-600"
-                            />
-                            <circle
-                                cx=move || baseline.baseline().read().1.x
-                                cy=move || baseline.baseline().read().1.y
-                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                                class="fill-orange-400 hover:stroke-red-600"
-                            />
-                        })
-                    }
-                    SelectedTool::NewLine => leptos::either::Either::Right(()),
-                }
+            selected.read().map(|baseline| match tool.get() {
+                SelectedTool::Select => leptos::either::Either::Left(view! {
+                    <circle
+                        cx=move || baseline.baseline().read().0.x
+                        cy=move || baseline.baseline().read().0.y
+                        r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                        class="fill-orange-400 hover:stroke-red-600"
+                    />
+                    <circle
+                        cx=move || baseline.baseline().read().1.x
+                        cy=move || baseline.baseline().read().1.y
+                        r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                        class="fill-orange-400 hover:stroke-red-600"
+                    />
+                }),
+                SelectedTool::NewLine => leptos::either::Either::Right(()),
             })
         }
     }

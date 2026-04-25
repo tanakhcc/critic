@@ -461,17 +461,26 @@ impl TryFrom<Vec<Vec<u32>>> for Polygon {
             .collect()
     }
 }
-impl Polygon {
-    /// The points listed in SVG format
-    pub fn point_list(&self) -> String {
-        let mut res = String::default();
+/// Creates the representation of this polygons points required by the SVG points listing for a
+/// polygon.
+///
+/// ```
+/// # use critic_shared::{Point, Polygon};
+/// let poly = Polygon {
+///     points: vec![Point{ x: 10, y: 10 }, Point { x: 10, y: 20 }, Point { x: 20, y: 10 },
+///     Point{x: 20, y: 20}],
+/// };
+/// assert_eq!(poly.to_string(), "10,10 10,20 20,10 20,20".to_owned());
+/// ```
+impl core::fmt::Display for Polygon {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         for (idx, point) in self.points.iter().enumerate() {
-            res.push_str(&point.to_string());
+            write!(f, "{}", point.to_string())?;
             if idx != self.points.len() - 1 {
-                res.push(' ');
+                write!(f, " ")?;
             }
         }
-        res
+        Ok(())
     }
 }
 
