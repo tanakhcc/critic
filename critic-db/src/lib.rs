@@ -1715,9 +1715,9 @@ pub async fn save_transcription(
     blocks: Vec<Block>,
     line_id: i64,
     username: &str,
-) -> Result<i64, DBError> {
-    println!("save_transcription called with {blocks:?}");
-    todo!()
+) -> Result<(), DBError> {
+    eprintln!("save_transcription called with {blocks:?}");
+    Ok(())
 }
 
 /// Publish the given transcription
@@ -1725,7 +1725,7 @@ pub async fn publish_transcription(
     pool: &Pool<Postgres>,
     line_id: i64,
     username: &str,
-) -> Result<i64, DBError> {
-    println!("publish_transcription called");
-    todo!()
+) -> Result<(), DBError> {
+    eprintln!("publish_transcription called");
+    Ok(())
 }

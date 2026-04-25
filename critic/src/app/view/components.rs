@@ -214,7 +214,6 @@ pub(super) fn BaselineEditor(
                     async move {
                         sel.content().set(blocks_dehydrated.clone());
                         save_transcription(blocks_dehydrated, sel.id().get()).await?;
-                        selected.set(None);
                         Ok(())
                     }
                 });
@@ -225,6 +224,7 @@ pub(super) fn BaselineEditor(
                         sel.content().set(blocks_dehydrated.clone());
                         save_transcription(blocks_dehydrated, sel.id().get()).await?;
                         publish_transcription(sel.id().get()).await?;
+                        // also close the editor by deselecting this line
                         selected.set(None);
                         Ok(())
                     }
@@ -245,7 +245,7 @@ pub(super) fn BaselineEditor(
 
 /// Save the transcription for an individual line
 #[server]
-pub async fn save_transcription(blocks: Vec<Block>, line_id: i64) -> Result<i64, ServerFnError> {
+pub async fn save_transcription(blocks: Vec<Block>, line_id: i64) -> Result<(), ServerFnError> {
     use critic_server::auth::AuthSession;
     use leptos_axum::extract;
 
@@ -271,7 +271,7 @@ pub async fn save_transcription(blocks: Vec<Block>, line_id: i64) -> Result<i64,
 ///
 /// The line may have no ID set yet, in which case the line is created and the id returned
 #[server]
-pub async fn publish_transcription(line_id: i64) -> Result<i64, ServerFnError> {
+pub async fn publish_transcription(line_id: i64) -> Result<(), ServerFnError> {
     use critic_server::auth::AuthSession;
     use leptos_axum::extract;
 

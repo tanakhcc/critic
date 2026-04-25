@@ -64,9 +64,19 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 
 # TODOs - Redesign for visual Transcription Editor
 ## redo image editor
-### make a full Block Editor appear instead of information only when a baseline is selected
-#### automatically zoom to the selected baseline
+### Block Editor
+#### map ESCAPE to deselect the selected line
+#### actually save transcriptions
+#### prevent overscrolling out of the editor
+#### correctly show ids for anchors in the editor (prb base corpus wrong??)
+#### when select is active
+##### automatically zoom to the selected baseline
+- so that is occupies about 75% of the upper half of the screen
 #### make baseline lines less opressive (reduce opacity maybe?)
+#### refactor the code to make the MsViewer component smaller in code size
+#### make switching to the editing mode quicker
+- or redesign the line editing entirely so that only one line is changed
+#### allow editing the polygon boundaries
 
 ### remove layout layer
 - we may want to force redo the layout analysis when the model changes

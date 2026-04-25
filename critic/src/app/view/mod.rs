@@ -225,23 +225,27 @@ pub fn MsViewer() -> impl IntoView {
                 tabindex="0"
                 autofocus
             >
-                <div class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5 min-h-96 h-0 grow overflow-auto">
-                    {move || {
-                        default_language
-                            .get()
-                            .map(|language| {
-                                language
-                                    .map(|lang| {
-                                        view! {
-                                            <components::BaselineEditor
-                                                selected=selected
-                                                default_language=lang
-                                            />
-                                        }
-                                    })
-                            })
-                    }}
-                </div>
+                {move || {
+                    default_language
+                        .get()
+                        .map(|language| {
+                            language
+                                .map(|lang| {
+                                    selected
+                                        .get()
+                                        .map(|_| {
+                                            view! {
+                                                <div class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5 min-h-96 h-0 grow overflow-auto">
+                                                    <components::BaselineEditor
+                                                        selected=selected
+                                                        default_language=lang
+                                                    />
+                                                </div>
+                                            }
+                                        })
+                                })
+                        })
+                }}
                 <div
                     class="overflow-clip"
                     on:mousedown=move |evt: leptos::ev::MouseEvent| {
