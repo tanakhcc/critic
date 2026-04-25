@@ -4,7 +4,7 @@ use leptos_router::hooks::use_params;
 
 use critic_shared::{
     urls::{IMAGE_BASE_LOCATION, STATIC_BASE_URL},
-    Baseline, BaselineStoreFields, Region, RegionStoreFields, SegmentedPage,
+    Baseline, BaselineStoreFields, Point, Region, RegionStoreFields, SegmentedPage,
     SegmentedPageStoreFields,
 };
 use leptos::prelude::*;
@@ -104,13 +104,11 @@ pub fn MsViewer() -> impl IntoView {
     let in_drag = RwSignal::new(false);
     let saved_real_pixel = RwSignal::new((0., 0.));
     let view_ref = NodeRef::new();
+    let full_lhs_ref = NodeRef::new();
 
     // given the position in the enclosing div, return the position in "real live" pixels on the MS
     // i.e. 0, 0 is exactly the top-left point of the MS, no matter how it is currently scaled or
     // translated.
-    // The input coordinates need to be in the coordinate system given by the MS images parent -
-    // i.e. you may need to add offsets beforehand if your coordinates come from the viewport
-    // coordinates of an event.
     let real_pixel = move |x_vp: i32, y_vp: i32| {
         (
             (x_vp - x.get_untracked()) as f64 / scale.get_untracked(),
@@ -209,6 +207,31 @@ pub fn MsViewer() -> impl IntoView {
         }
     };
 
+    // this function scales the image viewer when a baseline gets selected
+    let scale_to_baseline_from_dim = move |dim_x: u32, dim_y: u32| {
+        move |p1: Point, p2: Point| {
+            let div_ref: web_sys::HtmlDivElement = full_lhs_ref
+                .get_untracked()
+                .expect("statically mounted noderef");
+            let vp_extent_x = div_ref.offset_width();
+            let vp_extent_y = div_ref.offset_height();
+
+            let x_length = (p2.x as f64 - p1.x as f64).abs();
+            let scale_from_x = dim_x as f64 / (x_length as f64 * 1.5);
+            let image_x_to_be_on_boundary = core::cmp::min(p1.x, p2.x) as f64 - x_length / 4.;
+            let y_average = (p1.y + p2.y) / 2;
+            let image_y_to_be_on_boundary = y_average as f64;
+            scale.set(scale_from_x);
+            let (x_new, y_new) = offset_from_real_pixel_at_vp(
+                image_x_to_be_on_boundary * vp_extent_x as f64 / dim_x as f64,
+                image_y_to_be_on_boundary * vp_extent_y as f64 / dim_y as f64,
+                0,
+                210,
+            );
+            set_offset_clipped(x_new, y_new);
+        }
+    };
+
     // the key to the selected element
     let selected = RwSignal::new(None);
     // the active tool
@@ -256,6 +279,7 @@ pub fn MsViewer() -> impl IntoView {
                     }
                     on:mousemove=on_move
                     on:wheel=on_wheel
+                    node_ref=full_lhs_ref
                 >
                     <div
                         style:transform=move || {
@@ -308,11 +332,21 @@ pub fn MsViewer() -> impl IntoView {
                                                                                 selected=selected
                                                                                 scale=scale.read_only()
                                                                                 tool=tool.read_only()
+                                                                                scale_to_baseline=scale_to_baseline_from_dim(dim_x, dim_y)
                                                                             />
                                                                         }
                                                                             .into_any()
                                                                     } else {
-                                                                        view! { <p>OCR is not yet finished.</p> }.into_any()
+                                                                        // the actual size of the MS viewer that is on screen in px also scales the real pixel
+                                                                        // positions
+
+                                                                        // TODO: also move and scale so that this line is focused
+                                                                        // goal is to show 1.5 times the x length on screen
+                                                                        // y is assumed to be large enough to accomodate this
+                                                                        // the x-coordinate in the image which should be on the left boundary of the
+                                                                        // view port after scaling
+                                                                        view! { <p>OCR is not yet finished.</p> }
+                                                                            .into_any()
                                                                     }
                                                                 })
                                                         })
@@ -350,6 +384,8 @@ fn MsOverlay(
     scale: ReadSignal<f64>,
     /// the tool currently selected
     tool: ReadSignal<SelectedTool>,
+    /// Callback to fit the image to this baseline
+    scale_to_baseline: impl Fn(Point, Point) -> () + 'static + Copy + Send,
 ) -> impl IntoView {
     let stroke_width = ((dim_x.pow(2) + dim_y.pow(2)).isqrt() / 250).max(2);
 
@@ -367,7 +403,7 @@ fn MsOverlay(
             // rendered first to be in the background
             <SelectedLineExtrasBefore />
             <For each=move || regions.regions() key=|r| r.clone().id().get() let(region)>
-                <Region region=region />
+                <Region region=region scale_to_baseline=scale_to_baseline />
             </For>
             <SelectedLineExtrasAfter />
         </svg>
@@ -377,6 +413,7 @@ fn MsOverlay(
 #[component]
 fn Region(
     region: reactive_stores::AtKeyed<Store<SegmentedPage>, SegmentedPage, i64, Vec<Region>>,
+    scale_to_baseline: impl Fn(Point, Point) -> () + 'static + Copy + Send,
 ) -> impl IntoView {
     view! {
         <polygon points=move || region.read().boundary.to_string() fill="none" stroke="black" />
@@ -385,7 +422,7 @@ fn Region(
             key=|baseline| baseline.clone().id().get()
             let(baseline)
         >
-            <BaseLine baseline=baseline />
+            <BaseLine baseline=baseline scale_to_baseline=scale_to_baseline />
         </For>
     }
 }
@@ -398,7 +435,10 @@ type KeyedBaseline = reactive_stores::AtKeyed<
 >;
 
 #[component]
-fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
+fn BaseLine(
+    baseline: KeyedBaseline,
+    scale_to_baseline: impl Fn(Point, Point) -> () + 'static,
+) -> impl IntoView {
     let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
     let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
         .expect("MsOverlay supplies selected element");
@@ -413,6 +453,7 @@ fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
             on:click=move |_evt| {
                 if tool.get() == SelectedTool::Select {
                     selected.set(Some(baseline));
+                    scale_to_baseline(baseline.read().baseline.0, baseline.read().baseline.1);
                 }
             }
         />

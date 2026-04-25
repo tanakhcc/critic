@@ -76,9 +76,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 #### actually save transcriptions
 #### prevent overscrolling out of the editor
 #### correctly show ids for anchors in the editor (prb base corpus wrong??)
-#### when select is active
-##### automatically zoom to the selected baseline
-- so that is occupies about 75% of the upper half of the screen
 #### make baseline lines less opressive (reduce opacity maybe?)
 #### refactor the code to make the MsViewer component smaller in code size
 
