@@ -8,7 +8,7 @@ use leptos_router::{
 
 use leptos_use::{use_document, use_event_listener};
 
-use transcribe::{editor::TranscribeEditor, todo::TranscribeTodoList};
+use transcribe::todo::TranscribeTodoList;
 
 mod admin;
 pub mod shared;
@@ -159,7 +159,6 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=HomePage />
                         <Route path=path!("view/:msname/:pagename") view=view::MsViewer />
                         <Route path=path!("transcribe") view=TranscribeTodoList />
-                        <Route path=path!("transcribe/:msname/:pagename") view=TranscribeEditor />
                         <admin::AdminRouter />
                     </Routes>
                 </main>

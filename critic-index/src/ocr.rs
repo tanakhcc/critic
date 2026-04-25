@@ -132,7 +132,7 @@ pub async fn handle_ocr_task(
 
     // get the baselines from the DB
     let mut segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
-    let language = get_language_for_page(&config.db, &task.page).await?;
+    let language = get_language_for_page(&config.db, &task.manuscript, &task.page).await?;
 
     // get the OCR result from kraken
     tracing::trace!("Now running OCR on image {image_path:?}.");

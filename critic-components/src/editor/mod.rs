@@ -430,6 +430,7 @@ pub fn Editor(
     }
 }
 
+/// The Buttons available in the Block Editor
 #[component]
 fn EditorEditButtons(
     blocks: RwSignal<Vec<EditorBlock>>,

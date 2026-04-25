@@ -143,7 +143,7 @@ pub async fn handle_baseline_task(config: &Config, task: &BaselineTask) -> Resul
     .iter()
     .collect();
 
-    let language = get_language_for_page(&config.db, &task.page).await?;
+    let language = get_language_for_page(&config.db, &task.manuscript, &task.page).await?;
 
     tracing::trace!("Now segmenting image {image_path:?}.");
     let image_path_for_spawn = image_path.clone();

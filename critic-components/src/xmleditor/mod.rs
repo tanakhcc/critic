@@ -22,7 +22,7 @@ pub enum XmlState {
 /// - edit the raw xml
 /// - check correctness
 /// - save the xml by first checking/converting and then calling on_save
-///     - this checks, sets xml_error to None if that worked, then
+///     - this checks, sets xml_error to None if that worked, then saves
 #[component]
 pub fn XmlEditor(
     blocks: RwSignal<Vec<EditorBlock>>,
@@ -31,12 +31,13 @@ pub fn XmlEditor(
     /// invalid
     xml_state: RwSignal<XmlState>,
     /// the name of the page we are transcribing
-    pagename: String,
+    #[prop(optional)]
+    pagename: Option<String>,
     default_language: String,
 ) -> impl IntoView {
     let starting_xml = match page_to_xml(
         blocks.get_untracked().into_iter().map(|b| b.inner.into()),
-        pagename.clone(),
+        pagename.clone().unwrap_or_default(),
     ) {
         Ok(x) => x,
         Err(e) => {
@@ -51,7 +52,7 @@ pub fn XmlEditor(
 
     let textarea_content = RwSignal::new(starting_xml);
 
-    let check_name = pagename.clone();
+    let check_name = pagename.unwrap_or_default();
     let check = move || {
         match page_from_xml(textarea_content.read().as_bytes(), &default_language)
             .map_err(|e| e.to_string())

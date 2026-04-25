@@ -1,8 +1,11 @@
 //! Subcomponents for the View Page
 
-use critic_format::page_to_xml;
+use critic_components::editor::blocks::EditorBlock;
+use critic_format::{page_to_xml, streamed::Block};
 use critic_shared::BaselineStoreFields;
 use leptos::prelude::*;
+
+use crate::app::view::line_editor::EditorWithTabs;
 
 use super::KeyedBaseline;
 
@@ -185,21 +188,107 @@ pub(super) fn layers() -> impl IntoView {
 
 /// Show Information on a Baseline
 #[component]
-pub(super) fn Information(selected: ReadSignal<Option<KeyedBaseline>>) -> impl IntoView {
+pub(super) fn BaselineEditor(
+    selected: RwSignal<Option<KeyedBaseline>>,
+    #[prop(into)] default_language: String,
+) -> impl IntoView {
     {
         move || {
-            selected.read().map(
-                |sel| match page_to_xml(sel.content().get(), "".to_string()) {
-                    Ok(xml) => leptos::either::Either::Left(view! {
-                        <p>This baseline has the following XML:</p>
-                        <p>{xml}</p>
-                    }),
-                    Err(e) => leptos::either::Either::Right(view! {
-                        <p>Problem while searlizing the Data for this line into XML:</p>
-                        <p>{e.to_string()}</p>
-                    }),
-                },
-            )
+            selected.read().map(|sel| {
+                let blocks = RwSignal::new(
+                    sel.content()
+                        .read()
+                        .iter()
+                        .enumerate()
+                        .map(|(id, b)| EditorBlock {
+                            id,
+                            inner: b.clone().into(),
+                            focus_on_load: false,
+                        })
+                        .collect::<Vec<_>>(),
+                );
+
+                let save_state_action = Action::new(move |blocks: &Vec<EditorBlock>| {
+                    let blocks_dehydrated: Vec<Block> =
+                        blocks.iter().map(|b| b.inner.clone().into()).collect();
+                    async move {
+                        sel.content().set(blocks_dehydrated.clone());
+                        save_transcription(blocks_dehydrated, sel.id().get()).await?;
+                        selected.set(None);
+                        Ok(())
+                    }
+                });
+                let publish_action = Action::new(move |blocks: &Vec<EditorBlock>| {
+                    let blocks_dehydrated: Vec<Block> =
+                        blocks.iter().map(|b| b.inner.clone().into()).collect();
+                    async move {
+                        sel.content().set(blocks_dehydrated.clone());
+                        save_transcription(blocks_dehydrated, sel.id().get()).await?;
+                        publish_transcription(sel.id().get()).await?;
+                        selected.set(None);
+                        Ok(())
+                    }
+                });
+
+                view! {
+                    <EditorWithTabs
+                        default_language=default_language.clone()
+                        on_save=save_state_action
+                        on_publish=publish_action
+                        blocks=blocks
+                    />
+                }
+            })
         }
     }
+}
+
+/// Save the transcription for an individual line
+#[server]
+pub async fn save_transcription(blocks: Vec<Block>, line_id: i64) -> Result<i64, ServerFnError> {
+    use critic_server::auth::AuthSession;
+    use leptos_axum::extract;
+
+    let auth_session = match extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+
+    // save the fact that this transcription exists to the DB
+    Ok(critic_db::save_transcription(&config.db, blocks, line_id, &user.username).await?)
+}
+
+/// Publish the transcription for an individual line
+///
+/// The line may have no ID set yet, in which case the line is created and the id returned
+#[server]
+pub async fn publish_transcription(line_id: i64) -> Result<i64, ServerFnError> {
+    use critic_server::auth::AuthSession;
+    use leptos_axum::extract;
+
+    let auth_session = match extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
+    let config = use_context::<std::sync::Arc<critic_config::Config>>()
+        .ok_or(ServerFnError::new("Unable to get config from context"))?;
+
+    // save the fact that this transcription exists to the DB
+    Ok(critic_db::publish_transcription(&config.db, line_id, &user.username).await?)
 }

@@ -15,6 +15,19 @@ use crate::app::shared::{MsParams, PageParams};
 use crate::app::view::components::SelectedTool;
 
 mod components;
+mod line_editor;
+
+/// Get the language used on this page
+#[server]
+async fn get_page_language(msname: String, pagename: String) -> Result<String, ServerFnError> {
+    use leptos::prelude::use_context;
+    let config: std::sync::Arc<critic_config::Config> =
+        use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
+    critic_db::get_language_for_page(&config.db, &msname, &pagename)
+        .await
+        .map(|meta| meta.name)
+        .map_err(|e| ServerFnError::new(e.to_string()))
+}
 
 #[server]
 async fn get_image_dimensions(
@@ -82,6 +95,7 @@ pub fn MsViewer() -> impl IntoView {
         pagename.clone(),
         critic_shared::ImageType::Original,
     ));
+    let default_language = OnceResource::new(get_page_language(msname.clone(), pagename.clone()));
     let segmentation = OnceResource::new(get_segmentation(msname.clone(), pagename));
 
     let x = RwSignal::new(0);
@@ -201,7 +215,7 @@ pub fn MsViewer() -> impl IntoView {
     let tool = RwSignal::new(SelectedTool::Select);
 
     // TODO:
-    // smaller image for the viewer here?
+    // preload a smaller image for the viewer here?
     leptos::either::Either::Right(view! {
         <div class="overflow-none flex h-full w-full flex-row">
             <div
@@ -211,14 +225,22 @@ pub fn MsViewer() -> impl IntoView {
                 tabindex="0"
                 autofocus
             >
-                <div
-                    class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5"
-                    // no scrolling here
-                    on:wheel=|evt| {
-                        evt.prevent_default();
-                    }
-                >
-                    <components::Information selected=selected.read_only() />
+                <div class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5 min-h-96 h-0 grow overflow-auto">
+                    {move || {
+                        default_language
+                            .get()
+                            .map(|language| {
+                                language
+                                    .map(|lang| {
+                                        view! {
+                                            <components::BaselineEditor
+                                                selected=selected
+                                                default_language=lang
+                                            />
+                                        }
+                                    })
+                            })
+                    }}
                 </div>
                 <div
                     class="overflow-clip"

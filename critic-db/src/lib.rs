@@ -423,7 +423,7 @@ pub async fn add_page(pool: &Pool<Postgres>, pagename: &str, msname: &str) -> Re
 /// page information plus the name of the MS it belongs to
 #[derive(FromRow, PartialEq, Clone)]
 struct _PageMetaWithMsName {
-    manuscript_name: String,
+    msname: String,
     id: i64,
     manuscript_id: i64,
     name: String,
@@ -434,7 +434,7 @@ struct _PageMetaWithMsName {
 impl From<_PageMetaWithMsName> for (String, PageMeta) {
     fn from(value: _PageMetaWithMsName) -> Self {
         (
-            value.manuscript_name,
+            value.msname,
             PageMeta {
                 id: value.id,
                 manuscript_id: value.manuscript_id,
@@ -457,7 +457,7 @@ pub async fn get_page_to_minify(
     Ok(sqlx::query_as!(
         _PageMetaWithMsName,
         "SELECT
-            manuscript.title as manuscript_name,
+            manuscript.title as msname,
             page.id,
             manuscript as manuscript_id,
             name,
@@ -638,8 +638,8 @@ const DEFAULT_PAGINATION_SIZE: i32 = 50;
 
 #[derive(FromRow, Debug)]
 struct _GetPagesByQueryRow {
-    manuscript_name: String,
-    page_name: String,
+    msname: String,
+    pagename: String,
     verse_start: Option<String>,
     verse_end: Option<String>,
     transcriptions_published: i64,
@@ -657,9 +657,9 @@ pub async fn get_pages_by_query(
     let decomposed_query = decompose_query(query);
     let mut builder = QueryBuilder::new(
         "SELECT
-            manuscript.title as manuscript_name,
+            manuscript.title as msname,
             page.id,
-            page.name as page_name,
+            page.name as pagename,
             verse_start,
             verse_end,
             count(*) FILTER (WHERE transcription.id is not NULL) as transcriptions_started,
@@ -691,7 +691,7 @@ pub async fn get_pages_by_query(
     // exclude MSS with reconciliation already in progress
     builder.push(" reconciliation.id is NULL");
 
-    builder.push(" GROUP BY (manuscript_name, page.id, page_name, verse_start, verse_end) ");
+    builder.push(" GROUP BY (msname, page.id, pagename, verse_start, verse_end) ");
 
     // exclude MSS with two or more transcriptions, but always show MSS where the user has started
     // a transcription
@@ -716,8 +716,8 @@ pub async fn get_pages_by_query(
     let mut res = Vec::<PageTodo>::new();
     for item in page_query_rows {
         res.push(PageTodo {
-            manuscript_name: item.manuscript_name,
-            page_name: item.page_name,
+            manuscript_name: item.msname,
+            page_name: item.pagename,
             verse_start: item.verse_start,
             verse_end: item.verse_end,
             // this will always be nonnegative, because it is Count(*) from SQL
@@ -758,117 +758,6 @@ struct _EditorIVSeed {
     verse_start: Option<i64>,
     verse_end: Option<i64>,
     transcriptions_by_this_user: Option<i64>,
-}
-
-/// Get the initial value for a transcription editor
-pub async fn get_editor_initial_value(
-    pool: &Pool<Postgres>,
-    msname: &str,
-    pagename: &str,
-    this_username: &str,
-) -> Result<EditorInitialValue, DBError> {
-    let seed = sqlx::query_as!(
-        _EditorIVSeed,
-        "SELECT
-            manuscript.id as manuscript_id,
-            manuscript.institution,
-            manuscript.collection,
-            manuscript.hand_desc,
-            manuscript.script_desc,
-            COALESCE(
-                 manuscript.language,
-                 page.language,
-                 (SELECT language FROM default_language
-                  WHERE id = 1))
-             as default_language,
-            page.verse_start,
-            page.verse_end,
-            COUNT(*) FILTER (WHERE transcription.username = $3) as transcriptions_by_this_user
-        FROM
-            page
-        INNER JOIN manuscript
-            ON manuscript.id = page.manuscript
-        LEFT OUTER JOIN transcription
-            ON page.id = transcription.page
-        WHERE manuscript.title = $1 AND page.name = $2
-        GROUP BY (manuscript.id, manuscript.institution, manuscript.collection, manuscript.hand_desc, manuscript.script_desc, manuscript.language, page.verse_start, page.verse_end, page.language)
-        ;",
-        msname,
-        pagename,
-        this_username
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(DBError::CannotGetEditorInitialValue)?;
-    Ok(EditorInitialValue {
-        user_has_started: seed.transcriptions_by_this_user.unwrap_or_default() > 0,
-        verse_start: seed.verse_start,
-        verse_end: seed.verse_end,
-        meta: ManuscriptMeta {
-            id: seed.manuscript_id,
-            title: msname.to_string(),
-            institution: seed.institution,
-            collection: seed.collection,
-            hand_desc: seed.hand_desc,
-            script_desc: seed.script_desc,
-            language: seed.default_language,
-        },
-    })
-}
-
-pub async fn add_transcription(
-    pool: &Pool<Postgres>,
-    msname: &str,
-    pagename: &str,
-    username: &str,
-) -> Result<(), DBError> {
-    sqlx::query!(
-        "
-        INSERT INTO transcription
-            (page, username)
-        VALUES
-            ((SELECT page.id
-                FROM page
-                INNER JOIN manuscript
-                    ON page.manuscript = manuscript.id
-                WHERE manuscript.title = $1 AND page.name = $2),
-             $3)
-        ON CONFLICT DO NOTHING;",
-        msname,
-        pagename,
-        username
-    )
-    .execute(pool)
-    .await
-    .map(|_| ())
-    .map_err(DBError::CannotInsertTranscription)
-}
-
-/// set this transcription as published
-pub async fn publish_transcription(
-    pool: &Pool<Postgres>,
-    msname: &str,
-    pagename: &str,
-    username: &str,
-) -> Result<(), DBError> {
-    sqlx::query!(
-        "UPDATE transcription
-        SET published = true
-        FROM page p, manuscript m
-        WHERE p.id = transcription.page
-            AND m.id = p.manuscript
-            AND m.title = $1
-            AND p.name = $2
-            AND transcription.username = $3
-        ",
-        msname,
-        pagename,
-        username
-    )
-    .execute(pool)
-    .await
-    .map(|_| ())
-    .map_err(DBError::CannotPublish)
 }
 
 /// Get a list of all models of the given type
@@ -1112,7 +1001,8 @@ pub async fn get_language_by_id(
 
 pub async fn get_language_for_page(
     pool: &Pool<Postgres>,
-    page_name: &str,
+    msname: &str,
+    pagename: &str,
 ) -> Result<LanguageMetadata, DBError> {
     Ok(sqlx::query_as!(
         LanguageMetadata,
@@ -1129,8 +1019,9 @@ pub async fn get_language_for_page(
                         manuscript.language,
                         (SELECT language FROM default_language WHERE id = 1)
                     )
-                FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE page.name = $1);"#,
-        page_name,
+                FROM page INNER JOIN manuscript on manuscript.id = page.manuscript WHERE page.name = $1 AND manuscript.title = $2);"#,
+        pagename,
+        msname,
     )
     .fetch_one(pool)
     .await
@@ -1204,10 +1095,10 @@ pub async fn get_default_language(
 pub async fn update_page_language(
     pool: &Pool<Postgres>,
     language_id: Option<i64>,
-    ms_name: &str,
-    page_name: &str,
+    msname: &str,
+    pagename: &str,
 ) -> Result<(), DBError> {
-    sqlx::query!("UPDATE page SET language = $1 FROM manuscript WHERE page.manuscript = manuscript.id AND manuscript.title = $2 AND page.name = $3;", language_id, ms_name, page_name)
+    sqlx::query!("UPDATE page SET language = $1 FROM manuscript WHERE page.manuscript = manuscript.id AND manuscript.title = $2 AND page.name = $3;", language_id, msname, pagename)
         .execute(pool)
         .await
         .map(|_| ())
@@ -1217,10 +1108,10 @@ pub async fn update_page_language(
 /// Get the language for a page
 pub async fn get_page_language(
     pool: &Pool<Postgres>,
-    ms_name: &str,
-    page_name: &str,
+    msname: &str,
+    pagename: &str,
 ) -> Result<Option<i64>, DBError> {
-    sqlx::query!("SELECT page.language FROM page INNER JOIN manuscript ON manuscript.id = page.manuscript WHERE manuscript.title = $1 AND page.name = $2;", ms_name, page_name)
+    sqlx::query!("SELECT page.language FROM page INNER JOIN manuscript ON manuscript.id = page.manuscript WHERE manuscript.title = $1 AND page.name = $2;", msname, pagename)
         .fetch_one(pool)
         .await
         .map(|row| row.language)
@@ -1285,7 +1176,7 @@ impl TryFrom<_BaseCorpusChunkWithEqualityAlphabet> for BaseCorpusChunkParsed {
     type Error = ConversionError;
 
     fn try_from(value: _BaseCorpusChunkWithEqualityAlphabet) -> Result<Self, Self::Error> {
-        let (content_parsed, _first_page_name) =
+        let (content_parsed, _first_pagename) =
             critic_format::page_from_xml(value.content.as_bytes(), &value.language)?;
         Ok(BaseCorpusChunkParsed {
             id: value.id,
@@ -1530,8 +1421,8 @@ pub async fn get_model_for_page(
 
 pub async fn insert_segmentation(
     pool: &Pool<Postgres>,
-    manuscript_name: &str,
-    page_name: &str,
+    msname: &str,
+    pagename: &str,
     segmentation: &SegmentedPage,
 ) -> Result<(), DBError> {
     let mut tx = pool
@@ -1564,8 +1455,8 @@ pub async fn insert_segmentation(
                  INNER JOIN manuscript ON page.manuscript = manuscript.id
                  WHERE page.name = $1 AND manuscript.title = $2),
                 $3) RETURNING id;",
-            page_name,
-            manuscript_name,
+            pagename,
+            msname,
             polygon
         )
         .fetch_one(&mut *tx)
@@ -1609,8 +1500,8 @@ pub async fn insert_segmentation(
             FROM page
             INNER JOIN manuscript ON page.manuscript = manuscript.id
             WHERE page.name = $1 AND manuscript.title = $2);",
-        page_name,
-        manuscript_name
+        pagename,
+        msname
     )
     .execute(&mut *tx)
     .await
@@ -1622,7 +1513,7 @@ pub async fn insert_segmentation(
 /// Get the segmentation for this page
 pub async fn get_segmentation(
     pool: &Pool<Postgres>,
-    manuscript_name: &str,
+    msname: &str,
     pagename: &str,
 ) -> Result<SegmentedPage, DBError> {
     let mut regions = sqlx::query!(
@@ -1631,7 +1522,7 @@ pub async fn get_segmentation(
         INNER JOIN page ON page.id = region.page
         INNER JOIN manuscript ON manuscript.id = page.manuscript
         WHERE manuscript.title = $1 AND page.name = $2;"#,
-        manuscript_name,
+        msname,
         pagename,
     )
     .fetch_all(&*pool)
@@ -1816,4 +1707,25 @@ pub async fn delete_ocr_and_flag_for_rerun(
     .await
     .map_err(DBError::CannotUpdatePage)?;
     tx.commit().await.map_err(DBError::CannotCommitTransaction)
+}
+
+/// Save the given blocks into the DB
+pub async fn save_transcription(
+    pool: &Pool<Postgres>,
+    blocks: Vec<Block>,
+    line_id: i64,
+    username: &str,
+) -> Result<i64, DBError> {
+    println!("save_transcription called with {blocks:?}");
+    todo!()
+}
+
+/// Publish the given transcription
+pub async fn publish_transcription(
+    pool: &Pool<Postgres>,
+    line_id: i64,
+    username: &str,
+) -> Result<i64, DBError> {
+    println!("publish_transcription called");
+    todo!()
 }
