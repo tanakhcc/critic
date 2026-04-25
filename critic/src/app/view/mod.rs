@@ -367,6 +367,7 @@ fn MsOverlay(
             <For each=move || regions.regions() key=|r| r.clone().id().get() let(region)>
                 <Region region=region />
             </For>
+            <SelectedLineExtras />
         </svg>
     }
 }
@@ -396,43 +397,59 @@ type KeyedBaseline = reactive_stores::AtKeyed<
 
 #[component]
 fn BaseLine(baseline: KeyedBaseline) -> impl IntoView {
-    let stroke_width = use_context::<u32>().expect("MsOverlay supplies stroke width");
     let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
     let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
         .expect("MsOverlay supplies selected element");
-    let scale = use_context::<ReadSignal<f64>>().expect("MsOverlay supplies scale");
 
     view! {
-        <g
-            class="group"
+        <line
+            x1=move || baseline.read().baseline.0.x
+            y1=move || baseline.read().baseline.0.y
+            x2=move || baseline.read().baseline.1.x
+            y2=move || baseline.read().baseline.1.y
             on:click=move |_evt| {
                 if tool.get() == SelectedTool::Select {
                     selected.set(Some(baseline));
                 }
             }
-        >
-            <line
-                x1=move || baseline.read().baseline.0.x
-                y1=move || baseline.read().baseline.0.y
-                x2=move || baseline.read().baseline.1.x
-                y2=move || baseline.read().baseline.1.y
-                // stroke-width=format!("{}px", stroke_width * 2)
-                class=(["hover:stroke-red-600"], move || tool.get() == SelectedTool::EditLine)
-            />
-            <circle
-                cx=move || baseline.read().baseline.0.x
-                cy=move || baseline.read().baseline.0.y
-                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                class="fill-orange-400 hover:stroke-red-600"
-                class=(["hidden"], move || tool.get() != SelectedTool::EditLine)
-            />
-            <circle
-                cx=move || baseline.read().baseline.1.x
-                cy=move || baseline.read().baseline.1.y
-                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
-                class="fill-orange-400 hover:stroke-red-600"
-                class=(["hidden"], move || tool.get() != SelectedTool::EditLine)
-            />
-        </g>
+        />
+    }
+}
+
+/// Additional extras shown on the selected baseline
+#[component]
+fn SelectedLineExtras() -> impl IntoView {
+    let selected = use_context::<RwSignal<Option<KeyedBaseline>>>()
+        .expect("MsOverlay supplies selected element");
+    let tool = use_context::<ReadSignal<SelectedTool>>().expect("MsOverlay supplies selected tool");
+    let stroke_width = use_context::<u32>().expect("MsOverlay supplies stroke width");
+    let scale = use_context::<ReadSignal<f64>>().expect("MsOverlay supplies scale");
+    {
+        move || {
+            selected.read().map(|baseline| {
+                match tool.get() {
+                    SelectedTool::Select => {
+                        // TODO also show the Polygon here
+                        // TODO make the polygon and the two circles clickable to get put into edit mode
+                        // the specific node
+                        leptos::either::Either::Left(view! {
+                            <circle
+                                cx=move || baseline.baseline().read().0.x
+                                cy=move || baseline.baseline().read().0.y
+                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                                class="fill-orange-400 hover:stroke-red-600"
+                            />
+                            <circle
+                                cx=move || baseline.baseline().read().1.x
+                                cy=move || baseline.baseline().read().1.y
+                                r=move || format!("{}px", (stroke_width as f64 / scale.get()))
+                                class="fill-orange-400 hover:stroke-red-600"
+                            />
+                        })
+                    }
+                    SelectedTool::NewLine => leptos::either::Either::Right(()),
+                }
+            })
+        }
     }
 }

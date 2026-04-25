@@ -65,6 +65,14 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # TODOs - Redesign for visual Transcription Editor
 ## redo image editor
 ### Block Editor
+#### feedback on save
+#### show polygons when the line is selected
+#### make lines and polygons editable
+#### show this info in the sidebar when a line is selected
+- first we need to actually save this information somehwere
+    - we have both while OCR, just need to plumb it into the DB
+##### Verse found automatically if any
+##### OCR if already done (without base text search)
 #### map ESCAPE to deselect the selected line
 #### actually save transcriptions
 #### prevent overscrolling out of the editor
@@ -74,9 +82,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 - so that is occupies about 75% of the upper half of the screen
 #### make baseline lines less opressive (reduce opacity maybe?)
 #### refactor the code to make the MsViewer component smaller in code size
-#### make switching to the editing mode quicker
-- or redesign the line editing entirely so that only one line is changed
-#### allow editing the polygon boundaries
 
 ### remove layout layer
 - we may want to force redo the layout analysis when the model changes
