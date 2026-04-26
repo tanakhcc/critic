@@ -72,11 +72,9 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
     - we have both while OCR, just need to plumb it into the DB
 ##### Verse found automatically if any
 ##### OCR if already done (without base text search)
-#### map ESCAPE to deselect the selected line
 #### actually save transcriptions
 #### prevent overscrolling out of the editor
 #### correctly show ids for anchors in the editor (prb base corpus wrong??)
-#### make baseline lines less opressive (reduce opacity maybe?)
 #### refactor the code to make the MsViewer component smaller in code size
 
 ### remove layout layer

@@ -9,7 +9,7 @@ use critic_shared::{
 };
 use leptos::prelude::*;
 use leptos_use::use_event_listener;
-use reactive_stores::{Store, StoreField};
+use reactive_stores::Store;
 
 use crate::app::shared::{MsParams, PageParams};
 use crate::app::view::components::SelectedTool;
@@ -96,7 +96,14 @@ pub fn MsViewer() -> impl IntoView {
         critic_shared::ImageType::Original,
     ));
     let default_language = OnceResource::new(get_page_language(msname.clone(), pagename.clone()));
-    let segmentation = OnceResource::new(get_segmentation(msname.clone(), pagename));
+    let segmentation = OnceResource::new(get_segmentation(msname.clone(), pagename.clone()));
+
+    // the key to the selected element
+    let selected = RwSignal::new(None);
+    // the active tool
+    let tool = RwSignal::new(SelectedTool::Transcription);
+    // should we automatically focus when the user clicks on a line
+    let should_autofocus = RwSignal::new(true);
 
     let x = RwSignal::new(0);
     let y = RwSignal::new(0);
@@ -173,14 +180,22 @@ pub fn MsViewer() -> impl IntoView {
     let last_known_mouse_position = RwSignal::new((0, 0));
 
     let _down = use_event_listener(view_ref, leptos::ev::keydown, move |evt| {
-        if evt.key_code() == 32 {
-            // on the first space-down, save the starting position for the move and set
-            // space_down
-            if !space_down.get_untracked() {
-                space_down.update(|c| *c = true);
-                let (x, y) = last_known_mouse_position.get_untracked();
-                saved_real_pixel.set(real_pixel(x, y));
+        match evt.key_code() {
+            // escape
+            27 => {
+                selected.set(None);
             }
+            // space
+            32 => {
+                // on the first space-down, save the starting position for the move and set
+                // space_down
+                if !space_down.get_untracked() {
+                    space_down.update(|c| *c = true);
+                    let (x, y) = last_known_mouse_position.get_untracked();
+                    saved_real_pixel.set(real_pixel(x, y));
+                }
+            }
+            _ => {}
         };
     });
     let _up = use_event_listener(view_ref, leptos::ev::keyup, move |evt| {
@@ -208,123 +223,127 @@ pub fn MsViewer() -> impl IntoView {
     };
 
     // this function scales the image viewer when a baseline gets selected
-    let scale_to_baseline_from_dim = move |dim_x: u32, dim_y: u32| {
-        move |p1: Point, p2: Point| {
-            let div_ref: web_sys::HtmlDivElement = full_lhs_ref
-                .get_untracked()
-                .expect("statically mounted noderef");
-            let vp_extent_x = div_ref.offset_width();
-            let vp_extent_y = div_ref.offset_height();
+    let scale_to_baseline_from_dim = move |dim_x: u32, dim_y: u32, p1: Point, p2: Point| {
+        let div_ref: web_sys::HtmlDivElement = full_lhs_ref
+            .get_untracked()
+            .expect("statically mounted noderef");
+        let vp_extent_x = div_ref.offset_width();
+        let vp_extent_y = div_ref.offset_height();
 
-            let x_length = (p2.x as f64 - p1.x as f64).abs();
-            let scale_from_x = dim_x as f64 / (x_length as f64 * 1.5);
-            let image_x_to_be_on_boundary = core::cmp::min(p1.x, p2.x) as f64 - x_length / 4.;
-            let y_average = (p1.y + p2.y) / 2;
-            let image_y_to_be_on_boundary = y_average as f64;
-            scale.set(scale_from_x);
-            let (x_new, y_new) = offset_from_real_pixel_at_vp(
-                image_x_to_be_on_boundary * vp_extent_x as f64 / dim_x as f64,
-                image_y_to_be_on_boundary * vp_extent_y as f64 / dim_y as f64,
-                0,
-                210,
-            );
-            set_offset_clipped(x_new, y_new);
-        }
+        let x_length = (p2.x as f64 - p1.x as f64).abs();
+        let scale_from_x = dim_x as f64 / (x_length as f64 * 1.5);
+        let image_x_to_be_on_boundary = core::cmp::min(p1.x, p2.x) as f64 - x_length / 4.;
+        let y_average = (p1.y + p2.y) / 2;
+        let image_y_to_be_on_boundary = y_average as f64;
+        scale.set(scale_from_x);
+        let (x_new, y_new) = offset_from_real_pixel_at_vp(
+            image_x_to_be_on_boundary * vp_extent_x as f64 / dim_x as f64,
+            image_y_to_be_on_boundary * vp_extent_y as f64 / dim_y as f64,
+            0,
+            210,
+        );
+        set_offset_clipped(x_new, y_new);
     };
-
-    // the key to the selected element
-    let selected = RwSignal::new(None);
-    // the active tool
-    let tool = RwSignal::new(SelectedTool::Select);
 
     // TODO:
     // preload a smaller image for the viewer here?
     leptos::either::Either::Right(view! {
         <div class="overflow-none flex h-full w-full flex-row">
-            <div
-                class="w-0 grow overflow-auto border-r-2 border-slate-600 relative"
-                style="scrollbar-width: none;"
-                node_ref=view_ref
-                tabindex="0"
-                autofocus
-            >
-                {move || {
-                    default_language
-                        .get()
-                        .map(|language| {
-                            language
-                                .map(|lang| {
-                                    selected
-                                        .get()
-                                        .map(|_| {
-                                            view! {
-                                                <div class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5 min-h-96 h-0 grow overflow-auto">
-                                                    <components::BaselineEditor
-                                                        selected=selected
-                                                        default_language=lang
-                                                    />
-                                                </div>
-                                            }
-                                        })
-                                })
-                        })
-                }}
-                <div
-                    class="overflow-clip"
-                    on:mousedown=move |evt: leptos::ev::MouseEvent| {
-                        if evt.buttons() == 4 {
-                            in_drag.set(true);
-                            saved_real_pixel.set(real_pixel(evt.client_x(), evt.client_y()));
-                        }
-                    }
-                    on:mousemove=on_move
-                    on:wheel=on_wheel
-                    node_ref=full_lhs_ref
-                >
-                    <div
-                        style:transform=move || {
-                            format!(
-                                "translate({}px, {}px) scale({})",
-                                x.get(),
-                                y.get(),
-                                scale.get(),
-                            )
-                        }
-                        style:transform-origin="top left"
-                    >
-                        <img src=format!("{image_base}/original.webp") alt=msname />
-                        <ErrorBoundary fallback=|errors| {
-                            view! {
-                                <div>
-                                    "Error: failed to get segmentation"
-                                    <ul>
-                                        {move || {
-                                            errors
-                                                .get()
-                                                .into_iter()
-                                                .map(|(_, e)| view! { <li>{e.to_string()}</li> })
-                                                .collect::<Vec<_>>()
-                                        }}
-                                    </ul>
-                                </div>
-                            }
-                        }>
-                            <Suspense fallback=|| {}>
-                                {move || {
-                                    image_dimensions
-                                        .get()
-                                        .map(|dimensions| {
-                                            dimensions
-                                                .map(|(dim_x, dim_y)| {
-                                                    segmentation
-                                                        .get()
-                                                        .map(|seg_res| {
-                                                            seg_res
-                                                                .map(|seg| {
-                                                                    if let Some(seg) = seg {
-                                                                        let regions = Store::new(seg);
+            <ErrorBoundary fallback=|errors| {
+                view! {
+                    <div>
+                        "Error: failed to get segmentation"
+                        <ul>
+                            {move || {
+                                errors
+                                    .get()
+                                    .into_iter()
+                                    .map(|(_, e)| view! { <li>{e.to_string()}</li> })
+                                    .collect::<Vec<_>>()
+                            }}
+                        </ul>
+                    </div>
+                }
+            }>
+                <Suspense fallback=|| {}>
+                    {move || {
+                        image_dimensions
+                            .get()
+                            .map(|dimensions| {
+                                dimensions
+                                    .map(|(dim_x, dim_y)| {
+                                        segmentation
+                                            .get()
+                                            .map(|seg_res| {
+                                                seg_res
+                                                    .map(|seg| {
+                                                        if let Some(seg) = seg {
+                                                            let regions = Store::new(seg);
 
-                                                                        view! {
+                                                            view! {
+                                                                <div
+                                                                    class="w-0 grow overflow-auto border-r-2 border-slate-600 relative"
+                                                                    style="scrollbar-width: none;"
+                                                                    node_ref=view_ref
+                                                                    tabindex="0"
+                                                                    autofocus
+                                                                >
+                                                                    {move || {
+                                                                        match tool.get() {
+                                                                            SelectedTool::Transcription => {
+                                                                                leptos::either::Either::Left(
+                                                                                    default_language
+                                                                                        .get()
+                                                                                        .map(|language| {
+                                                                                            language
+                                                                                                .map(|lang| {
+                                                                                                    selected
+                                                                                                        .get()
+                                                                                                        .map(|_| {
+                                                                                                            view! {
+                                                                                                                <div class="bg-black border-t-2 border-slate-600 absolute bottom-0 w-full z-5 min-h-96 h-0 grow overflow-auto">
+                                                                                                                    <components::BaselineEditor
+                                                                                                                        selected=selected
+                                                                                                                        default_language=lang
+                                                                                                                    />
+                                                                                                                </div>
+                                                                                                            }
+                                                                                                        })
+                                                                                                })
+                                                                                        }),
+                                                                                )
+                                                                            }
+                                                                            _ => leptos::either::Either::Right(()),
+                                                                        }
+                                                                    }}
+                                                                    <div
+                                                                        class="overflow-clip"
+                                                                        on:mousedown=move |evt: leptos::ev::MouseEvent| {
+                                                                            if evt.buttons() == 4 {
+                                                                                in_drag.set(true);
+                                                                                saved_real_pixel
+                                                                                    .set(real_pixel(evt.client_x(), evt.client_y()));
+                                                                            }
+                                                                        }
+                                                                        on:mousemove=on_move
+                                                                        on:wheel=on_wheel
+                                                                        node_ref=full_lhs_ref
+                                                                    >
+                                                                        <div
+                                                                            style:transform=move || {
+                                                                                format!(
+                                                                                    "translate({}px, {}px) scale({})",
+                                                                                    x.get(),
+                                                                                    y.get(),
+                                                                                    scale.get(),
+                                                                                )
+                                                                            }
+                                                                            style:transform-origin="top left"
+                                                                        >
+                                                                            <img
+                                                                                src=format!("{image_base}/original.webp")
+                                                                                alt=msname.clone()
+                                                                            />
                                                                             <MsOverlay
                                                                                 dim_x=dim_x
                                                                                 dim_y=dim_y
@@ -332,36 +351,37 @@ pub fn MsViewer() -> impl IntoView {
                                                                                 selected=selected
                                                                                 scale=scale.read_only()
                                                                                 tool=tool.read_only()
-                                                                                scale_to_baseline=scale_to_baseline_from_dim(dim_x, dim_y)
+                                                                                scale_to_baseline=move |x, y| {
+                                                                                    if should_autofocus.get() {
+                                                                                        scale_to_baseline_from_dim(dim_x, dim_y, x, y)
+                                                                                    }
+                                                                                }
                                                                             />
-                                                                        }
-                                                                            .into_any()
-                                                                    } else {
-                                                                        // the actual size of the MS viewer that is on screen in px also scales the real pixel
-                                                                        // positions
-
-                                                                        // TODO: also move and scale so that this line is focused
-                                                                        // goal is to show 1.5 times the x length on screen
-                                                                        // y is assumed to be large enough to accomodate this
-                                                                        // the x-coordinate in the image which should be on the left boundary of the
-                                                                        // view port after scaling
-                                                                        view! { <p>OCR is not yet finished.</p> }
-                                                                            .into_any()
-                                                                    }
-                                                                })
-                                                        })
-                                                })
-                                        })
-                                }}
-                            </Suspense>
-                        </ErrorBoundary>
-                    </div>
-                </div>
-            </div>
-            <div class="h-full w-52 bg-black">
-                <components::Toolbar on_save=|| {} tool=tool />
-                <components::Layers />
-            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <components::Sidebar
+                                                                    msname=msname.clone()
+                                                                    pagename=pagename.clone()
+                                                                    tool=tool
+                                                                    regions=regions
+                                                                    should_autofocus=should_autofocus
+                                                                />
+                                                            }
+                                                                .into_any()
+                                                        } else {
+                                                            // the actual size of the MS viewer that is on screen in px also scales the real pixel
+                                                            // positions
+                                                            view! { <p>OCR is not yet finished.</p> }
+                                                                .into_any()
+                                                        }
+                                                    })
+                                            })
+                                    })
+                            })
+                    }}
+                </Suspense>
+            </ErrorBoundary>
         </div>
     })
 }
@@ -451,9 +471,15 @@ fn BaseLine(
             y2=move || baseline.read().baseline.1.y
             stroke-opacity="0.7"
             on:click=move |_evt| {
-                if tool.get() == SelectedTool::Select {
-                    selected.set(Some(baseline));
-                    scale_to_baseline(baseline.read().baseline.0, baseline.read().baseline.1);
+                match tool.get() {
+                    SelectedTool::Transcription
+                    | SelectedTool::Reconciliation
+                    | SelectedTool::EditLine
+                    | SelectedTool::EditBoundary => {
+                        selected.set(Some(baseline));
+                        scale_to_baseline(baseline.read().baseline.0, baseline.read().baseline.1);
+                    }
+                    SelectedTool::NewLine => {}
                 }
             }
         />
@@ -469,7 +495,9 @@ fn SelectedLineExtrasBefore() -> impl IntoView {
     {
         move || {
             selected.read().map(|baseline| match tool.get() {
-                SelectedTool::Select => leptos::either::Either::Left(view! {
+                SelectedTool::EditBoundary
+                | SelectedTool::Transcription
+                | SelectedTool::Reconciliation => leptos::either::Either::Left(view! {
                     <polygon
                         points=baseline.boundary().read().to_string()
                         fill="blue"
@@ -478,7 +506,7 @@ fn SelectedLineExtrasBefore() -> impl IntoView {
                         stroke-opacity="0.7"
                     />
                 }),
-                SelectedTool::NewLine => leptos::either::Either::Right(()),
+                _ => leptos::either::Either::Right(()),
             })
         }
     }
@@ -495,7 +523,7 @@ fn SelectedLineExtrasAfter() -> impl IntoView {
     {
         move || {
             selected.read().map(|baseline| match tool.get() {
-                SelectedTool::Select => leptos::either::Either::Left(view! {
+                SelectedTool::EditLine => leptos::either::Either::Left(view! {
                     <circle
                         cx=move || baseline.baseline().read().0.x
                         cy=move || baseline.baseline().read().0.y
@@ -509,7 +537,7 @@ fn SelectedLineExtrasAfter() -> impl IntoView {
                         class="fill-orange-400 hover:stroke-red-600"
                     />
                 }),
-                SelectedTool::NewLine => leptos::either::Either::Right(()),
+                _ => leptos::either::Either::Right(()),
             })
         }
     }
