@@ -76,7 +76,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 #### Action for Rerun OCR
 - updates the `should_ocr` bit in the db
 #### feedback on save
-#### prevent overscrolling out of the editor
 #### correctly show ids for anchors in the editor (prb base corpus wrong??)
 #### refactor the code to make the MsViewer component smaller in code size
 

@@ -300,7 +300,7 @@ pub fn MsViewer() -> impl IntoView {
 
                                                             view! {
                                                                 <div
-                                                                    class="w-0 grow overflow-auto border-r-2 border-slate-600 relative"
+                                                                    class="w-0 grow overflow-clip border-r-2 border-slate-600 relative"
                                                                     style="scrollbar-width: none;"
                                                                     node_ref=view_ref
                                                                     tabindex="0"

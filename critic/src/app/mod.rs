@@ -150,7 +150,7 @@ pub fn App() -> impl IntoView {
         // sets the document title
         <Title text="critic - textual criticism" />
 
-        <div class="h-screen w-screen flex flex-col bg-slate-900 text-white">
+        <div class="h-screen w-screen flex flex-col bg-slate-900 text-white overflow-clip">
             // Router
             <Router>
                 <NavBar top_level_pos=top_level_pos />
