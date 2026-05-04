@@ -1,17 +1,20 @@
 //! Communication with the postgres database
 
+use std::collections::HashMap;
+
 use critic_format::{ConversionError, page_from_xml, streamed::Block};
 use sqlx::{
-    Pool, Postgres, QueryBuilder,
+    Acquire, Executor, PgConnection, Pool, Postgres, QueryBuilder, Transaction,
+    pool::PoolConnection,
     postgres::types::{PgLSeg, PgPoint, PgPolygon},
     prelude::FromRow,
     query_as,
 };
 
 use critic_shared::{
-    Baseline, LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType, OwnStatus, PageMeta,
-    PageTodo, Point, Polygon, Region, RegionType, RetrainOptions, SegmentedPage, TextDirection,
-    VersificationScheme,
+    Baseline, BaselineContent, LanguageMetadata, ManuscriptMeta, ModelMetadata, ModelType,
+    OwnStatus, PageMeta, PageTodo, Point, Polygon, Region, RegionType, RetrainOptions,
+    SegmentedPage, TextDirection, TranscriptionLine, VersificationScheme,
 };
 
 use crate::auth_types::{AuthenticatedUser, NormalizedTokenResponse, UserInfo};
@@ -79,6 +82,8 @@ pub enum DBError {
     TeiConversion(critic_format::ConversionError),
     CannotUpdateOcr(sqlx::Error),
     DeleteRegions(sqlx::Error),
+    JoinError(tokio::task::JoinError),
+    SelectTranscription(sqlx::Error),
 }
 impl core::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -211,6 +216,12 @@ impl core::fmt::Display for DBError {
             }
             Self::DeleteRegions(e) => {
                 write!(f, "Unable to delete OCR regions: {e}")
+            }
+            Self::JoinError(e) => {
+                write!(f, "Unable to join multiple tokio tasks: {e}")
+            }
+            Self::SelectTranscription(e) => {
+                write!(f, "Unable to select transcriptions: {e}")
             }
         }
     }
@@ -1419,6 +1430,7 @@ pub async fn get_model_for_page(
     }
 }
 
+/// Insert the given [`SegmentedPage`] into the DB
 pub async fn insert_segmentation(
     pool: &Pool<Postgres>,
     msname: &str,
@@ -1510,13 +1522,30 @@ pub async fn insert_segmentation(
     tx.commit().await.map_err(DBError::CannotCommitTransaction)
 }
 
-/// Get the segmentation for this page
-pub async fn get_segmentation(
-    pool: &Pool<Postgres>,
+/// Defines a list of users to consider - either None, all, or some finite number of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UserListing {
+    None,
+    All,
+    These(Vec<String>),
+}
+impl UserListing {
+    pub fn contains_user(&self, user: &str) -> bool {
+        match self {
+            UserListing::None => false,
+            UserListing::All => true,
+            UserListing::These(users) => users.iter().any(|u| u == user),
+        }
+    }
+}
+
+/// Given a manuscript and page, get the regions on that page.
+async fn get_regions_from_ms_and_page(
+    executor: impl Executor<'_, Database = Postgres>,
     msname: &str,
     pagename: &str,
-) -> Result<SegmentedPage, DBError> {
-    let mut regions = sqlx::query!(
+) -> Result<Vec<Region>, DBError> {
+    Ok(sqlx::query!(
         r#"SELECT region.id, region.polygon, region.region_type as "region_type: RegionType"
         FROM region
         INNER JOIN page ON page.id = region.page
@@ -1525,7 +1554,7 @@ pub async fn get_segmentation(
         msname,
         pagename,
     )
-    .fetch_all(&*pool)
+    .fetch_all(executor)
     .await
     .map_err(DBError::CannotGetOcr)?
     .into_iter()
@@ -1545,13 +1574,20 @@ pub async fn get_segmentation(
                 .collect(),
         },
     })
-    .collect::<Vec<_>>();
-    for region in regions.iter_mut() {
-        let baselines = sqlx::query!(
-            "SELECT
+    .collect::<Vec<_>>())
+}
+
+/// Given a region, get the baselines in this region, but do not return transcriptions on it
+async fn get_baselines_for_region_without_transcriptions(
+    conn: &mut PoolConnection<Postgres>,
+    region_id: i64,
+) -> Result<Vec<Baseline>, DBError> {
+    sqlx::query!(
+        "SELECT
                 line.id,
                 baseline,
                 boundary,
+                ocr_content,
                 proposed_basetext,
                 (SELECT name FROM language
                     WHERE language.id =
@@ -1567,21 +1603,23 @@ pub async fn get_segmentation(
             INNER JOIN manuscript ON manuscript.id = page.manuscript
             WHERE region = $1
             ;",
-            region.id
-        )
-        .fetch_all(&*pool)
-        .await
-        .map_err(DBError::CannotGetOcr)?
-        .into_iter()
-        .map(|r| {
-            Ok(Baseline {
-                id: r.id,
-                baseline: (
-                    Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
-                    Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
-                ),
-                boundary: r.boundary.into(),
-                content: r
+        region_id
+    )
+    .fetch_all(&mut **conn)
+    .await
+    .map_err(DBError::CannotGetOcr)?
+    .into_iter()
+    .map(|r| {
+        Ok(Baseline {
+            id: r.id,
+            baseline: (
+                Point::from((r.baseline.start_x as u32, r.baseline.start_y as u32)),
+                Point::from((r.baseline.end_x as u32, r.baseline.end_y as u32)),
+            ),
+            boundary: r.boundary.into(),
+            content: BaselineContent {
+                ocr_content: r.ocr_content,
+                base_corpus: r
                     .proposed_basetext
                     .map(|text| -> Result<Vec<_>, _> {
                         Ok(
@@ -1591,10 +1629,118 @@ pub async fn get_segmentation(
                         )
                     })
                     .unwrap_or_else(|| Ok(Vec::default()))?,
-            })
+                transcriptions: HashMap::default(),
+            },
         })
-        .collect::<Result<Vec<_>, _>>()?;
-        region.baselines = baselines;
+    })
+    .collect::<Result<Vec<_>, _>>()
+}
+
+/// Given a [`Region`] and a [`UserListing`], get all transcriptions on that page for these users.
+async fn get_transcriptions_in_region(
+    conn: &mut PoolConnection<Postgres>,
+    region_id: i64,
+    users: UserListing,
+) -> Result<Vec<TranscriptionLine>, DBError> {
+    // TODO filter in the DB instead of in rust
+    Ok(sqlx::query!(
+        r#"SELECT
+                transcription_with_language.id as "id!",
+                line as "line!",
+                published as "published!",
+                username as "username!",
+                content as "content!",
+                language_name as "language_name!"
+            FROM transcription_with_language
+            WHERE region = $1"#,
+        region_id
+    )
+    .fetch_all(&mut **conn)
+    .await
+    .map_err(DBError::SelectTranscription)?
+    .into_iter()
+    .filter(|record| users.contains_user(&record.username))
+    .map(
+        |record| match page_from_xml(record.content.as_bytes(), &record.language_name) {
+            Ok((blocks, _pagename)) => Ok(TranscriptionLine {
+                id: record.id,
+                line_id: record.line,
+                published: record.published,
+                username: record.username,
+                transcription_xml: blocks,
+            }),
+            Err(e) => Err(DBError::TeiConversion(e)),
+        },
+    )
+    .collect::<Result<Vec<_>, _>>()?)
+}
+
+/// Given a [`Region`] and a [`UserListing`], find the baselines with their OCR content, their base
+/// corpus content and the transcriptions by users in the [`UserListing`]
+async fn get_baselines_for_region(
+    mut conn: PoolConnection<Postgres>,
+    region_id: i64,
+    users: UserListing,
+) -> Result<Vec<Baseline>, DBError> {
+    let mut baselines =
+        get_baselines_for_region_without_transcriptions(&mut conn, region_id).await?;
+    let mut transcriptions = get_transcriptions_in_region(&mut conn, region_id, users).await?;
+    for baseline in baselines.iter_mut() {
+        for idx in 0..transcriptions.len() {
+            if let Some(transcription_line) = transcriptions.get_mut(idx) {
+                if transcription_line.line_id == baseline.id {
+                    let transcription = core::mem::take(transcription_line);
+                    baseline
+                        .content
+                        .transcriptions
+                        .insert(transcription.username.clone(), transcription);
+                }
+            }
+        }
+    }
+    Ok(baselines)
+}
+
+/// Get the segmentation for this page
+///
+/// When usernames are given, their transcriptions are also loaded.
+pub async fn get_segmentation(
+    pool: Pool<Postgres>,
+    msname: &str,
+    pagename: &str,
+    users: UserListing,
+) -> Result<SegmentedPage, DBError> {
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(DBError::CannotStartTransaction)?;
+    let mut regions = get_regions_from_ms_and_page(&mut *tx, msname, pagename).await?;
+
+    // TODO: make multiple requests in parallel to get the baselines and their transcriptions
+    let mut tasks = tokio::task::JoinSet::new();
+    for (idx, region) in regions.iter().enumerate() {
+        let region_id = region.id;
+        let our_users = users.clone();
+        let conn = pool
+            .acquire()
+            .await
+            .map_err(DBError::CannotStartTransaction)?;
+        tasks.spawn(async move {
+            let baselines = get_baselines_for_region(conn, region_id, our_users).await;
+            (idx, baselines)
+        });
+    }
+    while let Some(res) = tasks.join_next().await {
+        match res {
+            Err(e) => {
+                return Err(DBError::JoinError(e));
+            }
+            Ok((id, baselines)) => {
+                if let Some(region) = regions.get_mut(id) {
+                    region.baselines = baselines?;
+                }
+            }
+        }
     }
     Ok(SegmentedPage { regions })
 }
@@ -1608,24 +1754,30 @@ pub async fn update_ocr(
     no_re_ocr: bool,
 ) -> Result<(), DBError> {
     for region in &ocr_results.regions {
-        let contents = region
+        let ocr_content = region
+            .baselines
+            .iter()
+            .map(|bl| bl.content.ocr_content.clone())
+            .collect::<Vec<Option<String>>>();
+        let proposed_basetext = region
             .baselines
             .iter()
             .map(|bl| {
-                bl.content_as_xml(pagename.to_string())
+                bl.base_corpus_content_as_xml(pagename.to_string())
                     .map_err(DBError::TeiConversion)
             })
             .collect::<Result<Vec<Option<String>>, _>>()?;
         sqlx::query!(
             "UPDATE line
-            SET proposed_basetext = record.text FROM UNNEST($1::BIGINT[], $2::TEXT[]) as record(id, text)
+            SET ocr_content = record.ocr_content, proposed_basetext = record.proposed_basetext FROM UNNEST($1::BIGINT[], $2::TEXT[], $3::TEXT[]) as record(id, ocr_content, proposed_basetext)
             WHERE line.id = record.id;",
             &region
                 .baselines
                 .iter()
                 .map(|bl| bl.id)
                 .collect::<Vec<i64>>(),
-            &contents as _,
+            &ocr_content as _,
+            &proposed_basetext as _,
         ).execute(&*pool).await.map_err(DBError::CannotUpdateOcr)?;
     }
     if no_re_ocr {

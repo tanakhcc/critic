@@ -52,11 +52,29 @@ async fn get_segmentation(
     msname: String,
     pagename: String,
 ) -> Result<Option<SegmentedPage>, ServerFnError> {
+    use critic_server::auth::AuthSession;
+
+    let auth_session = match leptos_axum::extract::<AuthSession>().await {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = format!("Failed to get AuthSession: {e}");
+            tracing::warn!(msg);
+            return Err(ServerFnError::new(msg));
+        }
+    };
+    let Some(user) = auth_session.user else {
+        return Err(ServerFnError::new("No usersession available"));
+    };
     let config: std::sync::Arc<critic_config::Config> =
         use_context().ok_or(ServerFnError::new("Unable to get config from context"))?;
-    let segmentation = critic_db::get_segmentation(&config.db, &msname, &pagename)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let segmentation = critic_db::get_segmentation(
+        config.db.clone(),
+        &msname,
+        &pagename,
+        critic_db::UserListing::These(vec![user.username]),
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
     if segmentation.regions.iter().any(|r| !r.baselines.is_empty()) {
         Ok(Some(segmentation))
     } else {

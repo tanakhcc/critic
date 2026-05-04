@@ -65,7 +65,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 # TODOs - Redesign for visual Transcription Editor
 ## redo image editor
 ### Block Editor
-#### feedback on save
 #### make lines and polygons editable
 #### show this info in the sidebar when a line is selected
 - first we need to actually save this information somehwere
@@ -73,6 +72,11 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ##### Verse found automatically if any
 ##### OCR if already done (without base text search)
 #### actually save transcriptions
+- write db code
+- write action for publish all
+#### Action for Rerun OCR
+- updates the `should_ocr` bit in the db
+#### feedback on save
 #### prevent overscrolling out of the editor
 #### correctly show ids for anchors in the editor (prb base corpus wrong??)
 #### refactor the code to make the MsViewer component smaller in code size

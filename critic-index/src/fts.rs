@@ -12,7 +12,7 @@ use itertools::Itertools;
 use critic_config::Config;
 use critic_db::{get_unindexed_chunks_with_equality_alphabet, set_chunks_indexed};
 use critic_format::{streamed::Block, surface_form::SurfaceBaseText};
-use critic_shared::{InShutdown, urls::FTS_INDEX_BASE_LOCATION};
+use critic_shared::{BaselineContent, InShutdown, urls::FTS_INDEX_BASE_LOCATION};
 use tantivy::{
     Index, IndexReader, IndexWriter, Searcher, TantivyDocument, Term,
     collector::TopDocs,
@@ -511,7 +511,7 @@ pub async fn basetext_from_proposal(
     proposal: &[OcrRecord],
     language_used_in_ocr: &str,
     equality_alphabet: Option<&str>,
-) -> Result<Vec<Vec<Block>>, IndexError> {
+) -> Result<Vec<BaselineContent>, IndexError> {
     let schema = searcher.schema();
     let body = schema
         .get_field("surface_form")
@@ -535,7 +535,7 @@ pub async fn basetext_from_proposal(
     .await
     .map_err(IndexError::DB)?;
 
-    let mut res = vec![Vec::default(); proposal.len()];
+    let mut res = vec![BaselineContent::default(); proposal.len()];
     // fill res with the known line matches
     'line_match: for line_match in line_matches {
         let our_chunk = chunks
@@ -604,7 +604,7 @@ pub async fn basetext_from_proposal(
                         line_match.number_of_chars_matching,
                         equality_alphabet,
                     ));
-                    res[line_match.line_index] = tei_match;
+                    res[line_match.line_index].base_corpus = tei_match;
                     continue 'line_match;
                 } else {
                     total_content_length_taken += this_block_length;
@@ -673,20 +673,13 @@ pub async fn basetext_from_proposal(
                 break;
             }
         }
-        res[line_match.line_index] = tei_match;
+        res[line_match.line_index].base_corpus = tei_match;
     }
 
     // TODO: this is just WIP to see something in the output for lines where we found no match in
     // the base corpus
-    let mut count_not_found = 0;
     for idx in 0..res.len() {
-        if res[idx].is_empty() {
-            count_not_found += 1;
-            res[idx] = vec![Block::Text(critic_format::streamed::Paragraph {
-                lang: language_used_in_ocr.to_owned(),
-                content: proposal[idx].prediction.clone(),
-            })];
-        }
+        res[idx].ocr_content = Some(proposal[idx].prediction.clone());
     }
 
     // now infill between known line matches

@@ -2,7 +2,7 @@
 
 use critic_components::editor::blocks::EditorBlock;
 use critic_format::streamed::Block;
-use critic_shared::BaselineStoreFields;
+use critic_shared::{BaselineContentStoreFields, BaselineStoreFields};
 use leptos::prelude::*;
 
 use crate::app::view::line_editor::EditorWithTabs;
@@ -307,6 +307,7 @@ pub(super) fn BaselineEditor(
             selected.read().map(|sel| {
                 let blocks = RwSignal::new(
                     sel.content()
+                        .base_corpus()
                         .read()
                         .iter()
                         .enumerate()
@@ -322,7 +323,7 @@ pub(super) fn BaselineEditor(
                     let blocks_dehydrated: Vec<Block> =
                         blocks.iter().map(|b| b.inner.clone().into()).collect();
                     async move {
-                        sel.content().set(blocks_dehydrated.clone());
+                        sel.content().base_corpus().set(blocks_dehydrated.clone());
                         save_transcription(blocks_dehydrated, sel.id().get()).await?;
                         Ok(())
                     }
@@ -331,7 +332,7 @@ pub(super) fn BaselineEditor(
                     let blocks_dehydrated: Vec<Block> =
                         blocks.iter().map(|b| b.inner.clone().into()).collect();
                     async move {
-                        sel.content().set(blocks_dehydrated.clone());
+                        sel.content().base_corpus().set(blocks_dehydrated.clone());
                         save_transcription(blocks_dehydrated, sel.id().get()).await?;
                         publish_transcription(sel.id().get()).await?;
                         // also close the editor by deselecting this line

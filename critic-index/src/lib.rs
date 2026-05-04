@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use critic_config::Config;
 use critic_db::{DBError, get_next_kraken_task};
-use critic_shared::{Baseline, InShutdown, Point, Region, RegionType};
+use critic_shared::{Baseline, BaselineContent, InShutdown, Point, Region, RegionType};
 use itertools::Itertools;
 use ocr::handle_ocr_task;
 use pyo3::FromPyObject;
@@ -52,7 +52,7 @@ impl TryFrom<KrakenBaseline> for Baseline {
                 },
             ),
             boundary: value.boundary.try_into()?,
-            content: Vec::with_capacity(1),
+            content: BaselineContent::default(),
         })
     }
 }

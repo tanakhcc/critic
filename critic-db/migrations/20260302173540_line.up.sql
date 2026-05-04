@@ -9,6 +9,10 @@ CREATE TABLE line (
 	baseline LSEG NOT NULL,
 	--- the boundary around the baseline.
 	boundary POLYGON NOT NULL,
+	--- the raw OCR content that is proposed for this line
+	---
+	--- This is a raw string and does not use the FTS / base corpus at all
+	ocr_content TEXT,
 	--- the basetext proposed after running OCR and finding the correct spot in the base corpus
 	--- Before OCR is run, this will be NULL, since we only know the baseline itself.
 	---

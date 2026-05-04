@@ -1,5 +1,6 @@
 //! Types and functions shared by App and Server
 
+use std::collections::HashMap;
 use std::fmt::write;
 
 use critic_format::{destream::StreamError, page_to_xml, streamed::Block};
@@ -391,6 +392,44 @@ impl core::fmt::Display for Point {
     }
 }
 
+/// The transcription by a user on a given line
+#[derive(Default, Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TranscriptionLine {
+    /// ID of this transcription
+    pub id: i64,
+    /// ID of the line this transcription is for
+    pub line_id: i64,
+    /// user that has created this transcription
+    pub username: String,
+    /// content of the transcription
+    pub transcription_xml: Vec<Block>,
+    /// this transcription is published
+    pub published: bool,
+}
+
+#[derive(Debug, Clone, Store, Deserialize, Serialize)]
+pub struct BaselineContent {
+    // the raw result from OCR
+    pub ocr_content: Option<String>,
+    // the proposed part of the base corpus
+    pub base_corpus: Vec<critic_format::streamed::Block>,
+    // the different transcriptions available and loaded for this line
+    //
+    // Not all transcriptions are always loaded for a BaseLine
+    //
+    // The Key is the username that created this transcription
+    pub transcriptions: HashMap<String, TranscriptionLine>,
+}
+impl core::default::Default for BaselineContent {
+    fn default() -> Self {
+        BaselineContent {
+            ocr_content: None,
+            base_corpus: Vec::default(),
+            transcriptions: HashMap::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Store, Deserialize, Serialize)]
 pub struct Baseline {
     pub id: i64,
@@ -398,33 +437,36 @@ pub struct Baseline {
     pub boundary: Polygon,
     /// actual content - this will be the plain text we got from the base text of a single block
     /// containing the literal ocr result
-    pub content: Vec<critic_format::streamed::Block>,
+    pub content: BaselineContent,
 }
 impl Baseline {
-    /// Return the content on this Baseline as XML string if possible
-    pub fn content_as_xml(
+    /// Return the base corpus content on this Baseline as XML string if possible
+    pub fn base_corpus_content_as_xml(
         &self,
         pagename: String,
     ) -> Result<Option<String>, critic_format::ConversionError> {
-        if self.content.is_empty() {
+        if self.content.base_corpus.is_empty() {
             Ok(None)
         } else {
-            page_to_xml(self.content.clone(), pagename).map(|s| Some(s))
+            page_to_xml(self.content.base_corpus.clone(), pagename).map(|s| Some(s))
         }
     }
 
-    /// Return the content on this Baseline as XML string if possible
-    pub fn into_xml(
+    /// Return the base corpus content on this Baseline as XML string if possible
+    pub fn base_corpus_content_into_xml(
         self,
         pagename: String,
     ) -> Result<Option<String>, critic_format::ConversionError> {
-        if self.content.is_empty() {
+        if self.content.base_corpus.is_empty() {
             Ok(None)
         } else {
-            page_to_xml(self.content, pagename).map(|s| Some(s))
+            page_to_xml(self.content.base_corpus, pagename).map(|s| Some(s))
         }
     }
 
+    /// the centroid of this Lines baseline
+    ///
+    /// This is different from this [`Baseline`]s boundaries content
     pub fn centroid(&self) -> Point {
         Point {
             x: (self.baseline.0.x + self.baseline.1.x) / 2,
@@ -523,7 +565,10 @@ pub struct SegmentedPage {
 }
 impl SegmentedPage {
     /// Insert the `indexed_basetext` into the correct line in `segmentation`
-    pub fn insert_basetext_into_segmentation(&mut self, mut indexed_basetext: Vec<Vec<Block>>) {
+    pub fn insert_basetext_into_segmentation(
+        &mut self,
+        mut indexed_basetext: Vec<BaselineContent>,
+    ) {
         let mut current_bl_offset = 0;
         for region in self.regions.iter_mut() {
             let baselines_length = region.baselines.len();

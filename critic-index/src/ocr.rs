@@ -131,7 +131,13 @@ pub async fn handle_ocr_task(
     .collect();
 
     // get the baselines from the DB
-    let mut segmentation = get_segmentation(&config.db, &task.manuscript, &task.page).await?;
+    let mut segmentation = get_segmentation(
+        config.db.clone(),
+        &task.manuscript,
+        &task.page,
+        critic_db::UserListing::None,
+    )
+    .await?;
     let language = get_language_for_page(&config.db, &task.manuscript, &task.page).await?;
 
     // get the OCR result from kraken
