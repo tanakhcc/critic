@@ -1871,7 +1871,7 @@ pub async fn save_transcription(
     let content = page_to_xml(blocks, format!("transcription {line_id}/{username}"))
         .map_err(DBError::TeiConversion)?;
     sqlx::query!(
-        "INSERT INTO transcription (line, username, content) VALUES ($1, $2, $3)",
+        "INSERT INTO transcription (line, username, content) VALUES ($1, $2, $3) ON CONFLICT (line, username) DO UPDATE SET content = $3",
         line_id,
         username,
         content
