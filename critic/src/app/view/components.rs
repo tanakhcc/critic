@@ -375,7 +375,18 @@ pub async fn save_transcription(blocks: Vec<Block>, line_id: i64) -> Result<(), 
         .ok_or(ServerFnError::new("Unable to get config from context"))?;
 
     // save the fact that this transcription exists to the DB
-    Ok(critic_db::save_transcription(&config.db, blocks, line_id, &user.username).await?)
+    Ok(
+        match critic_db::save_transcription(&config.db, blocks, line_id, &user.username).await {
+            Ok(x) => {
+                tracing::debug!("User {} saved a new transcription.", user.username);
+                Ok(x)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to save transcription to DB: {e}");
+                Err(e)
+            }
+        }?,
+    )
 }
 
 /// Publish the transcription for an individual line

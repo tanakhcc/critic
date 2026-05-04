@@ -3,7 +3,7 @@
 CREATE TABLE transcription (
 	id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
 	--- the baseline this transcription is for
-	line BIGINT NOT NULL REFERENCES page(id),
+	line BIGINT NOT NULL REFERENCES line(id),
 	--- does the user wish this transcription to be viewable
 	published BOOL NOT NULL DEFAULT false,
 	--- the name of the user who created this transcription

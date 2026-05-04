@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use critic_format::{ConversionError, page_from_xml, streamed::Block};
+use critic_format::{ConversionError, page_from_xml, page_to_xml, streamed::Block};
 use sqlx::{
     Acquire, Executor, PgConnection, Pool, Postgres, QueryBuilder, Transaction,
     pool::PoolConnection,
@@ -1868,8 +1868,18 @@ pub async fn save_transcription(
     line_id: i64,
     username: &str,
 ) -> Result<(), DBError> {
-    eprintln!("save_transcription called with {blocks:?}");
-    Ok(())
+    let content = page_to_xml(blocks, format!("transcription {line_id}/{username}"))
+        .map_err(DBError::TeiConversion)?;
+    sqlx::query!(
+        "INSERT INTO transcription (line, username, content) VALUES ($1, $2, $3)",
+        line_id,
+        username,
+        content
+    )
+    .execute(pool)
+    .await
+    .map_err(DBError::CannotInsertTranscription)
+    .map(|_| ())
 }
 
 /// Publish the given transcription
@@ -1878,6 +1888,13 @@ pub async fn publish_transcription(
     line_id: i64,
     username: &str,
 ) -> Result<(), DBError> {
-    eprintln!("publish_transcription called");
-    Ok(())
+    sqlx::query!(
+        "UPDATE transcription SET published = true WHERE line = $1 AND username = $2",
+        line_id,
+        username
+    )
+    .execute(pool)
+    .await
+    .map_err(DBError::CannotPublish)
+    .map(|_| ())
 }

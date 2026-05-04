@@ -72,7 +72,6 @@ This is currently `150m` for endpoints under `/upload`. Other paths do not need 
 ##### Verse found automatically if any
 ##### OCR if already done (without base text search)
 #### actually save transcriptions
-- write db code
 - write action for publish all
 #### Action for Rerun OCR
 - updates the `should_ocr` bit in the db
